@@ -5,3 +5,6 @@
 .idea/
 captures/
 .DS_Store
+secure.signing.gradle
+*.jks
+*.keystore

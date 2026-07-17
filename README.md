@@ -14,17 +14,37 @@
 - пользовательская картинка для каждой иконки через Storage Access Framework;
 - строки, столбцы, размер и форма иконок, интервалы и отступы;
 - ширина панели, цвет, прозрачность, форма и радиус фона;
-- перетаскивание за ручку `⋮` и сохранение позиции;
+- опциональные однострочные названия приложений под иконками;
+- перетаскивание за ручку `⋮` либо удержанием пустого места при скрытой ручке;
 - автозапуск по `BOOT_COMPLETED`;
 - постоянное служебное уведомление, требуемое Android для foreground service.
 
 ## Сборка
 
 ```sh
-./gradlew assembleDebug
+sh gradlew --offline clean check assembleRelease
 ```
 
-Debug APK появляется в `app/build/outputs/apk/debug/app-debug.apk`.
+Release APK появляется в `app/build/outputs/apk/release/` и имеет базовое имя
+`<versionName>[<versionCode>]AtlasAppWidget-release`. Пока приватная release-подпись
+не настроена, Gradle добавляет суффикс `-unsigned.apk`.
+
+Для локального тестирования:
+
+```sh
+sh gradlew --offline assembleDebug
+```
+
+Debug APK имеет имя
+`app/build/outputs/apk/debug/<versionName>[<versionCode>]AtlasAppWidget-debug.apk`.
+
+### Release-подпись
+
+Для подписанного release скопируйте `app/_secure.signing.gradle` в корень проекта
+как `secure.signing.gradle`, заполните параметры ключа и положите keystore по пути,
+указанному в `storeFile`. Файл подписи и `*.jks`/`*.keystore` исключены из Git.
+Без этой локальной конфигурации `assembleRelease` намеренно создаёт unsigned APK;
+debug-ключ для release автоматически не используется.
 
 Application ID: `mmwtl.atlaswidget`.
 

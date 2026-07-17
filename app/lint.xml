@@ -1,7 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<lint>
-    <!-- The supplied artwork is intentionally a full-bleed square icon. -->
-    <issue id="IconLauncherShape">
-        <ignore path="src/main/res/mipmap-nodpi/ic_launcher.png" />
-    </issue>
-</lint>

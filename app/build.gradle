@@ -2,6 +2,15 @@ plugins {
     id 'com.android.application'
 }
 
+def appVersionCode = 2
+def appVersionName = '1.0.1'
+def secureSigningScript = providers.gradleProperty('secure.signing').orNull
+def secureSigningFile = secureSigningScript == null ? null : rootProject.file(secureSigningScript)
+
+base {
+    archivesName.set("${appVersionName}[${appVersionCode}]AtlasAppWidget")
+}
+
 android {
     namespace 'mmwtl.atlaswidget'
     compileSdk 36
@@ -10,8 +19,8 @@ android {
         applicationId 'mmwtl.atlaswidget'
         minSdk 30
         targetSdk 36
-        versionCode 1
-        versionName '1.0.0'
+        versionCode appVersionCode
+        versionName appVersionName
     }
 
     buildTypes {
@@ -25,4 +34,8 @@ android {
         sourceCompatibility JavaVersion.VERSION_17
         targetCompatibility JavaVersion.VERSION_17
     }
+}
+
+if (secureSigningFile != null && secureSigningFile.isFile()) {
+    apply from: secureSigningFile
 }
