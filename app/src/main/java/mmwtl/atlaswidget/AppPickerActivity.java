@@ -1,6 +1,5 @@
 package mmwtl.atlaswidget;
 
-import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.Intent;
 import android.graphics.Color;
@@ -31,7 +30,7 @@ import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
-public final class AppPickerActivity extends Activity {
+public final class AppPickerActivity extends ScaledActivity {
     private static final int REQUEST_ICON = 401;
 
     private final ExecutorService loader = Executors.newSingleThreadExecutor();

@@ -1,7 +1,6 @@
 package mmwtl.atlaswidget;
 
 import android.Manifest;
-import android.app.Activity;
 import android.content.ActivityNotFoundException;
 import android.content.Intent;
 import android.content.SharedPreferences;
@@ -27,7 +26,7 @@ import android.widget.Toast;
 
 import java.util.List;
 
-public final class MainActivity extends Activity
+public final class MainActivity extends ScaledActivity
         implements SharedPreferences.OnSharedPreferenceChangeListener {
     private interface ValueFormatter {
         String format(int value);
@@ -76,6 +75,10 @@ public final class MainActivity extends Activity
     @Override
     public void onSharedPreferenceChanged(SharedPreferences sharedPreferences, String key) {
         runOnUiThread(() -> {
+            if (Prefs.KEY_APP_UI_SCALE_TENTHS.equals(key)) {
+                recreate();
+                return;
+            }
             refreshStatus();
             if (!Prefs.KEY_POSITION_X.equals(key) && !Prefs.KEY_POSITION_Y.equals(key)) {
                 refreshPreviewSoon();
@@ -319,7 +322,7 @@ public final class MainActivity extends Activity
                 prefs.getInt(Prefs.KEY_ROWS, 1),
                 String::valueOf,
                 value -> prefs.putInt(Prefs.KEY_ROWS, value));
-        addSlider(geometry, "Размер иконок", 40, 140,
+        addSlider(geometry, "Размер иконок", 40, 240,
                 prefs.getInt(Prefs.KEY_ICON_SIZE_DP, 72),
                 value -> value + " dp",
                 value -> prefs.putInt(Prefs.KEY_ICON_SIZE_DP, value));
@@ -339,34 +342,9 @@ public final class MainActivity extends Activity
 
         LinearLayout background = Ui.card(this);
         background.addView(Ui.heading(this, "4. Фон панели", 20));
-        TextView shapeLabel = Ui.text(this, "Форма", 14, Ui.TEXT);
-        Ui.topMargin(shapeLabel, 15);
-        background.addView(shapeLabel);
-        Spinner shape = new Spinner(this);
-        String[] shapes = {"Прямоугольник", "Настраиваемое скругление", "Капсула"};
-        ArrayAdapter<String> shapeAdapter = new ArrayAdapter<>(
-                this,
-                android.R.layout.simple_spinner_item,
-                shapes
-        );
-        shapeAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
-        shape.setAdapter(shapeAdapter);
-        shape.setSelection(prefs.getInt(Prefs.KEY_PANEL_SHAPE, 1));
-        shape.setOnItemSelectedListener(new android.widget.AdapterView.OnItemSelectedListener() {
-            @Override
-            public void onItemSelected(android.widget.AdapterView<?> parent, View view, int position, long id) {
-                prefs.putInt(Prefs.KEY_PANEL_SHAPE, position);
-            }
-
-            @Override
-            public void onNothingSelected(android.widget.AdapterView<?> parent) {
-            }
-        });
-        background.addView(shape);
-
         addSlider(background, "Радиус панели", 0, 80,
                 prefs.getInt(Prefs.KEY_PANEL_RADIUS_DP, 8),
-                value -> value + " dp",
+                value -> value == 0 ? "прямоугольник" : value + " dp",
                 value -> prefs.putInt(Prefs.KEY_PANEL_RADIUS_DP, value));
         addSlider(background, "Прозрачность фона", 0, 255,
                 prefs.getInt(Prefs.KEY_BACKGROUND_ALPHA, 235),
@@ -426,6 +404,19 @@ public final class MainActivity extends Activity
         notes.addView(note);
         content.addView(notes);
 
+        LinearLayout scale = Ui.card(this);
+        scale.addView(Ui.heading(this, "5. Масштаб приложения", 20));
+        TextView scaleHint = Ui.text(this,
+                "Меняет размер экранов и элементов приложения без изменения системного масштаба ГУ. Геометрия overlay-панели настраивается отдельно выше.",
+                13,
+                Ui.TEXT_SECONDARY
+        );
+        scaleHint.setLineSpacing(0, 1.1f);
+        Ui.topMargin(scaleHint, 6);
+        scale.addView(scaleHint);
+        addScaleSlider(scale);
+        content.addView(scale);
+
         return scroll;
     }
 
@@ -479,6 +470,57 @@ public final class MainActivity extends Activity
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.WRAP_CONTENT
         ));
+    }
+
+    private void addScaleSlider(LinearLayout parent) {
+        int current = configuredScaleTenths(this);
+        LinearLayout header = new LinearLayout(this);
+        header.setOrientation(LinearLayout.HORIZONTAL);
+        header.setGravity(Gravity.CENTER_VERTICAL);
+        Ui.topMargin(header, 15);
+        TextView name = Ui.text(this, "Масштаб", 14, Ui.TEXT);
+        header.addView(name, new LinearLayout.LayoutParams(
+                0,
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                1f
+        ));
+        TextView valueLabel = Ui.text(this, formatScale(current), 14, Ui.TEXT_SECONDARY);
+        valueLabel.setGravity(Gravity.END | Gravity.CENTER_VERTICAL);
+        header.addView(valueLabel);
+        parent.addView(header);
+
+        SeekBar seekBar = new SeekBar(this);
+        seekBar.setMin(MIN_SCALE_TENTHS);
+        seekBar.setMax(MAX_SCALE_TENTHS);
+        seekBar.setProgress(current);
+        seekBar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+            @Override
+            public void onProgressChanged(SeekBar bar, int value, boolean fromUser) {
+                valueLabel.setText(formatScale(value));
+            }
+
+            @Override
+            public void onStartTrackingTouch(SeekBar seekBar) {
+            }
+
+            @Override
+            public void onStopTrackingTouch(SeekBar seekBar) {
+                int value = seekBar.getProgress();
+                if (value != configuredScaleTenths(MainActivity.this)) {
+                    prefs.putInt(Prefs.KEY_APP_UI_SCALE_TENTHS, value);
+                }
+            }
+        });
+        parent.addView(seekBar, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+        ));
+    }
+
+    private String formatScale(int tenths) {
+        return tenths % 10 == 0
+                ? tenths / 10 + "×"
+                : tenths / 10 + "." + tenths % 10 + "×";
     }
 
     private void refreshStatus() {
@@ -560,7 +602,7 @@ public final class MainActivity extends Activity
         int available = Math.max(Ui.dp(this, 240),
                 previewContainer.getWidth() - previewContainer.getPaddingLeft() - previewContainer.getPaddingRight());
         PanelView panelPreview = new PanelView(
-                this,
+                getApplicationContext(),
                 prefs,
                 prefs.panelConfig(),
                 AppRepository.loadSelectedActivities(this, prefs),

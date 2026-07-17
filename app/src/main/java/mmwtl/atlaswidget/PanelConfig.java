@@ -22,7 +22,6 @@ final class PanelConfig {
     final int backgroundStrokeWidthDp;
     final int backgroundStrokeAlpha;
     final int backgroundStrokeColor;
-    final int panelShape;
     final int panelRadiusDp;
 
     PanelConfig(Prefs prefs) {
@@ -43,7 +42,6 @@ final class PanelConfig {
         backgroundStrokeWidthDp = prefs.getInt(Prefs.KEY_BACKGROUND_STROKE_WIDTH_DP, 2);
         backgroundStrokeAlpha = prefs.getInt(Prefs.KEY_BACKGROUND_STROKE_ALPHA, 200);
         backgroundStrokeColor = prefs.getInt(Prefs.KEY_BACKGROUND_STROKE_COLOR, 0xFF7893A0);
-        panelShape = prefs.getInt(Prefs.KEY_PANEL_SHAPE, 1);
         panelRadiusDp = prefs.getInt(Prefs.KEY_PANEL_RADIUS_DP, 8);
     }
 }

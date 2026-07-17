@@ -13,6 +13,7 @@ import java.util.List;
 final class Prefs {
     static final String KEY_AUTO_START = "auto_start";
     static final String KEY_SERVICE_ENABLED = "service_enabled";
+    static final String KEY_APP_UI_SCALE_TENTHS = "app_ui_scale_tenths";
     static final String KEY_SHOW_DRAG_HANDLE = "show_drag_handle";
     static final String KEY_DRAG_HANDLE_POSITION = "drag_handle_position";
     static final String KEY_SHOW_APP_LABELS = "show_app_labels";
@@ -29,7 +30,6 @@ final class Prefs {
     static final String KEY_BACKGROUND_STROKE_WIDTH_DP = "background_stroke_width_dp";
     static final String KEY_BACKGROUND_STROKE_ALPHA = "background_stroke_alpha";
     static final String KEY_BACKGROUND_STROKE_COLOR = "background_stroke_color";
-    static final String KEY_PANEL_SHAPE = "panel_shape";
     static final String KEY_PANEL_RADIUS_DP = "panel_radius_dp";
     static final String KEY_POSITION_X = "position_x";
     static final String KEY_POSITION_Y = "position_y";
