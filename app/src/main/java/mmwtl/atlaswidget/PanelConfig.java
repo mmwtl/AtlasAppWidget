@@ -1,7 +1,13 @@
 package mmwtl.atlaswidget;
 
 final class PanelConfig {
+    static final int HANDLE_LEFT = 0;
+    static final int HANDLE_RIGHT = 1;
+    static final int HANDLE_TOP = 2;
+    static final int HANDLE_BOTTOM = 3;
+
     final boolean showDragHandle;
+    final int dragHandlePosition;
     final boolean showAppLabels;
     final int widthPercent;
     final int columns;
@@ -15,11 +21,14 @@ final class PanelConfig {
     final boolean backgroundStrokeEnabled;
     final int backgroundStrokeWidthDp;
     final int backgroundStrokeAlpha;
+    final int backgroundStrokeColor;
     final int panelShape;
     final int panelRadiusDp;
 
     PanelConfig(Prefs prefs) {
         showDragHandle = prefs.getBoolean(Prefs.KEY_SHOW_DRAG_HANDLE, true);
+        dragHandlePosition = Math.max(HANDLE_LEFT, Math.min(HANDLE_BOTTOM,
+                prefs.getInt(Prefs.KEY_DRAG_HANDLE_POSITION, HANDLE_LEFT)));
         showAppLabels = prefs.getBoolean(Prefs.KEY_SHOW_APP_LABELS, false);
         widthPercent = prefs.getInt(Prefs.KEY_WIDTH_PERCENT, 72);
         columns = prefs.getInt(Prefs.KEY_COLUMNS, 5);
@@ -33,6 +42,7 @@ final class PanelConfig {
         backgroundStrokeEnabled = prefs.getBoolean(Prefs.KEY_BACKGROUND_STROKE_ENABLED, false);
         backgroundStrokeWidthDp = prefs.getInt(Prefs.KEY_BACKGROUND_STROKE_WIDTH_DP, 2);
         backgroundStrokeAlpha = prefs.getInt(Prefs.KEY_BACKGROUND_STROKE_ALPHA, 200);
+        backgroundStrokeColor = prefs.getInt(Prefs.KEY_BACKGROUND_STROKE_COLOR, 0xFF7893A0);
         panelShape = prefs.getInt(Prefs.KEY_PANEL_SHAPE, 1);
         panelRadiusDp = prefs.getInt(Prefs.KEY_PANEL_RADIUS_DP, 8);
     }

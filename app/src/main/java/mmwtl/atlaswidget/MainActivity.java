@@ -47,6 +47,7 @@ public final class MainActivity extends Activity
     private Switch backgroundStrokeSwitch;
     private FrameLayout previewContainer;
     private Button backgroundColorButton;
+    private Button backgroundStrokeColorButton;
     private boolean updatingSwitch;
 
     @Override
@@ -173,7 +174,7 @@ public final class MainActivity extends Activity
         control.addView(appLabelsSwitch);
 
         dragHandleSwitch = new Switch(this);
-        dragHandleSwitch.setText("Показывать ручку перетаскивания ⋮");
+        dragHandleSwitch.setText("Показывать ручку перетаскивания");
         dragHandleSwitch.setTextColor(Ui.TEXT);
         dragHandleSwitch.setTextSize(15);
         dragHandleSwitch.setPadding(0, Ui.dp(this, 14), 0, Ui.dp(this, 4));
@@ -183,6 +184,46 @@ public final class MainActivity extends Activity
             }
         });
         control.addView(dragHandleSwitch);
+
+        TextView dragHandlePositionLabel = Ui.text(this,
+                "Расположение ручки",
+                14,
+                Ui.TEXT
+        );
+        Ui.topMargin(dragHandlePositionLabel, 8);
+        control.addView(dragHandlePositionLabel);
+        Spinner dragHandlePosition = new Spinner(this);
+        String[] dragHandlePositions = {"Слева", "Справа", "Сверху", "Снизу"};
+        ArrayAdapter<String> dragHandlePositionAdapter = new ArrayAdapter<>(
+                this,
+                android.R.layout.simple_spinner_item,
+                dragHandlePositions
+        );
+        dragHandlePositionAdapter.setDropDownViewResource(
+                android.R.layout.simple_spinner_dropdown_item);
+        dragHandlePosition.setAdapter(dragHandlePositionAdapter);
+        dragHandlePosition.setSelection(Math.max(
+                PanelConfig.HANDLE_LEFT,
+                Math.min(PanelConfig.HANDLE_BOTTOM,
+                        prefs.getInt(Prefs.KEY_DRAG_HANDLE_POSITION, PanelConfig.HANDLE_LEFT))
+        ));
+        dragHandlePosition.setOnItemSelectedListener(
+                new android.widget.AdapterView.OnItemSelectedListener() {
+                    @Override
+                    public void onItemSelected(
+                            android.widget.AdapterView<?> parent,
+                            View view,
+                            int position,
+                            long id
+                    ) {
+                        prefs.putInt(Prefs.KEY_DRAG_HANDLE_POSITION, position);
+                    }
+
+                    @Override
+                    public void onNothingSelected(android.widget.AdapterView<?> parent) {
+                    }
+                });
+        control.addView(dragHandlePosition);
 
         TextView dragHandleHint = Ui.text(this,
                 "Если ручка скрыта, удерживайте пустое место панели 1 секунду, затем перетаскивайте.",
@@ -245,7 +286,7 @@ public final class MainActivity extends Activity
         LinearLayout preview = Ui.card(this);
         preview.addView(Ui.heading(this, "Предпросмотр", 20));
         TextView previewHint = Ui.text(this,
-                "Фактический размер задаётся в процентах ширины экрана ГУ. Ручку ⋮ можно скрыть в настройках выше.",
+                "Фактический размер задаётся в процентах ширины экрана ГУ. Ручку можно скрыть в настройках выше.",
                 13,
                 Ui.TEXT_SECONDARY
         );
@@ -332,6 +373,16 @@ public final class MainActivity extends Activity
                 value -> Math.round(value * 100f / 255f) + "%",
                 value -> prefs.putInt(Prefs.KEY_BACKGROUND_ALPHA, value));
 
+        backgroundColorButton = Ui.button(this, "Изменить цвет фона");
+        Ui.topMargin(backgroundColorButton, 12);
+        backgroundColorButton.setOnClickListener(view -> ColorPickerDialog.show(
+                this,
+                "Цвет фона",
+                prefs.getInt(Prefs.KEY_BACKGROUND_COLOR, 0xFF262626),
+                color -> prefs.putInt(Prefs.KEY_BACKGROUND_COLOR, color)
+        ));
+        background.addView(backgroundColorButton);
+
         backgroundStrokeSwitch = new Switch(this);
         backgroundStrokeSwitch.setText("Показывать обводку фона");
         backgroundStrokeSwitch.setTextColor(Ui.TEXT);
@@ -343,12 +394,16 @@ public final class MainActivity extends Activity
             }
         });
         background.addView(backgroundStrokeSwitch);
-        TextView strokeHint = Ui.text(this,
-                String.format("Цвет обводки — акцентный #%06X.", Ui.ACCENT & 0xFFFFFF),
-                13,
-                Ui.TEXT_SECONDARY
-        );
-        background.addView(strokeHint);
+
+        backgroundStrokeColorButton = Ui.button(this, "Изменить цвет обводки");
+        Ui.topMargin(backgroundStrokeColorButton, 8);
+        backgroundStrokeColorButton.setOnClickListener(view -> ColorPickerDialog.show(
+                this,
+                "Цвет обводки",
+                prefs.getInt(Prefs.KEY_BACKGROUND_STROKE_COLOR, Ui.ACCENT),
+                color -> prefs.putInt(Prefs.KEY_BACKGROUND_STROKE_COLOR, color)
+        ));
+        background.addView(backgroundStrokeColorButton);
         addSlider(background, "Толщина обводки", 1, 20,
                 prefs.getInt(Prefs.KEY_BACKGROUND_STROKE_WIDTH_DP, 2),
                 value -> value + " dp",
@@ -357,15 +412,6 @@ public final class MainActivity extends Activity
                 prefs.getInt(Prefs.KEY_BACKGROUND_STROKE_ALPHA, 200),
                 value -> Math.round(value * 100f / 255f) + "%",
                 value -> prefs.putInt(Prefs.KEY_BACKGROUND_STROKE_ALPHA, value));
-
-        backgroundColorButton = Ui.button(this, "Изменить цвет фона");
-        Ui.topMargin(backgroundColorButton, 12);
-        backgroundColorButton.setOnClickListener(view -> ColorPickerDialog.show(
-                this,
-                prefs.getInt(Prefs.KEY_BACKGROUND_COLOR, 0xFF262626),
-                color -> prefs.putInt(Prefs.KEY_BACKGROUND_COLOR, color)
-        ));
-        background.addView(backgroundColorButton);
         content.addView(background);
 
         LinearLayout notes = Ui.card(this);
@@ -474,13 +520,25 @@ public final class MainActivity extends Activity
                 capacity
         ));
 
-        int color = prefs.getInt(Prefs.KEY_BACKGROUND_COLOR, 0xFF262626);
-        backgroundColorButton.setText(String.format("Цвет фона  #%06X", color & 0xFFFFFF));
-        backgroundColorButton.setBackground(Ui.rounded(color, Ui.dp(this, 8)));
+        updateColorButton(
+                backgroundColorButton,
+                "Цвет фона",
+                prefs.getInt(Prefs.KEY_BACKGROUND_COLOR, 0xFF262626)
+        );
+        updateColorButton(
+                backgroundStrokeColorButton,
+                "Цвет обводки",
+                prefs.getInt(Prefs.KEY_BACKGROUND_STROKE_COLOR, Ui.ACCENT)
+        );
+    }
+
+    private void updateColorButton(Button button, String label, int color) {
+        button.setText(String.format("%s  #%06X", label, color & 0xFFFFFF));
+        button.setBackground(Ui.rounded(color, Ui.dp(this, 8)));
         double luminance = (0.2126 * Color.red(color)
                 + 0.7152 * Color.green(color)
                 + 0.0722 * Color.blue(color)) / 255.0;
-        backgroundColorButton.setTextColor(luminance > 0.62 ? Color.BLACK : Color.WHITE);
+        button.setTextColor(luminance > 0.62 ? Color.BLACK : Color.WHITE);
     }
 
     private void setStatus(TextView view, String text, boolean good) {

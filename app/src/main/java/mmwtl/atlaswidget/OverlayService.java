@@ -184,10 +184,10 @@ public final class OverlayService extends Service
         int storedY = prefs.getInt(Prefs.KEY_POSITION_Y, Prefs.POSITION_UNSET);
         params.x = storedX == Prefs.POSITION_UNSET
                 ? Math.max(0, (bounds.width() - candidate.panelWidth()) / 2)
-                : storedX;
+                : storedX - candidate.outlineInset();
         params.y = storedY == Prefs.POSITION_UNSET
                 ? Math.max(0, Math.round((bounds.height() - candidate.panelHeight()) * 0.72f))
-                : storedY;
+                : storedY - candidate.outlineInset();
         clampPosition(params, candidate, bounds);
 
         try {
@@ -241,8 +241,8 @@ public final class OverlayService extends Service
                 return true;
             case MotionEvent.ACTION_UP:
             case MotionEvent.ACTION_CANCEL:
-                prefs.putInt(Prefs.KEY_POSITION_X, panelParams.x);
-                prefs.putInt(Prefs.KEY_POSITION_Y, panelParams.y);
+                prefs.putInt(Prefs.KEY_POSITION_X, panelParams.x + panel.outlineInset());
+                prefs.putInt(Prefs.KEY_POSITION_Y, panelParams.y + panel.outlineInset());
                 return true;
             default:
                 return false;

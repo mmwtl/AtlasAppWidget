@@ -17,7 +17,7 @@ final class ColorPickerDialog {
     private ColorPickerDialog() {
     }
 
-    static void show(Context context, int initialColor, Listener listener) {
+    static void show(Context context, String title, int initialColor, Listener listener) {
         LinearLayout content = new LinearLayout(context);
         content.setOrientation(LinearLayout.VERTICAL);
         content.setPadding(Ui.dp(context, 24), Ui.dp(context, 10),
@@ -78,7 +78,7 @@ final class ColorPickerDialog {
         update.run();
 
         AlertDialog dialog = new AlertDialog.Builder(context)
-                .setTitle("Цвет фона")
+                .setTitle(title)
                 .setView(content)
                 .setNegativeButton("Отмена", null)
                 .setPositiveButton("Применить", null)

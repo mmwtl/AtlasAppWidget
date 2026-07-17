@@ -3,7 +3,9 @@ package mmwtl.atlaswidget;
 import android.annotation.SuppressLint;
 import android.content.Context;
 import android.graphics.Color;
+import android.graphics.drawable.Drawable;
 import android.graphics.drawable.GradientDrawable;
+import android.graphics.drawable.LayerDrawable;
 import android.text.TextUtils;
 import android.view.Gravity;
 import android.view.HapticFeedbackConstants;
@@ -32,6 +34,7 @@ final class PanelView extends LinearLayout {
 
     private final int panelWidth;
     private final int panelHeight;
+    private final int outlineInset;
     private EmptySpaceDragTouchListener emptySpaceDragTouchListener;
 
     PanelView(
@@ -44,12 +47,19 @@ final class PanelView extends LinearLayout {
             Listener listener
     ) {
         super(context);
-        setOrientation(HORIZONTAL);
-        setGravity(Gravity.CENTER_VERTICAL);
+        int handlePosition = config.dragHandlePosition;
+        boolean handleVertical = config.showDragHandle
+                && (handlePosition == PanelConfig.HANDLE_TOP
+                || handlePosition == PanelConfig.HANDLE_BOTTOM);
+        setOrientation(handleVertical ? VERTICAL : HORIZONTAL);
+        setGravity(handleVertical ? Gravity.CENTER_HORIZONTAL : Gravity.CENTER_VERTICAL);
 
+        outlineInset = config.backgroundStrokeEnabled
+                ? Ui.dp(context, Math.max(1, Math.min(20, config.backgroundStrokeWidthDp)))
+                : 0;
         int outerPadding = Ui.dp(context, config.paddingDp);
         int gap = Ui.dp(context, config.gapDp);
-        int handleWidth = config.showDragHandle ? Ui.dp(context, 34) : 0;
+        int handleSize = config.showDragHandle ? Ui.dp(context, 34) : 0;
         int handleGap = config.showDragHandle ? Ui.dp(context, 4) : 0;
         int configuredIconSize = Ui.dp(context, config.iconSizeDp);
         int labelHeight = config.showAppLabels ? Ui.dp(context, 20) : 0;
@@ -58,11 +68,18 @@ final class PanelView extends LinearLayout {
         int rows = Math.max(1, config.rows);
         int columns = Math.max(1, config.columns);
 
-        panelWidth = Math.max(Ui.dp(context, 180),
+        int backgroundWidth = Math.max(Ui.dp(context, 180),
                 Math.round(availableWidthPixels * Math.max(25, Math.min(100, config.widthPercent)) / 100f));
         int gridHeight = rows * cellHeight + Math.max(0, rows - 1) * gap;
-        panelHeight = Math.max(Ui.dp(context, 54), gridHeight + outerPadding * 2);
-        setPadding(outerPadding, outerPadding, outerPadding, outerPadding);
+        int backgroundHeight = Math.max(
+                Ui.dp(context, 54),
+                gridHeight + outerPadding * 2
+                        + (handleVertical ? handleSize + handleGap : 0)
+        );
+        panelWidth = backgroundWidth + outlineInset * 2;
+        panelHeight = backgroundHeight + outlineInset * 2;
+        int contentInset = outerPadding + outlineInset;
+        setPadding(contentInset, contentInset, contentInset, contentInset);
 
         int background = Color.argb(
                 Math.max(0, Math.min(255, config.backgroundAlpha)),
@@ -74,36 +91,60 @@ final class PanelView extends LinearLayout {
         if (config.panelShape == 0) {
             panelRadius = 0;
         } else if (config.panelShape == 2) {
-            panelRadius = panelHeight / 2f;
+            panelRadius = backgroundHeight / 2f;
         } else {
             panelRadius = Ui.dp(context, config.panelRadiusDp);
         }
-        GradientDrawable panelBackground = Ui.rounded(background, panelRadius);
+        GradientDrawable backgroundDrawable = Ui.rounded(background, panelRadius);
         if (config.backgroundStrokeEnabled) {
             int strokeAlpha = Math.max(0, Math.min(255, config.backgroundStrokeAlpha));
             int strokeColor = Color.argb(
                     strokeAlpha,
-                    Color.red(Ui.ACCENT),
-                    Color.green(Ui.ACCENT),
-                    Color.blue(Ui.ACCENT)
+                    Color.red(config.backgroundStrokeColor),
+                    Color.green(config.backgroundStrokeColor),
+                    Color.blue(config.backgroundStrokeColor)
             );
-            int strokeWidth = Ui.dp(context,
-                    Math.max(1, Math.min(20, config.backgroundStrokeWidthDp)));
-            panelBackground.setStroke(strokeWidth, strokeColor);
+            float outlineRadius = panelRadius == 0 ? 0 : panelRadius + outlineInset;
+            GradientDrawable outline = Ui.rounded(Color.TRANSPARENT, outlineRadius);
+            outline.setStroke(outlineInset, strokeColor);
+            LayerDrawable layers = new LayerDrawable(new Drawable[]{outline, backgroundDrawable});
+            layers.setPaddingMode(LayerDrawable.PADDING_MODE_STACK);
+            layers.setLayerInset(1, outlineInset, outlineInset, outlineInset, outlineInset);
+            setBackground(layers);
+        } else {
+            setBackground(backgroundDrawable);
         }
-        setBackground(panelBackground);
 
+        DragHandleView handle = null;
+        LinearLayout.LayoutParams handleParams = null;
         if (config.showDragHandle) {
-            DragHandleView handle = new DragHandleView(context);
-            handle.setText("⋮");
+            handle = new DragHandleView(context);
+            handle.setText(handleVertical ? "⋯" : "⋮");
             handle.setTextSize(28);
             handle.setTextColor(Ui.TEXT_SECONDARY);
             handle.setGravity(Gravity.CENTER);
             handle.setContentDescription("Перетащить панель");
-            LinearLayout.LayoutParams handleParams = new LinearLayout.LayoutParams(handleWidth,
-                    ViewGroup.LayoutParams.MATCH_PARENT);
-            handleParams.rightMargin = handleGap;
-            addView(handle, handleParams);
+            if (handleVertical) {
+                handleParams = new LinearLayout.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT,
+                        handleSize
+                );
+                if (handlePosition == PanelConfig.HANDLE_TOP) {
+                    handleParams.bottomMargin = handleGap;
+                } else {
+                    handleParams.topMargin = handleGap;
+                }
+            } else {
+                handleParams = new LinearLayout.LayoutParams(
+                        handleSize,
+                        ViewGroup.LayoutParams.MATCH_PARENT
+                );
+                if (handlePosition == PanelConfig.HANDLE_LEFT) {
+                    handleParams.rightMargin = handleGap;
+                } else {
+                    handleParams.leftMargin = handleGap;
+                }
+            }
             if (listener != null) {
                 handle.setOnTouchListener((view, event) -> {
                     if (event.getActionMasked() == MotionEvent.ACTION_UP) {
@@ -118,7 +159,13 @@ final class PanelView extends LinearLayout {
             setOnTouchListener(emptySpaceDragTouchListener);
         }
 
-        int gridWidth = Math.max(1, panelWidth - outerPadding * 2 - handleWidth - handleGap);
+        int horizontalHandleSpace = config.showDragHandle && !handleVertical
+                ? handleSize + handleGap
+                : 0;
+        int gridWidth = Math.max(
+                1,
+                backgroundWidth - outerPadding * 2 - horizontalHandleSpace
+        );
         int totalHorizontalGaps = Math.max(0, columns - 1) * gap;
         int cellWidth = Math.max(1, (gridWidth - totalHorizontalGaps) / columns);
         int actualIconSize = Math.max(1, Math.min(configuredIconSize, cellWidth));
@@ -128,7 +175,15 @@ final class PanelView extends LinearLayout {
         grid.setRowCount(rows);
         grid.setOrientation(GridLayout.HORIZONTAL);
         LinearLayout.LayoutParams gridParams = new LinearLayout.LayoutParams(gridWidth, gridHeight);
+        boolean handleBeforeGrid = handlePosition == PanelConfig.HANDLE_LEFT
+                || handlePosition == PanelConfig.HANDLE_TOP;
+        if (handle != null && handleBeforeGrid) {
+            addView(handle, handleParams);
+        }
         addView(grid, gridParams);
+        if (handle != null && !handleBeforeGrid) {
+            addView(handle, handleParams);
+        }
 
         int slotCount = rows * columns;
         for (int index = 0; index < slotCount; index++) {
@@ -166,6 +221,10 @@ final class PanelView extends LinearLayout {
 
     int panelHeight() {
         return panelHeight;
+    }
+
+    int outlineInset() {
+        return outlineInset;
     }
 
     @Override
