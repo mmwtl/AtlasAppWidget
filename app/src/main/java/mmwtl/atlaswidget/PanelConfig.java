@@ -1,6 +1,7 @@
 package mmwtl.atlaswidget;
 
 final class PanelConfig {
+    final boolean showDragHandle;
     final int widthPercent;
     final int columns;
     final int rows;
@@ -14,6 +15,7 @@ final class PanelConfig {
     final int panelRadiusDp;
 
     PanelConfig(Prefs prefs) {
+        showDragHandle = prefs.getBoolean(Prefs.KEY_SHOW_DRAG_HANDLE, true);
         widthPercent = prefs.getInt(Prefs.KEY_WIDTH_PERCENT, 72);
         columns = prefs.getInt(Prefs.KEY_COLUMNS, 5);
         rows = prefs.getInt(Prefs.KEY_ROWS, 1);

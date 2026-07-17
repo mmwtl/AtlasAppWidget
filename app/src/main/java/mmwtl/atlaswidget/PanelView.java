@@ -5,8 +5,10 @@ import android.content.Context;
 import android.graphics.Color;
 import android.graphics.drawable.GradientDrawable;
 import android.view.Gravity;
+import android.view.HapticFeedbackConstants;
 import android.view.MotionEvent;
 import android.view.View;
+import android.view.ViewConfiguration;
 import android.view.ViewGroup;
 import android.widget.FrameLayout;
 import android.widget.GridLayout;
@@ -25,9 +27,11 @@ final class PanelView extends LinearLayout {
     }
 
     private static final int[] PLACEHOLDER_COLORS = {0xFF7893A0};
+    private static final long EMPTY_SPACE_DRAG_DELAY_MS = 1_000L;
 
     private final int panelWidth;
     private final int panelHeight;
+    private EmptySpaceDragTouchListener emptySpaceDragTouchListener;
 
     PanelView(
             Context context,
@@ -44,8 +48,8 @@ final class PanelView extends LinearLayout {
 
         int outerPadding = Ui.dp(context, config.paddingDp);
         int gap = Ui.dp(context, config.gapDp);
-        int handleWidth = Ui.dp(context, 34);
-        int handleGap = Ui.dp(context, 4);
+        int handleWidth = config.showDragHandle ? Ui.dp(context, 34) : 0;
+        int handleGap = config.showDragHandle ? Ui.dp(context, 4) : 0;
         int configuredIconSize = Ui.dp(context, config.iconSizeDp);
         int rows = Math.max(1, config.rows);
         int columns = Math.max(1, config.columns);
@@ -72,23 +76,29 @@ final class PanelView extends LinearLayout {
         }
         setBackground(Ui.rounded(background, panelRadius));
 
-        DragHandleView handle = new DragHandleView(context);
-        handle.setText("⋮");
-        handle.setTextSize(28);
-        handle.setTextColor(Ui.TEXT_SECONDARY);
-        handle.setGravity(Gravity.CENTER);
-        handle.setContentDescription("Перетащить панель");
-        LinearLayout.LayoutParams handleParams = new LinearLayout.LayoutParams(handleWidth,
-                ViewGroup.LayoutParams.MATCH_PARENT);
-        handleParams.rightMargin = handleGap;
-        addView(handle, handleParams);
-        if (listener != null) {
-            handle.setOnTouchListener((view, event) -> {
-                if (event.getActionMasked() == MotionEvent.ACTION_UP) {
-                    view.performClick();
-                }
-                return listener.onHandleTouch(view, event);
-            });
+        if (config.showDragHandle) {
+            DragHandleView handle = new DragHandleView(context);
+            handle.setText("⋮");
+            handle.setTextSize(28);
+            handle.setTextColor(Ui.TEXT_SECONDARY);
+            handle.setGravity(Gravity.CENTER);
+            handle.setContentDescription("Перетащить панель");
+            LinearLayout.LayoutParams handleParams = new LinearLayout.LayoutParams(handleWidth,
+                    ViewGroup.LayoutParams.MATCH_PARENT);
+            handleParams.rightMargin = handleGap;
+            addView(handle, handleParams);
+            if (listener != null) {
+                handle.setOnTouchListener((view, event) -> {
+                    if (event.getActionMasked() == MotionEvent.ACTION_UP) {
+                        view.performClick();
+                    }
+                    return listener.onHandleTouch(view, event);
+                });
+            }
+        } else if (listener != null) {
+            setClickable(true);
+            emptySpaceDragTouchListener = new EmptySpaceDragTouchListener(listener);
+            setOnTouchListener(emptySpaceDragTouchListener);
         }
 
         int gridWidth = Math.max(1, panelWidth - outerPadding * 2 - handleWidth - handleGap);
@@ -140,6 +150,20 @@ final class PanelView extends LinearLayout {
         return panelHeight;
     }
 
+    @Override
+    public boolean performClick() {
+        super.performClick();
+        return true;
+    }
+
+    @Override
+    protected void onDetachedFromWindow() {
+        if (emptySpaceDragTouchListener != null) {
+            emptySpaceDragTouchListener.cancel();
+        }
+        super.onDetachedFromWindow();
+    }
+
     private void addAppIcon(
             FrameLayout cell,
             Prefs prefs,
@@ -188,5 +212,98 @@ final class PanelView extends LinearLayout {
         mask.setBackground(background);
         mask.setClipToOutline(true);
         return mask;
+    }
+
+    private final class EmptySpaceDragTouchListener implements OnTouchListener {
+        private final Listener listener;
+        private final int touchSlopSquared;
+        private final Runnable activateDrag;
+
+        private MotionEvent downEvent;
+        private float downRawX;
+        private float downRawY;
+        private boolean waiting;
+        private boolean dragging;
+
+        EmptySpaceDragTouchListener(Listener listener) {
+            this.listener = listener;
+            int touchSlop = ViewConfiguration.get(getContext()).getScaledTouchSlop();
+            touchSlopSquared = touchSlop * touchSlop;
+            activateDrag = this::activateDrag;
+        }
+
+        @Override
+        public boolean onTouch(View view, MotionEvent event) {
+            switch (event.getActionMasked()) {
+                case MotionEvent.ACTION_DOWN:
+                    cancel();
+                    downEvent = MotionEvent.obtain(event);
+                    downRawX = event.getRawX();
+                    downRawY = event.getRawY();
+                    waiting = true;
+                    postDelayed(activateDrag, EMPTY_SPACE_DRAG_DELAY_MS);
+                    return true;
+                case MotionEvent.ACTION_MOVE:
+                    if (dragging) {
+                        listener.onHandleTouch(view, event);
+                    } else if (waiting) {
+                        float deltaX = event.getRawX() - downRawX;
+                        float deltaY = event.getRawY() - downRawY;
+                        if (deltaX * deltaX + deltaY * deltaY > touchSlopSquared) {
+                            cancelPendingDrag();
+                        }
+                    }
+                    return true;
+                case MotionEvent.ACTION_UP:
+                    if (dragging) {
+                        listener.onHandleTouch(view, event);
+                    } else {
+                        view.performClick();
+                    }
+                    cancel();
+                    return true;
+                case MotionEvent.ACTION_CANCEL:
+                    if (dragging) {
+                        listener.onHandleTouch(view, event);
+                    }
+                    cancel();
+                    return true;
+                default:
+                    return true;
+            }
+        }
+
+        void cancel() {
+            removeCallbacks(activateDrag);
+            recycleDownEvent();
+            waiting = false;
+            dragging = false;
+        }
+
+        private void activateDrag() {
+            if (!waiting || downEvent == null || !isAttachedToWindow()) {
+                cancel();
+                return;
+            }
+            waiting = false;
+            performHapticFeedback(HapticFeedbackConstants.LONG_PRESS);
+            MotionEvent startEvent = downEvent;
+            downEvent = null;
+            dragging = listener.onHandleTouch(PanelView.this, startEvent);
+            startEvent.recycle();
+        }
+
+        private void cancelPendingDrag() {
+            removeCallbacks(activateDrag);
+            recycleDownEvent();
+            waiting = false;
+        }
+
+        private void recycleDownEvent() {
+            if (downEvent != null) {
+                downEvent.recycle();
+                downEvent = null;
+            }
+        }
     }
 }

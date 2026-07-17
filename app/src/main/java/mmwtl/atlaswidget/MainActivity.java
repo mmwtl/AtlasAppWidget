@@ -42,6 +42,7 @@ public final class MainActivity extends Activity
     private TextView serviceStatus;
     private TextView selectedSummary;
     private Switch autoStartSwitch;
+    private Switch dragHandleSwitch;
     private FrameLayout previewContainer;
     private Button backgroundColorButton;
     private boolean updatingSwitch;
@@ -157,6 +158,26 @@ public final class MainActivity extends Activity
         appsButton.setOnClickListener(view -> startActivity(new Intent(this, AppPickerActivity.class)));
         control.addView(appsButton);
 
+        dragHandleSwitch = new Switch(this);
+        dragHandleSwitch.setText("Показывать ручку перетаскивания ⋮");
+        dragHandleSwitch.setTextColor(Ui.TEXT);
+        dragHandleSwitch.setTextSize(15);
+        dragHandleSwitch.setPadding(0, Ui.dp(this, 14), 0, Ui.dp(this, 4));
+        dragHandleSwitch.setOnCheckedChangeListener((button, checked) -> {
+            if (!updatingSwitch) {
+                prefs.putBoolean(Prefs.KEY_SHOW_DRAG_HANDLE, checked);
+            }
+        });
+        control.addView(dragHandleSwitch);
+
+        TextView dragHandleHint = Ui.text(this,
+                "Если ручка скрыта, удерживайте пустое место панели 1 секунду, затем перетаскивайте.",
+                13,
+                Ui.TEXT_SECONDARY
+        );
+        dragHandleHint.setLineSpacing(0, 1.1f);
+        control.addView(dragHandleHint);
+
         autoStartSwitch = new Switch(this);
         autoStartSwitch.setText("Автозапуск после загрузки ГУ");
         autoStartSwitch.setTextColor(Ui.TEXT);
@@ -210,7 +231,7 @@ public final class MainActivity extends Activity
         LinearLayout preview = Ui.card(this);
         preview.addView(Ui.heading(this, "Предпросмотр", 20));
         TextView previewHint = Ui.text(this,
-                "Фактический размер задаётся в процентах ширины экрана ГУ. Перетаскивание доступно за символ ⋮.",
+                "Фактический размер задаётся в процентах ширины экрана ГУ. Ручку ⋮ можно скрыть в настройках выше.",
                 13,
                 Ui.TEXT_SECONDARY
         );
@@ -396,6 +417,7 @@ public final class MainActivity extends Activity
                 serviceEnabled);
         updatingSwitch = true;
         autoStartSwitch.setChecked(prefs.getBoolean(Prefs.KEY_AUTO_START, false));
+        dragHandleSwitch.setChecked(prefs.getBoolean(Prefs.KEY_SHOW_DRAG_HANDLE, true));
         updatingSwitch = false;
 
         List<String> selected = prefs.selectedComponents();
