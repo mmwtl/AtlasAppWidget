@@ -1,4 +1,4 @@
-package mmwtl.atlaswidget;
+package mmwtl.atlasappwidget;
 
 import android.Manifest;
 import android.content.ActivityNotFoundException;
@@ -99,7 +99,7 @@ public final class MainActivity extends ScaledActivity
                 ViewGroup.LayoutParams.WRAP_CONTENT
         ));
 
-        TextView title = Ui.heading(this, "Atlas Widget", 30);
+        TextView title = Ui.heading(this, "Atlas App Widget", 30);
         content.addView(title);
         TextView subtitle = Ui.text(this,
                 "Плавающая панель launchable activity для Android 11. Вне панели экран остаётся полностью интерактивным.",

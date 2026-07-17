@@ -1,4 +1,4 @@
-package mmwtl.atlaswidget;
+package mmwtl.atlasappwidget;
 
 final class PanelConfig {
     static final int HANDLE_LEFT = 0;

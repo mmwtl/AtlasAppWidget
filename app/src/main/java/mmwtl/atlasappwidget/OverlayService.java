@@ -1,4 +1,4 @@
-package mmwtl.atlaswidget;
+package mmwtl.atlasappwidget;
 
 import android.app.Notification;
 import android.app.NotificationChannel;
@@ -26,10 +26,10 @@ import java.util.List;
 
 public final class OverlayService extends Service
         implements SharedPreferences.OnSharedPreferenceChangeListener, PanelView.Listener {
-    static final String ACTION_START = "mmwtl.atlaswidget.action.START";
-    static final String ACTION_STOP = "mmwtl.atlaswidget.action.STOP";
+    static final String ACTION_START = "mmwtl.atlasappwidget.action.START";
+    static final String ACTION_STOP = "mmwtl.atlasappwidget.action.STOP";
 
-    private static final String CHANNEL_ID = "atlas_widget_service";
+    private static final String CHANNEL_ID = "atlas_app_widget_service";
     private static final int NOTIFICATION_ID = 2107;
     private static final int POLL_INTERVAL_MS = 450;
     private static final int NOTIFICATION_VISIBLE = 1;

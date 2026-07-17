@@ -1,4 +1,4 @@
-package mmwtl.atlaswidget;
+package mmwtl.atlasappwidget;
 
 import android.content.Context;
 import android.content.SharedPreferences;
@@ -42,7 +42,7 @@ final class Prefs {
 
     Prefs(Context context) {
         values = context.getApplicationContext()
-                .getSharedPreferences("atlas_widget_settings", Context.MODE_PRIVATE);
+                .getSharedPreferences("atlas_app_widget_settings", Context.MODE_PRIVATE);
     }
 
     SharedPreferences raw() {

@@ -1,4 +1,4 @@
-package mmwtl.atlaswidget;
+package mmwtl.atlasappwidget;
 
 import android.app.AlertDialog;
 import android.content.Intent;
