@@ -26,8 +26,8 @@ sh gradlew --offline clean check assembleRelease
 ```
 
 Release APK появляется в `app/build/outputs/apk/release/` и имеет базовое имя
-`<versionName>[<versionCode>]AtlasAppWidget-release`. Пока приватная release-подпись
-не настроена, Gradle добавляет суффикс `-unsigned.apk`.
+`<versionName>[<versionCode>]AtlasAppWidget-release.apk`. Если локальная
+release-подпись отсутствует, Gradle добавляет суффикс `-unsigned.apk`.
 
 Для локального тестирования:
 
@@ -42,9 +42,10 @@ Debug APK имеет имя
 
 Для подписанного release скопируйте `app/_secure.signing.gradle` в корень проекта
 как `secure.signing.gradle`, заполните параметры ключа и положите keystore по пути,
-указанному в `storeFile`. Файл подписи и `*.jks`/`*.keystore` исключены из Git.
-Без этой локальной конфигурации `assembleRelease` намеренно создаёт unsigned APK;
-debug-ключ для release автоматически не используется.
+указанному в `storeFile`. На рабочей машине можно использовать общий ключ семейства
+Atlas-приложений. Файл подписи и `*.jks`/`*.keystore` исключены из Git. Без этой
+локальной конфигурации `assembleRelease` создаёт unsigned APK; debug-ключ для
+release автоматически не используется.
 
 Application ID: `mmwtl.atlaswidget`.
 

@@ -44,9 +44,10 @@ sh gradlew --offline clean check assembleRelease
 
 For emulator QA, additionally build/install the debug variant as needed. Verify the release output
 under `app/build/outputs/apk/release/`, inspect its package/version metadata, and run `apksigner
-verify` when the artifact is signed. This repository currently has no private release signing
-configuration, so release output can be unsigned. Report that explicitly; never disguise a
-debug-signed artifact as a production release and never commit keystores or credentials.
+verify` when the artifact is signed. Release signing may be supplied by the ignored local
+`secure.signing.gradle` and keystore files. If they are absent, report the unsigned artifact
+explicitly; never disguise a debug-signed artifact as a production release and never commit
+keystores or credentials.
 
 For UI or overlay changes, validate on Android 11 at 1440x1920 portrait when an emulator is
 available. Exercise both states of every affected toggle, verify HOME/non-HOME visibility, and
