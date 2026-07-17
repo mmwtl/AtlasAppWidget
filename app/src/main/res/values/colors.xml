@@ -2,5 +2,4 @@
 <resources>
     <color name="atlas_background">#171717</color>
     <color name="atlas_accent">#7893A0</color>
-    <color name="atlas_icon_background">#262626</color>
 </resources>
