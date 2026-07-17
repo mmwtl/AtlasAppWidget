@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Atlas Overlay</string>
+    <string name="notification_channel_name">Плавающая панель</string>
+    <string name="notification_title">Atlas Overlay работает</string>
+    <string name="notification_visible">Панель показывается только поверх лаунчера</string>
+    <string name="notification_hidden">Панель скрыта: открыто другое приложение</string>
+    <string name="notification_permission_error">Проверьте разрешения наложения и статистики использования</string>
+    <string name="stop">Остановить</string>
+    <string name="picker_summary">Показано: %1$d из %2$d. Выбрано: %3$d.</string>
+    <string name="component_lines">%1$s\n%2$s</string>
+    <string name="color_channel">%1$s: %2$d</string>
+    <string name="selected_summary">Выбрано: %1$d. На панели помещается: %2$d.</string>
+    <string name="selected_overflow_summary">Выбрано: %1$d. На панели помещается: %2$d. Лишние элементы скрыты; измените порядок или сетку.</string>
+</resources>
