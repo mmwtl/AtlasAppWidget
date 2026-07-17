@@ -14,6 +14,7 @@ final class Prefs {
     static final String KEY_AUTO_START = "auto_start";
     static final String KEY_SERVICE_ENABLED = "service_enabled";
     static final String KEY_SHOW_DRAG_HANDLE = "show_drag_handle";
+    static final String KEY_SHOW_APP_LABELS = "show_app_labels";
     static final String KEY_WIDTH_PERCENT = "width_percent";
     static final String KEY_COLUMNS = "columns";
     static final String KEY_ROWS = "rows";

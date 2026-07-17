@@ -4,6 +4,7 @@ import android.annotation.SuppressLint;
 import android.content.Context;
 import android.graphics.Color;
 import android.graphics.drawable.GradientDrawable;
+import android.text.TextUtils;
 import android.view.Gravity;
 import android.view.HapticFeedbackConstants;
 import android.view.MotionEvent;
@@ -51,12 +52,15 @@ final class PanelView extends LinearLayout {
         int handleWidth = config.showDragHandle ? Ui.dp(context, 34) : 0;
         int handleGap = config.showDragHandle ? Ui.dp(context, 4) : 0;
         int configuredIconSize = Ui.dp(context, config.iconSizeDp);
+        int labelHeight = config.showAppLabels ? Ui.dp(context, 20) : 0;
+        int labelGap = config.showAppLabels ? Ui.dp(context, 4) : 0;
+        int cellHeight = configuredIconSize + labelGap + labelHeight;
         int rows = Math.max(1, config.rows);
         int columns = Math.max(1, config.columns);
 
         panelWidth = Math.max(Ui.dp(context, 180),
                 Math.round(availableWidthPixels * Math.max(25, Math.min(100, config.widthPercent)) / 100f));
-        int gridHeight = rows * configuredIconSize + Math.max(0, rows - 1) * gap;
+        int gridHeight = rows * cellHeight + Math.max(0, rows - 1) * gap;
         panelHeight = Math.max(Ui.dp(context, 54), gridHeight + outerPadding * 2);
         setPadding(outerPadding, outerPadding, outerPadding, outerPadding);
 
@@ -122,7 +126,7 @@ final class PanelView extends LinearLayout {
                     GridLayout.spec(row), GridLayout.spec(column)
             );
             cellParams.width = cellWidth;
-            cellParams.height = configuredIconSize;
+            cellParams.height = cellHeight;
             if (column > 0) {
                 cellParams.leftMargin = gap;
             }
@@ -133,9 +137,10 @@ final class PanelView extends LinearLayout {
 
             AppEntry entry = index < entries.size() ? entries.get(index) : null;
             if (entry != null) {
-                addAppIcon(cell, prefs, config, entry, actualIconSize, listener);
+                addAppIcon(cell, prefs, config, entry, actualIconSize,
+                        configuredIconSize, labelHeight, listener);
             } else if (preview && index < Math.min(4, slotCount)) {
-                addPlaceholder(cell, config, actualIconSize, index);
+                addPlaceholder(cell, config, actualIconSize, configuredIconSize, index);
             }
         }
 
@@ -170,10 +175,12 @@ final class PanelView extends LinearLayout {
             PanelConfig config,
             AppEntry entry,
             int iconSize,
+            int iconAreaHeight,
+            int labelHeight,
             Listener listener
     ) {
         FrameLayout mask = iconMask(config, iconSize, Color.TRANSPARENT);
-        FrameLayout.LayoutParams maskParams = new FrameLayout.LayoutParams(iconSize, iconSize, Gravity.CENTER);
+        FrameLayout.LayoutParams maskParams = iconLayoutParams(config, iconSize, iconAreaHeight);
         cell.addView(mask, maskParams);
 
         IconLoader.Result icon = IconLoader.load(getContext(), prefs, entry, iconSize);
@@ -190,12 +197,39 @@ final class PanelView extends LinearLayout {
             mask.setFocusable(true);
             mask.setOnClickListener(view -> listener.onAppClicked(entry));
         }
+
+        if (config.showAppLabels) {
+            TextView label = Ui.text(getContext(), entry.label, 12, Ui.TEXT_SECONDARY);
+            label.setGravity(Gravity.CENTER);
+            label.setSingleLine(true);
+            label.setEllipsize(TextUtils.TruncateAt.END);
+            label.setIncludeFontPadding(false);
+            label.setShadowLayer(Ui.dp(getContext(), 2), 0,
+                    Ui.dp(getContext(), 1), Color.BLACK);
+            FrameLayout.LayoutParams labelParams = new FrameLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    labelHeight,
+                    Gravity.BOTTOM
+            );
+            cell.addView(label, labelParams);
+            if (listener != null) {
+                label.setClickable(true);
+                label.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
+                label.setOnClickListener(view -> listener.onAppClicked(entry));
+            }
+        }
     }
 
-    private void addPlaceholder(FrameLayout cell, PanelConfig config, int iconSize, int index) {
+    private void addPlaceholder(
+            FrameLayout cell,
+            PanelConfig config,
+            int iconSize,
+            int iconAreaHeight,
+            int index
+    ) {
         FrameLayout mask = iconMask(config, iconSize,
                 PLACEHOLDER_COLORS[index % PLACEHOLDER_COLORS.length]);
-        FrameLayout.LayoutParams maskParams = new FrameLayout.LayoutParams(iconSize, iconSize, Gravity.CENTER);
+        FrameLayout.LayoutParams maskParams = iconLayoutParams(config, iconSize, iconAreaHeight);
         cell.addView(mask, maskParams);
         TextView dot = Ui.heading(getContext(), "•", 28);
         dot.setGravity(Gravity.CENTER);
@@ -203,6 +237,21 @@ final class PanelView extends LinearLayout {
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.MATCH_PARENT
         ));
+    }
+
+    private FrameLayout.LayoutParams iconLayoutParams(
+            PanelConfig config,
+            int iconSize,
+            int iconAreaHeight
+    ) {
+        int gravity = config.showAppLabels
+                ? Gravity.TOP | Gravity.CENTER_HORIZONTAL
+                : Gravity.CENTER;
+        FrameLayout.LayoutParams params = new FrameLayout.LayoutParams(iconSize, iconSize, gravity);
+        if (config.showAppLabels) {
+            params.topMargin = Math.max(0, (iconAreaHeight - iconSize) / 2);
+        }
+        return params;
     }
 
     private FrameLayout iconMask(PanelConfig config, int iconSize, int color) {

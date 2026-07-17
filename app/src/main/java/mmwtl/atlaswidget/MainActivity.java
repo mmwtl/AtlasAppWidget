@@ -43,6 +43,7 @@ public final class MainActivity extends Activity
     private TextView selectedSummary;
     private Switch autoStartSwitch;
     private Switch dragHandleSwitch;
+    private Switch appLabelsSwitch;
     private FrameLayout previewContainer;
     private Button backgroundColorButton;
     private boolean updatingSwitch;
@@ -157,6 +158,18 @@ public final class MainActivity extends Activity
         Ui.topMargin(appsButton, 12);
         appsButton.setOnClickListener(view -> startActivity(new Intent(this, AppPickerActivity.class)));
         control.addView(appsButton);
+
+        appLabelsSwitch = new Switch(this);
+        appLabelsSwitch.setText("Показывать названия приложений");
+        appLabelsSwitch.setTextColor(Ui.TEXT);
+        appLabelsSwitch.setTextSize(15);
+        appLabelsSwitch.setPadding(0, Ui.dp(this, 14), 0, Ui.dp(this, 4));
+        appLabelsSwitch.setOnCheckedChangeListener((button, checked) -> {
+            if (!updatingSwitch) {
+                prefs.putBoolean(Prefs.KEY_SHOW_APP_LABELS, checked);
+            }
+        });
+        control.addView(appLabelsSwitch);
 
         dragHandleSwitch = new Switch(this);
         dragHandleSwitch.setText("Показывать ручку перетаскивания ⋮");
@@ -418,6 +431,7 @@ public final class MainActivity extends Activity
         updatingSwitch = true;
         autoStartSwitch.setChecked(prefs.getBoolean(Prefs.KEY_AUTO_START, false));
         dragHandleSwitch.setChecked(prefs.getBoolean(Prefs.KEY_SHOW_DRAG_HANDLE, true));
+        appLabelsSwitch.setChecked(prefs.getBoolean(Prefs.KEY_SHOW_APP_LABELS, false));
         updatingSwitch = false;
 
         List<String> selected = prefs.selectedComponents();
