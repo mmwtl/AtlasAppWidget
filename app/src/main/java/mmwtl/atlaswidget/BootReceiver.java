@@ -1,4 +1,4 @@
-package com.atlas.overlaywidget;
+package mmwtl.atlaswidget;
 
 import android.content.BroadcastReceiver;
 import android.content.Context;

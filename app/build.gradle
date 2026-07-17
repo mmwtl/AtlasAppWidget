@@ -3,11 +3,11 @@ plugins {
 }
 
 android {
-    namespace 'com.atlas.overlaywidget'
+    namespace 'mmwtl.atlaswidget'
     compileSdk 36
 
     defaultConfig {
-        applicationId 'com.atlas.overlaywidget'
+        applicationId 'mmwtl.atlaswidget'
         minSdk 30
         targetSdk 36
         versionCode 1

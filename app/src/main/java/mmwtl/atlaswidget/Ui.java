@@ -1,4 +1,4 @@
-package com.atlas.overlaywidget;
+package mmwtl.atlaswidget;
 
 import android.content.Context;
 import android.graphics.Color;
@@ -12,14 +12,14 @@ import android.widget.LinearLayout;
 import android.widget.TextView;
 
 final class Ui {
-    static final int BACKGROUND = Color.rgb(11, 16, 32);
-    static final int SURFACE = Color.rgb(21, 28, 46);
-    static final int SURFACE_RAISED = Color.rgb(32, 42, 66);
-    static final int TEXT = Color.rgb(247, 248, 252);
-    static final int TEXT_SECONDARY = Color.rgb(174, 183, 205);
-    static final int ACCENT = Color.rgb(124, 108, 255);
-    static final int SUCCESS = Color.rgb(77, 212, 168);
-    static final int WARNING = Color.rgb(255, 182, 92);
+    static final int BACKGROUND = Color.rgb(23, 23, 23);
+    static final int SURFACE = Color.rgb(38, 38, 38);
+    static final int SURFACE_RAISED = Color.rgb(51, 51, 51);
+    static final int TEXT = Color.rgb(245, 245, 245);
+    static final int TEXT_SECONDARY = Color.rgb(212, 212, 212);
+    static final int ACCENT = Color.rgb(120, 147, 160);
+    static final int SUCCESS = ACCENT;
+    static final int WARNING = TEXT_SECONDARY;
 
     private Ui() {
     }
@@ -52,7 +52,7 @@ final class Ui {
         button.setMinHeight(0);
         button.setMinimumHeight(0);
         button.setPadding(dp(context, 16), dp(context, 10), dp(context, 16), dp(context, 10));
-        button.setBackground(rounded(SURFACE_RAISED, dp(context, 12)));
+        button.setBackground(rounded(SURFACE_RAISED, dp(context, 8)));
         return button;
     }
 
@@ -60,12 +60,12 @@ final class Ui {
         LinearLayout card = new LinearLayout(context);
         card.setOrientation(LinearLayout.VERTICAL);
         card.setPadding(dp(context, 20), dp(context, 18), dp(context, 20), dp(context, 18));
-        card.setBackground(rounded(SURFACE, dp(context, 18)));
+        card.setBackground(rounded(SURFACE, dp(context, 8)));
         LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.WRAP_CONTENT
         );
-        params.setMargins(0, 0, 0, dp(context, 14));
+        params.setMargins(0, 0, 0, dp(context, 12));
         card.setLayoutParams(params);
         return card;
     }

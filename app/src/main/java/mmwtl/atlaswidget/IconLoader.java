@@ -1,4 +1,4 @@
-package com.atlas.overlaywidget;
+package mmwtl.atlaswidget;
 
 import android.content.Context;
 import android.graphics.ImageDecoder;

@@ -1,4 +1,4 @@
-package com.atlas.overlaywidget;
+package mmwtl.atlaswidget;
 
 import android.content.Context;
 import android.content.SharedPreferences;
@@ -35,7 +35,7 @@ final class Prefs {
 
     Prefs(Context context) {
         values = context.getApplicationContext()
-                .getSharedPreferences("atlas_overlay_settings", Context.MODE_PRIVATE);
+                .getSharedPreferences("atlas_widget_settings", Context.MODE_PRIVATE);
     }
 
     SharedPreferences raw() {

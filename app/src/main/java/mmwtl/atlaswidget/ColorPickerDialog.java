@@ -1,4 +1,4 @@
-package com.atlas.overlaywidget;
+package mmwtl.atlaswidget;
 
 import android.app.AlertDialog;
 import android.content.Context;
@@ -38,7 +38,7 @@ final class ColorPickerDialog {
 
         Runnable update = () -> {
             int color = Color.rgb(channels[0], channels[1], channels[2]);
-            preview.setBackground(Ui.rounded(color, Ui.dp(context, 14)));
+            preview.setBackground(Ui.rounded(color, Ui.dp(context, 8)));
             for (int index = 0; index < 3; index++) {
                 labels[index].setText(context.getString(
                         R.string.color_channel,

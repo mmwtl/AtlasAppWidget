@@ -1,4 +1,4 @@
-# Atlas Overlay
+# Atlas Widget
 
 Плавающая панель ярлыков для Android 11 (API 30) и автомобильной ГУ в портретной
 ориентации. Это не `AppWidget`: панель реализована отдельным foreground service и
@@ -26,9 +26,15 @@
 
 Debug APK появляется в `app/build/outputs/apk/debug/app-debug.apk`.
 
+Application ID: `mmwtl.atlaswidget`.
+
+После перехода со старого ID `com.atlas.overlaywidget` Android установит Atlas
+Widget как отдельное приложение. Старую версию нужно удалить вручную после
+переноса настроек.
+
 ## Первичная настройка на ГУ
 
-1. Установить APK и открыть **Atlas Overlay**.
+1. Установить APK и открыть **Atlas Widget**.
 2. Выдать доступ «Поверх других приложений».
 3. Выдать Usage Access / «Доступ к статистике использования».
 4. Выбрать activity и настроить внешний вид.

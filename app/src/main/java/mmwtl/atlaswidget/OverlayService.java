@@ -1,4 +1,4 @@
-package com.atlas.overlaywidget;
+package mmwtl.atlaswidget;
 
 import android.app.Notification;
 import android.app.NotificationChannel;
@@ -26,10 +26,10 @@ import java.util.List;
 
 public final class OverlayService extends Service
         implements SharedPreferences.OnSharedPreferenceChangeListener, PanelView.Listener {
-    static final String ACTION_START = "com.atlas.overlaywidget.action.START";
-    static final String ACTION_STOP = "com.atlas.overlaywidget.action.STOP";
+    static final String ACTION_START = "mmwtl.atlaswidget.action.START";
+    static final String ACTION_STOP = "mmwtl.atlaswidget.action.STOP";
 
-    private static final String CHANNEL_ID = "atlas_overlay_service";
+    private static final String CHANNEL_ID = "atlas_widget_service";
     private static final int NOTIFICATION_ID = 2107;
     private static final int POLL_INTERVAL_MS = 450;
     private static final int NOTIFICATION_VISIBLE = 1;
@@ -146,8 +146,18 @@ public final class OverlayService extends Service
     }
 
     private void showPanel() {
-        if (panel != null || windowManager == null) {
+        if (windowManager == null) {
             return;
+        }
+        if (panel != null) {
+            if (panel.isAttachedToWindow()) {
+                return;
+            }
+            // Some head-unit shells can detach an overlay while switching tasks
+            // without going through our removal path. Do not keep a stale view
+            // reference, otherwise the panel never returns when HOME is resumed.
+            panel = null;
+            panelParams = null;
         }
         Rect bounds = windowManager.getCurrentWindowMetrics().getBounds();
         List<AppEntry> entries = AppRepository.loadSelectedActivities(this, prefs);

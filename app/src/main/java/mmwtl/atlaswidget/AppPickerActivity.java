@@ -1,4 +1,4 @@
-package com.atlas.overlaywidget;
+package mmwtl.atlaswidget;
 
 import android.app.Activity;
 import android.app.AlertDialog;
@@ -91,11 +91,11 @@ public final class AppPickerActivity extends Activity {
 
         EditText search = new EditText(this);
         search.setHint("Поиск по названию, пакету или activity");
-        search.setHintTextColor(0x88FFFFFF);
+        search.setHintTextColor(Ui.TEXT_SECONDARY);
         search.setTextColor(Ui.TEXT);
         search.setSingleLine(true);
         search.setPadding(Ui.dp(this, 16), Ui.dp(this, 12), Ui.dp(this, 16), Ui.dp(this, 12));
-        search.setBackground(Ui.rounded(Ui.SURFACE, Ui.dp(this, 14)));
+        search.setBackground(Ui.rounded(Ui.SURFACE, Ui.dp(this, 8)));
         Ui.topMargin(search, 16);
         root.addView(search, new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
@@ -306,8 +306,8 @@ public final class AppPickerActivity extends Activity {
             int selectedIndex = selected.indexOf(entry.componentKey);
             boolean isSelected = selectedIndex >= 0;
             holder.root.setBackground(Ui.rounded(
-                    isSelected ? 0xFF202A42 : Ui.SURFACE,
-                    Ui.dp(AppPickerActivity.this, 16)
+                    isSelected ? Ui.SURFACE_RAISED : Ui.SURFACE,
+                    Ui.dp(AppPickerActivity.this, 8)
             ));
             holder.appLabel.setText(entry.label);
             holder.activityLabel.setText(entry.activityLabel);
@@ -383,7 +383,7 @@ public final class AppPickerActivity extends Activity {
             labels.addView(holder.appLabel);
             holder.activityLabel = Ui.text(AppPickerActivity.this, "", 13, Ui.TEXT_SECONDARY);
             labels.addView(holder.activityLabel);
-            holder.componentLabel = Ui.text(AppPickerActivity.this, "", 10, 0x88FFFFFF);
+            holder.componentLabel = Ui.text(AppPickerActivity.this, "", 10, Ui.TEXT_SECONDARY);
             holder.componentLabel.setMaxLines(2);
             labels.addView(holder.componentLabel);
 

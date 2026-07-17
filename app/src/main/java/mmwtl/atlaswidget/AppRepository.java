@@ -1,4 +1,4 @@
-package com.atlas.overlaywidget;
+package mmwtl.atlaswidget;
 
 import android.content.ComponentName;
 import android.content.Context;
@@ -30,8 +30,7 @@ final class AppRepository {
         Map<String, AppEntry> unique = new LinkedHashMap<>();
         for (ResolveInfo info : resolved) {
             ActivityInfo activity = info.activityInfo;
-            if (activity == null || !activity.exported
-                    || context.getPackageName().equals(activity.packageName)) {
+            if (activity == null || !activity.exported) {
                 continue;
             }
             ComponentName component = new ComponentName(activity.packageName, activity.name);

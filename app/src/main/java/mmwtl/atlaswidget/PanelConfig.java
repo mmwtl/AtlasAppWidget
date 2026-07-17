@@ -1,4 +1,4 @@
-package com.atlas.overlaywidget;
+package mmwtl.atlaswidget;
 
 final class PanelConfig {
     final int widthPercent;
@@ -18,12 +18,12 @@ final class PanelConfig {
         columns = prefs.getInt(Prefs.KEY_COLUMNS, 5);
         rows = prefs.getInt(Prefs.KEY_ROWS, 1);
         iconSizeDp = prefs.getInt(Prefs.KEY_ICON_SIZE_DP, 72);
-        iconCornerPercent = prefs.getInt(Prefs.KEY_ICON_CORNER_PERCENT, 26);
+        iconCornerPercent = prefs.getInt(Prefs.KEY_ICON_CORNER_PERCENT, 12);
         paddingDp = prefs.getInt(Prefs.KEY_PADDING_DP, 14);
         gapDp = prefs.getInt(Prefs.KEY_GAP_DP, 12);
-        backgroundColor = prefs.getInt(Prefs.KEY_BACKGROUND_COLOR, 0xFF111827);
-        backgroundAlpha = prefs.getInt(Prefs.KEY_BACKGROUND_ALPHA, 210);
+        backgroundColor = prefs.getInt(Prefs.KEY_BACKGROUND_COLOR, 0xFF262626);
+        backgroundAlpha = prefs.getInt(Prefs.KEY_BACKGROUND_ALPHA, 235);
         panelShape = prefs.getInt(Prefs.KEY_PANEL_SHAPE, 1);
-        panelRadiusDp = prefs.getInt(Prefs.KEY_PANEL_RADIUS_DP, 24);
+        panelRadiusDp = prefs.getInt(Prefs.KEY_PANEL_RADIUS_DP, 8);
     }
 }

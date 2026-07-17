@@ -1,4 +1,4 @@
-package com.atlas.overlaywidget;
+package mmwtl.atlaswidget;
 
 import android.app.AppOpsManager;
 import android.app.usage.UsageEvents;

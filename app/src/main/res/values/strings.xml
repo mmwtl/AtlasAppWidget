@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">Atlas Overlay</string>
+    <string name="app_name">Atlas Widget</string>
     <string name="notification_channel_name">Плавающая панель</string>
-    <string name="notification_title">Atlas Overlay работает</string>
+    <string name="notification_title">Atlas Widget работает</string>
     <string name="notification_visible">Панель показывается только поверх лаунчера</string>
     <string name="notification_hidden">Панель скрыта: открыто другое приложение</string>
     <string name="notification_permission_error">Проверьте разрешения наложения и статистики использования</string>

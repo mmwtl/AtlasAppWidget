@@ -1,4 +1,4 @@
-package com.atlas.overlaywidget;
+package mmwtl.atlaswidget;
 
 import android.annotation.SuppressLint;
 import android.content.Context;
@@ -24,9 +24,7 @@ final class PanelView extends LinearLayout {
         void onAppClicked(AppEntry entry);
     }
 
-    private static final int[] PLACEHOLDER_COLORS = {
-            0xFF7C6CFF, 0xFF31BFA3, 0xFFFF8A65, 0xFF4E9BFF, 0xFFE05CA8
-    };
+    private static final int[] PLACEHOLDER_COLORS = {0xFF7893A0};
 
     private final int panelWidth;
     private final int panelHeight;
@@ -73,12 +71,11 @@ final class PanelView extends LinearLayout {
             panelRadius = Ui.dp(context, config.panelRadiusDp);
         }
         setBackground(Ui.rounded(background, panelRadius));
-        setElevation(Ui.dp(context, 10));
 
         DragHandleView handle = new DragHandleView(context);
         handle.setText("⋮");
         handle.setTextSize(28);
-        handle.setTextColor(0x99FFFFFF);
+        handle.setTextColor(Ui.TEXT_SECONDARY);
         handle.setGravity(Gravity.CENTER);
         handle.setContentDescription("Перетащить панель");
         LinearLayout.LayoutParams handleParams = new LinearLayout.LayoutParams(handleWidth,
@@ -151,14 +148,14 @@ final class PanelView extends LinearLayout {
             int iconSize,
             Listener listener
     ) {
-        FrameLayout mask = iconMask(config, iconSize, 0x16FFFFFF);
+        FrameLayout mask = iconMask(config, iconSize, Color.TRANSPARENT);
         FrameLayout.LayoutParams maskParams = new FrameLayout.LayoutParams(iconSize, iconSize, Gravity.CENTER);
         cell.addView(mask, maskParams);
 
         IconLoader.Result icon = IconLoader.load(getContext(), prefs, entry, iconSize);
         ImageView image = new ImageView(getContext());
         image.setImageDrawable(icon.drawable);
-        image.setScaleType(icon.custom ? ImageView.ScaleType.CENTER_CROP : ImageView.ScaleType.FIT_CENTER);
+        image.setScaleType(ImageView.ScaleType.CENTER_CROP);
         image.setContentDescription(entry.label + ", " + entry.activityLabel);
         mask.addView(image, new FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
@@ -190,7 +187,6 @@ final class PanelView extends LinearLayout {
                 iconSize * Math.max(0, Math.min(50, config.iconCornerPercent)) / 100f);
         mask.setBackground(background);
         mask.setClipToOutline(true);
-        mask.setElevation(Ui.dp(getContext(), 2));
         return mask;
     }
 }

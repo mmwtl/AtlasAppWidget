@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="atlas_background">#0B1020</color>
-    <color name="atlas_accent">#7C6CFF</color>
+    <color name="atlas_background">#171717</color>
+    <color name="atlas_accent">#7893A0</color>
+    <color name="atlas_icon_background">#262626</color>
 </resources>

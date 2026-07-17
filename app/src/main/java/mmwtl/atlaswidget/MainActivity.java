@@ -1,4 +1,4 @@
-package com.atlas.overlaywidget;
+package mmwtl.atlaswidget;
 
 import android.Manifest;
 import android.app.Activity;
@@ -92,7 +92,7 @@ public final class MainActivity extends Activity
                 ViewGroup.LayoutParams.WRAP_CONTENT
         ));
 
-        TextView title = Ui.heading(this, "Atlas Overlay", 30);
+        TextView title = Ui.heading(this, "Atlas Widget", 30);
         content.addView(title);
         TextView subtitle = Ui.text(this,
                 "Плавающая панель launchable activity для Android 11. Вне панели экран остаётся полностью интерактивным.",
@@ -184,7 +184,7 @@ public final class MainActivity extends Activity
         serviceButtons.setGravity(Gravity.START);
         Ui.topMargin(serviceButtons, 10);
         Button startButton = Ui.button(this, "Запустить панель");
-        startButton.setBackground(Ui.rounded(Ui.ACCENT, Ui.dp(this, 12)));
+        startButton.setBackground(Ui.rounded(Ui.ACCENT, Ui.dp(this, 8)));
         startButton.setOnClickListener(view -> startPanel());
         serviceButtons.addView(startButton);
         Button stopButton = Ui.button(this, "Остановить");
@@ -219,9 +219,9 @@ public final class MainActivity extends Activity
         previewContainer = new FrameLayout(this);
         previewContainer.setClipChildren(false);
         previewContainer.setClipToPadding(false);
-        previewContainer.setPadding(Ui.dp(this, 8), Ui.dp(this, 16),
-                Ui.dp(this, 8), Ui.dp(this, 16));
-        previewContainer.setBackground(Ui.rounded(Ui.SURFACE_RAISED, Ui.dp(this, 14)));
+        previewContainer.setPadding(Ui.dp(this, 8), Ui.dp(this, 12),
+                Ui.dp(this, 8), Ui.dp(this, 12));
+        previewContainer.setBackground(Ui.rounded(Ui.SURFACE_RAISED, Ui.dp(this, 8)));
         Ui.topMargin(previewContainer, 12);
         preview.addView(previewContainer, new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
@@ -248,7 +248,7 @@ public final class MainActivity extends Activity
                 value -> value + " dp",
                 value -> prefs.putInt(Prefs.KEY_ICON_SIZE_DP, value));
         addSlider(geometry, "Форма иконок", 0, 50,
-                prefs.getInt(Prefs.KEY_ICON_CORNER_PERCENT, 26),
+                prefs.getInt(Prefs.KEY_ICON_CORNER_PERCENT, 12),
                 value -> value == 0 ? "квадрат" : value == 50 ? "круг" : value + "%",
                 value -> prefs.putInt(Prefs.KEY_ICON_CORNER_PERCENT, value));
         addSlider(geometry, "Внутренний отступ", 4, 40,
@@ -289,11 +289,11 @@ public final class MainActivity extends Activity
         background.addView(shape);
 
         addSlider(background, "Радиус панели", 0, 80,
-                prefs.getInt(Prefs.KEY_PANEL_RADIUS_DP, 24),
+                prefs.getInt(Prefs.KEY_PANEL_RADIUS_DP, 8),
                 value -> value + " dp",
                 value -> prefs.putInt(Prefs.KEY_PANEL_RADIUS_DP, value));
         addSlider(background, "Прозрачность фона", 0, 255,
-                prefs.getInt(Prefs.KEY_BACKGROUND_ALPHA, 210),
+                prefs.getInt(Prefs.KEY_BACKGROUND_ALPHA, 235),
                 value -> Math.round(value * 100f / 255f) + "%",
                 value -> prefs.putInt(Prefs.KEY_BACKGROUND_ALPHA, value));
 
@@ -301,7 +301,7 @@ public final class MainActivity extends Activity
         Ui.topMargin(backgroundColorButton, 12);
         backgroundColorButton.setOnClickListener(view -> ColorPickerDialog.show(
                 this,
-                prefs.getInt(Prefs.KEY_BACKGROUND_COLOR, 0xFF111827),
+                prefs.getInt(Prefs.KEY_BACKGROUND_COLOR, 0xFF262626),
                 color -> prefs.putInt(Prefs.KEY_BACKGROUND_COLOR, color)
         ));
         background.addView(backgroundColorButton);
@@ -409,9 +409,9 @@ public final class MainActivity extends Activity
                 capacity
         ));
 
-        int color = prefs.getInt(Prefs.KEY_BACKGROUND_COLOR, 0xFF111827);
+        int color = prefs.getInt(Prefs.KEY_BACKGROUND_COLOR, 0xFF262626);
         backgroundColorButton.setText(String.format("Цвет фона  #%06X", color & 0xFFFFFF));
-        backgroundColorButton.setBackground(Ui.rounded(color, Ui.dp(this, 12)));
+        backgroundColorButton.setBackground(Ui.rounded(color, Ui.dp(this, 8)));
         double luminance = (0.2126 * Color.red(color)
                 + 0.7152 * Color.green(color)
                 + 0.0722 * Color.blue(color)) / 255.0;
