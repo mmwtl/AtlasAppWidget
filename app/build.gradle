@@ -2,8 +2,8 @@ plugins {
     id 'com.android.application'
 }
 
-def appVersionCode = 4
-def appVersionName = '1.0.3'
+def appVersionCode = 5
+def appVersionName = '1.0.4'
 def secureSigningScript = providers.gradleProperty('secure.signing').orNull
 def secureSigningFile = secureSigningScript == null ? null : rootProject.file(secureSigningScript)
 

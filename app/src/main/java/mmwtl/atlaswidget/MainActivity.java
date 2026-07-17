@@ -44,6 +44,7 @@ public final class MainActivity extends Activity
     private Switch autoStartSwitch;
     private Switch dragHandleSwitch;
     private Switch appLabelsSwitch;
+    private Switch backgroundStrokeSwitch;
     private FrameLayout previewContainer;
     private Button backgroundColorButton;
     private boolean updatingSwitch;
@@ -331,6 +332,32 @@ public final class MainActivity extends Activity
                 value -> Math.round(value * 100f / 255f) + "%",
                 value -> prefs.putInt(Prefs.KEY_BACKGROUND_ALPHA, value));
 
+        backgroundStrokeSwitch = new Switch(this);
+        backgroundStrokeSwitch.setText("Показывать обводку фона");
+        backgroundStrokeSwitch.setTextColor(Ui.TEXT);
+        backgroundStrokeSwitch.setTextSize(15);
+        backgroundStrokeSwitch.setPadding(0, Ui.dp(this, 14), 0, Ui.dp(this, 4));
+        backgroundStrokeSwitch.setOnCheckedChangeListener((button, checked) -> {
+            if (!updatingSwitch) {
+                prefs.putBoolean(Prefs.KEY_BACKGROUND_STROKE_ENABLED, checked);
+            }
+        });
+        background.addView(backgroundStrokeSwitch);
+        TextView strokeHint = Ui.text(this,
+                String.format("Цвет обводки — акцентный #%06X.", Ui.ACCENT & 0xFFFFFF),
+                13,
+                Ui.TEXT_SECONDARY
+        );
+        background.addView(strokeHint);
+        addSlider(background, "Толщина обводки", 1, 20,
+                prefs.getInt(Prefs.KEY_BACKGROUND_STROKE_WIDTH_DP, 2),
+                value -> value + " dp",
+                value -> prefs.putInt(Prefs.KEY_BACKGROUND_STROKE_WIDTH_DP, value));
+        addSlider(background, "Прозрачность обводки", 0, 255,
+                prefs.getInt(Prefs.KEY_BACKGROUND_STROKE_ALPHA, 200),
+                value -> Math.round(value * 100f / 255f) + "%",
+                value -> prefs.putInt(Prefs.KEY_BACKGROUND_STROKE_ALPHA, value));
+
         backgroundColorButton = Ui.button(this, "Изменить цвет фона");
         Ui.topMargin(backgroundColorButton, 12);
         backgroundColorButton.setOnClickListener(view -> ColorPickerDialog.show(
@@ -432,6 +459,8 @@ public final class MainActivity extends Activity
         autoStartSwitch.setChecked(prefs.getBoolean(Prefs.KEY_AUTO_START, false));
         dragHandleSwitch.setChecked(prefs.getBoolean(Prefs.KEY_SHOW_DRAG_HANDLE, true));
         appLabelsSwitch.setChecked(prefs.getBoolean(Prefs.KEY_SHOW_APP_LABELS, false));
+        backgroundStrokeSwitch.setChecked(
+                prefs.getBoolean(Prefs.KEY_BACKGROUND_STROKE_ENABLED, false));
         updatingSwitch = false;
 
         List<String> selected = prefs.selectedComponents();

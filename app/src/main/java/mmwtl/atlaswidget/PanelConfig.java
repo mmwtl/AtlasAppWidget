@@ -12,6 +12,9 @@ final class PanelConfig {
     final int gapDp;
     final int backgroundColor;
     final int backgroundAlpha;
+    final boolean backgroundStrokeEnabled;
+    final int backgroundStrokeWidthDp;
+    final int backgroundStrokeAlpha;
     final int panelShape;
     final int panelRadiusDp;
 
@@ -27,6 +30,9 @@ final class PanelConfig {
         gapDp = prefs.getInt(Prefs.KEY_GAP_DP, 12);
         backgroundColor = prefs.getInt(Prefs.KEY_BACKGROUND_COLOR, 0xFF262626);
         backgroundAlpha = prefs.getInt(Prefs.KEY_BACKGROUND_ALPHA, 235);
+        backgroundStrokeEnabled = prefs.getBoolean(Prefs.KEY_BACKGROUND_STROKE_ENABLED, false);
+        backgroundStrokeWidthDp = prefs.getInt(Prefs.KEY_BACKGROUND_STROKE_WIDTH_DP, 2);
+        backgroundStrokeAlpha = prefs.getInt(Prefs.KEY_BACKGROUND_STROKE_ALPHA, 200);
         panelShape = prefs.getInt(Prefs.KEY_PANEL_SHAPE, 1);
         panelRadiusDp = prefs.getInt(Prefs.KEY_PANEL_RADIUS_DP, 8);
     }

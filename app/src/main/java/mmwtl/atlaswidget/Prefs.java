@@ -24,6 +24,9 @@ final class Prefs {
     static final String KEY_GAP_DP = "gap_dp";
     static final String KEY_BACKGROUND_COLOR = "background_color";
     static final String KEY_BACKGROUND_ALPHA = "background_alpha";
+    static final String KEY_BACKGROUND_STROKE_ENABLED = "background_stroke_enabled";
+    static final String KEY_BACKGROUND_STROKE_WIDTH_DP = "background_stroke_width_dp";
+    static final String KEY_BACKGROUND_STROKE_ALPHA = "background_stroke_alpha";
     static final String KEY_PANEL_SHAPE = "panel_shape";
     static final String KEY_PANEL_RADIUS_DP = "panel_radius_dp";
     static final String KEY_POSITION_X = "position_x";

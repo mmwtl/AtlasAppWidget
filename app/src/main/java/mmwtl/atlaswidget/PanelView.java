@@ -78,7 +78,20 @@ final class PanelView extends LinearLayout {
         } else {
             panelRadius = Ui.dp(context, config.panelRadiusDp);
         }
-        setBackground(Ui.rounded(background, panelRadius));
+        GradientDrawable panelBackground = Ui.rounded(background, panelRadius);
+        if (config.backgroundStrokeEnabled) {
+            int strokeAlpha = Math.max(0, Math.min(255, config.backgroundStrokeAlpha));
+            int strokeColor = Color.argb(
+                    strokeAlpha,
+                    Color.red(Ui.ACCENT),
+                    Color.green(Ui.ACCENT),
+                    Color.blue(Ui.ACCENT)
+            );
+            int strokeWidth = Ui.dp(context,
+                    Math.max(1, Math.min(20, config.backgroundStrokeWidthDp)));
+            panelBackground.setStroke(strokeWidth, strokeColor);
+        }
+        setBackground(panelBackground);
 
         if (config.showDragHandle) {
             DragHandleView handle = new DragHandleView(context);
