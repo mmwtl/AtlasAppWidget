@@ -87,7 +87,13 @@ final class PanelView extends LinearLayout {
                 Color.green(config.backgroundColor),
                 Color.blue(config.backgroundColor)
         );
-        float panelRadius = Ui.dp(context, Math.max(0, config.panelRadiusDp));
+        int configuredPanelRadius = Math.max(0, Math.min(
+                PanelConfig.PANEL_RADIUS_FULLY_ROUNDED,
+                config.panelRadiusDp
+        ));
+        float panelRadius = configuredPanelRadius == PanelConfig.PANEL_RADIUS_FULLY_ROUNDED
+                ? Math.min(backgroundWidth, backgroundHeight) / 2f
+                : Ui.dp(context, configuredPanelRadius);
         GradientDrawable backgroundDrawable = Ui.rounded(background, panelRadius);
         if (config.backgroundStrokeEnabled) {
             int strokeAlpha = Math.max(0, Math.min(255, config.backgroundStrokeAlpha));

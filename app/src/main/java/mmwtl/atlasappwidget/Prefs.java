@@ -11,7 +11,10 @@ import java.util.ArrayList;
 import java.util.List;
 
 final class Prefs {
+    static final int MAX_AUTO_START_DELAY_SECONDS = 300;
     static final String KEY_AUTO_START = "auto_start";
+    static final String KEY_AUTO_START_DELAY_SECONDS = "auto_start_delay_seconds";
+    static final String KEY_AUTO_START_PENDING_UNTIL_MS = "auto_start_pending_until_ms";
     static final String KEY_SERVICE_ENABLED = "service_enabled";
     static final String KEY_APP_UI_SCALE_TENTHS = "app_ui_scale_tenths";
     static final String KEY_SHOW_DRAG_HANDLE = "show_drag_handle";
@@ -63,6 +66,18 @@ final class Prefs {
 
     void putInt(String key, int value) {
         values.edit().putInt(key, value).apply();
+    }
+
+    long getLong(String key, long fallback) {
+        return values.getLong(key, fallback);
+    }
+
+    void putLong(String key, long value) {
+        values.edit().putLong(key, value).apply();
+    }
+
+    void remove(String key) {
+        values.edit().remove(key).apply();
     }
 
     PanelConfig panelConfig() {

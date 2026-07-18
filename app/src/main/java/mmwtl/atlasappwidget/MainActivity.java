@@ -246,6 +246,13 @@ public final class MainActivity extends ScaledActivity
                 return;
             }
             prefs.putBoolean(Prefs.KEY_AUTO_START, checked);
+            if (!checked && prefs.getLong(Prefs.KEY_AUTO_START_PENDING_UNTIL_MS, 0)
+                    > System.currentTimeMillis()) {
+                BootReceiver.cancelDelayedStart(this);
+                prefs.remove(Prefs.KEY_AUTO_START_PENDING_UNTIL_MS);
+                prefs.putBoolean(Prefs.KEY_SERVICE_ENABLED, false);
+                stopService(new Intent(this, OverlayService.class));
+            }
             if (checked && (!Settings.canDrawOverlays(this)
                     || !ForegroundAppDetector.hasUsageAccess(this))) {
                 Toast.makeText(this,
@@ -254,6 +261,18 @@ public final class MainActivity extends ScaledActivity
             }
         });
         control.addView(autoStartSwitch);
+
+        addSlider(control, "Задержка автозапуска", 0,
+                Prefs.MAX_AUTO_START_DELAY_SECONDS,
+                prefs.getInt(Prefs.KEY_AUTO_START_DELAY_SECONDS, 0),
+                this::formatAutoStartDelay,
+                value -> prefs.putInt(Prefs.KEY_AUTO_START_DELAY_SECONDS, value));
+        TextView autoStartDelayHint = Ui.text(this,
+                "Применяется только после загрузки ГУ; ручной запуск выполняется сразу.",
+                13,
+                Ui.TEXT_SECONDARY
+        );
+        control.addView(autoStartDelayHint);
 
         serviceStatus = Ui.text(this, "", 14, Ui.TEXT_SECONDARY);
         control.addView(serviceStatus);
@@ -342,9 +361,14 @@ public final class MainActivity extends ScaledActivity
 
         LinearLayout background = Ui.card(this);
         background.addView(Ui.heading(this, "4. Фон панели", 20));
-        addSlider(background, "Радиус панели", 0, 80,
+        addSlider(background, "Радиус панели", 0,
+                PanelConfig.PANEL_RADIUS_FULLY_ROUNDED,
                 prefs.getInt(Prefs.KEY_PANEL_RADIUS_DP, 8),
-                value -> value == 0 ? "прямоугольник" : value + " dp",
+                value -> value == 0
+                        ? "прямоугольник"
+                        : value == PanelConfig.PANEL_RADIUS_FULLY_ROUNDED
+                        ? "полностью"
+                        : value + " dp",
                 value -> prefs.putInt(Prefs.KEY_PANEL_RADIUS_DP, value));
         addSlider(background, "Прозрачность фона", 0, 255,
                 prefs.getInt(Prefs.KEY_BACKGROUND_ALPHA, 235),
@@ -523,6 +547,20 @@ public final class MainActivity extends ScaledActivity
                 : tenths / 10 + "." + tenths % 10 + "×";
     }
 
+    private String formatAutoStartDelay(int seconds) {
+        if (seconds == 0) {
+            return "без задержки";
+        }
+        if (seconds < 60) {
+            return seconds + " сек";
+        }
+        int minutes = seconds / 60;
+        int remainder = seconds % 60;
+        return remainder == 0
+                ? minutes + " мин"
+                : minutes + " мин " + remainder + " сек";
+    }
+
     private void refreshStatus() {
         boolean overlayAllowed = Settings.canDrawOverlays(this);
         boolean usageAllowed = ForegroundAppDetector.hasUsageAccess(this);
@@ -540,8 +578,15 @@ public final class MainActivity extends ScaledActivity
                 notificationAllowed);
 
         boolean serviceEnabled = prefs.getBoolean(Prefs.KEY_SERVICE_ENABLED, false);
+        boolean autoStartPending = serviceEnabled
+                && prefs.getLong(Prefs.KEY_AUTO_START_PENDING_UNTIL_MS, 0)
+                > System.currentTimeMillis();
         setStatus(serviceStatus,
-                serviceEnabled ? "● Панель запущена; вне лаунчера она скрыта" : "○ Панель остановлена",
+                autoStartPending
+                        ? "● Идёт задержка автозапуска; панель ещё не создана"
+                        : serviceEnabled
+                        ? "● Панель запущена; вне лаунчера она скрыта"
+                        : "○ Панель остановлена",
                 serviceEnabled);
         updatingSwitch = true;
         autoStartSwitch.setChecked(prefs.getBoolean(Prefs.KEY_AUTO_START, false));
@@ -644,6 +689,8 @@ public final class MainActivity extends ScaledActivity
             requestNotificationPermission();
         }
         try {
+            BootReceiver.cancelDelayedStart(this);
+            prefs.remove(Prefs.KEY_AUTO_START_PENDING_UNTIL_MS);
             prefs.putBoolean(Prefs.KEY_SERVICE_ENABLED, true);
             OverlayService.start(this);
             Toast.makeText(this, "Панель запущена", Toast.LENGTH_SHORT).show();
@@ -654,7 +701,9 @@ public final class MainActivity extends ScaledActivity
     }
 
     private void stopPanel() {
+        BootReceiver.cancelDelayedStart(this);
         prefs.putBoolean(Prefs.KEY_SERVICE_ENABLED, false);
+        prefs.remove(Prefs.KEY_AUTO_START_PENDING_UNTIL_MS);
         stopService(new Intent(this, OverlayService.class));
         Toast.makeText(this, "Панель остановлена", Toast.LENGTH_SHORT).show();
     }

@@ -5,6 +5,7 @@
     <string name="notification_title">Atlas App Widget работает</string>
     <string name="notification_visible">Панель показывается только поверх лаунчера</string>
     <string name="notification_hidden">Панель скрыта: открыто другое приложение</string>
+    <string name="notification_boot_delay">Ожидание задержки автозапуска</string>
     <string name="notification_permission_error">Проверьте разрешения наложения и статистики использования</string>
     <string name="stop">Остановить</string>
     <string name="picker_summary">Показано: %1$d из %2$d. Выбрано: %3$d.</string>

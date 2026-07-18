@@ -1,6 +1,7 @@
 package mmwtl.atlasappwidget;
 
 final class PanelConfig {
+    static final int PANEL_RADIUS_FULLY_ROUNDED = 80;
     static final int HANDLE_LEFT = 0;
     static final int HANDLE_RIGHT = 1;
     static final int HANDLE_TOP = 2;

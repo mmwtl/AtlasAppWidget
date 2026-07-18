@@ -27,14 +27,18 @@ import java.util.List;
 public final class OverlayService extends Service
         implements SharedPreferences.OnSharedPreferenceChangeListener, PanelView.Listener {
     static final String ACTION_START = "mmwtl.atlasappwidget.action.START";
+    static final String ACTION_START_AFTER_BOOT =
+            "mmwtl.atlasappwidget.action.START_AFTER_BOOT";
     static final String ACTION_STOP = "mmwtl.atlasappwidget.action.STOP";
 
+    private static final String EXTRA_BOOT_DELAY_MS = "boot_delay_ms";
     private static final String CHANNEL_ID = "atlas_app_widget_service";
     private static final int NOTIFICATION_ID = 2107;
     private static final int POLL_INTERVAL_MS = 450;
     private static final int NOTIFICATION_VISIBLE = 1;
     private static final int NOTIFICATION_HIDDEN = 2;
     private static final int NOTIFICATION_PERMISSION_ERROR = 3;
+    private static final int NOTIFICATION_BOOT_DELAY = 4;
 
     private final Handler handler = new Handler(Looper.getMainLooper());
     private Prefs prefs;
@@ -53,6 +57,7 @@ public final class OverlayService extends Service
     private final Runnable foregroundPoll = new Runnable() {
         @Override
         public void run() {
+            prefs.remove(Prefs.KEY_AUTO_START_PENDING_UNTIL_MS);
             if (!prefs.getBoolean(Prefs.KEY_SERVICE_ENABLED, false)) {
                 stopSelf();
                 return;
@@ -64,7 +69,7 @@ public final class OverlayService extends Service
             } else if (System.currentTimeMillis() < suppressPanelUntil) {
                 hidePanel();
                 updateNotification(NOTIFICATION_HIDDEN);
-            } else if (foregroundDetector.isHomeForeground()) {
+            } else if (foregroundDetector().isHomeForeground()) {
                 showPanel();
                 updateNotification(NOTIFICATION_VISIBLE);
             } else {
@@ -80,12 +85,19 @@ public final class OverlayService extends Service
         context.startForegroundService(intent);
     }
 
+    static void startAfterBoot(android.content.Context context, int delaySeconds) {
+        long delayMs = Math.max(0,
+                Math.min(Prefs.MAX_AUTO_START_DELAY_SECONDS, delaySeconds)) * 1_000L;
+        Intent intent = new Intent(context, OverlayService.class)
+                .setAction(ACTION_START_AFTER_BOOT)
+                .putExtra(EXTRA_BOOT_DELAY_MS, delayMs);
+        context.startForegroundService(intent);
+    }
+
     @Override
     public void onCreate() {
         super.onCreate();
         prefs = new Prefs(this);
-        windowManager = (WindowManager) getSystemService(WINDOW_SERVICE);
-        foregroundDetector = new ForegroundAppDetector(this);
         prefs.raw().registerOnSharedPreferenceChangeListener(this);
         createNotificationChannel();
         Notification notification = buildNotification(NOTIFICATION_HIDDEN);
@@ -106,12 +118,34 @@ public final class OverlayService extends Service
         String action = intent == null ? null : intent.getAction();
         if (ACTION_STOP.equals(action)) {
             prefs.putBoolean(Prefs.KEY_SERVICE_ENABLED, false);
+            prefs.remove(Prefs.KEY_AUTO_START_PENDING_UNTIL_MS);
             stopSelf();
             return START_NOT_STICKY;
         }
         prefs.putBoolean(Prefs.KEY_SERVICE_ENABLED, true);
         handler.removeCallbacks(foregroundPoll);
-        handler.post(foregroundPoll);
+        long delayMs = 0;
+        if (ACTION_START_AFTER_BOOT.equals(action)) {
+            delayMs = Math.max(0, intent.getLongExtra(EXTRA_BOOT_DELAY_MS, 0));
+            if (delayMs > 0) {
+                prefs.putLong(Prefs.KEY_AUTO_START_PENDING_UNTIL_MS,
+                        System.currentTimeMillis() + delayMs);
+            }
+        } else if (intent == null) {
+            delayMs = Math.max(0,
+                    prefs.getLong(Prefs.KEY_AUTO_START_PENDING_UNTIL_MS, 0)
+                            - System.currentTimeMillis());
+        } else {
+            prefs.remove(Prefs.KEY_AUTO_START_PENDING_UNTIL_MS);
+        }
+        if (delayMs > 0) {
+            hidePanel();
+            updateNotification(NOTIFICATION_BOOT_DELAY);
+            handler.postDelayed(foregroundPoll, delayMs);
+        } else {
+            prefs.remove(Prefs.KEY_AUTO_START_PENDING_UNTIL_MS);
+            handler.post(foregroundPoll);
+        }
         return START_STICKY;
     }
 
@@ -134,7 +168,10 @@ public final class OverlayService extends Service
     @Override
     public void onSharedPreferenceChanged(SharedPreferences sharedPreferences, String key) {
         if (Prefs.KEY_POSITION_X.equals(key) || Prefs.KEY_POSITION_Y.equals(key)
-                || Prefs.KEY_SERVICE_ENABLED.equals(key)) {
+                || Prefs.KEY_SERVICE_ENABLED.equals(key)
+                || Prefs.KEY_AUTO_START.equals(key)
+                || Prefs.KEY_AUTO_START_DELAY_SECONDS.equals(key)
+                || Prefs.KEY_AUTO_START_PENDING_UNTIL_MS.equals(key)) {
             return;
         }
         handler.post(() -> {
@@ -147,7 +184,7 @@ public final class OverlayService extends Service
 
     private void showPanel() {
         if (windowManager == null) {
-            return;
+            windowManager = (WindowManager) getSystemService(WINDOW_SERVICE);
         }
         if (panel != null) {
             if (panel.isAttachedToWindow()) {
@@ -199,6 +236,13 @@ public final class OverlayService extends Service
             panelParams = null;
             updateNotification(NOTIFICATION_PERMISSION_ERROR);
         }
+    }
+
+    private ForegroundAppDetector foregroundDetector() {
+        if (foregroundDetector == null) {
+            foregroundDetector = new ForegroundAppDetector(this);
+        }
+        return foregroundDetector;
     }
 
     private void hidePanel() {
@@ -284,6 +328,8 @@ public final class OverlayService extends Service
         String description;
         if (state == NOTIFICATION_VISIBLE) {
             description = getString(R.string.notification_visible);
+        } else if (state == NOTIFICATION_BOOT_DELAY) {
+            description = getString(R.string.notification_boot_delay);
         } else if (state == NOTIFICATION_PERMISSION_ERROR) {
             description = getString(R.string.notification_permission_error);
         } else {
