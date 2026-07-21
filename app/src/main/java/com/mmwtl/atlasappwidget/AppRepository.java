@@ -1,4 +1,4 @@
-package mmwtl.atlasappwidget;
+package com.mmwtl.atlasappwidget;
 
 import android.content.ComponentName;
 import android.content.Context;
@@ -10,9 +10,11 @@ import android.content.pm.ResolveInfo;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 
 final class AppRepository {
     private AppRepository() {
@@ -48,42 +50,59 @@ final class AppRepository {
     }
 
     static List<AppEntry> loadSelectedActivities(Context context, Prefs prefs) {
-        List<AppEntry> available = loadLaunchableActivities(context);
+        List<String> selectedKeys = prefs.selectedComponents();
+        if (selectedKeys.isEmpty()) {
+            return new ArrayList<>();
+        }
+        Set<String> selectedKeySet = new LinkedHashSet<>(selectedKeys);
+
+        Set<String> selectedPackages = new LinkedHashSet<>();
+        for (String key : selectedKeys) {
+            ComponentName component = ComponentName.unflattenFromString(key);
+            if (component != null) {
+                selectedPackages.add(component.getPackageName());
+            }
+        }
+
+        PackageManager packageManager = context.getPackageManager();
         Map<String, AppEntry> byComponent = new LinkedHashMap<>();
-        for (AppEntry entry : available) {
-            byComponent.put(entry.componentKey, entry);
+        for (String packageName : selectedPackages) {
+            Intent launcherIntent = new Intent(Intent.ACTION_MAIN)
+                    .addCategory(Intent.CATEGORY_LAUNCHER)
+                    .setPackage(packageName);
+            List<ResolveInfo> resolved = packageManager.queryIntentActivities(
+                    launcherIntent,
+                    PackageManager.MATCH_ALL
+            );
+            for (ResolveInfo info : resolved) {
+                ActivityInfo activity = info.activityInfo;
+                if (activity == null || !activity.exported || !activity.enabled
+                        || activity.applicationInfo == null
+                        || !activity.applicationInfo.enabled) {
+                    continue;
+                }
+                ComponentName component = new ComponentName(activity.packageName, activity.name);
+                String key = component.flattenToString();
+                if (!selectedKeySet.contains(key)) {
+                    continue;
+                }
+                String appLabel = safeLabel(
+                        activity.applicationInfo.loadLabel(packageManager),
+                        activity.packageName
+                );
+                String activityLabel = safeLabel(info.loadLabel(packageManager), activity.name);
+                byComponent.put(key, new AppEntry(component, appLabel, activityLabel));
+            }
         }
 
         ArrayList<AppEntry> selected = new ArrayList<>();
-        PackageManager packageManager = context.getPackageManager();
-        for (String key : prefs.selectedComponents()) {
+        for (String key : selectedKeys) {
             AppEntry entry = byComponent.get(key);
-            if (entry == null) {
-                entry = loadExact(packageManager, key);
-            }
             if (entry != null) {
                 selected.add(entry);
             }
         }
         return selected;
-    }
-
-    private static AppEntry loadExact(PackageManager packageManager, String key) {
-        ComponentName component = ComponentName.unflattenFromString(key);
-        if (component == null) {
-            return null;
-        }
-        try {
-            ActivityInfo activity = packageManager.getActivityInfo(component, 0);
-            if (!activity.exported) {
-                return null;
-            }
-            String appLabel = safeLabel(activity.applicationInfo.loadLabel(packageManager), component.getPackageName());
-            String activityLabel = safeLabel(activity.loadLabel(packageManager), component.getClassName());
-            return new AppEntry(component, appLabel, activityLabel);
-        } catch (PackageManager.NameNotFoundException ignored) {
-            return null;
-        }
     }
 
     private static String safeLabel(CharSequence value, String fallback) {

@@ -8,7 +8,7 @@ These instructions apply to the entire repository.
 
 AtlasAppWidget is an Android 11 launcher-overlay application for a portrait automotive head unit.
 It shows a configurable `TYPE_APPLICATION_OVERLAY` shortcut panel only while a HOME activity is in
-the foreground. The package name is `mmwtl.atlasappwidget`; do not change it without an explicit
+the foreground. The package name is `com.mmwtl.atlasappwidget`; do not change it without an explicit
 migration request.
 
 ## Required behavior

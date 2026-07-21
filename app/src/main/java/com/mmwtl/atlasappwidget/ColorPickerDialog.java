@@ -1,4 +1,4 @@
-package mmwtl.atlasappwidget;
+package com.mmwtl.atlasappwidget;
 
 import android.app.AlertDialog;
 import android.content.Context;
@@ -34,7 +34,11 @@ final class ColorPickerDialog {
         int[] channels = {Color.red(initialColor), Color.green(initialColor), Color.blue(initialColor)};
         TextView[] labels = new TextView[3];
         SeekBar[] sliders = new SeekBar[3];
-        String[] names = {"Красный", "Зелёный", "Синий"};
+        String[] names = {
+                context.getString(R.string.color_red),
+                context.getString(R.string.color_green),
+                context.getString(R.string.color_blue)
+        };
 
         Runnable update = () -> {
             int color = Color.rgb(channels[0], channels[1], channels[2]);
@@ -80,8 +84,8 @@ final class ColorPickerDialog {
         AlertDialog dialog = new AlertDialog.Builder(context)
                 .setTitle(title)
                 .setView(content)
-                .setNegativeButton("Отмена", null)
-                .setPositiveButton("Применить", null)
+                .setNegativeButton(R.string.cancel, null)
+                .setPositiveButton(R.string.apply, null)
                 .create();
         dialog.setOnShowListener(ignored -> dialog.getButton(AlertDialog.BUTTON_POSITIVE)
                 .setOnClickListener(view -> {

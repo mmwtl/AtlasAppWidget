@@ -1,4 +1,4 @@
-package mmwtl.atlasappwidget;
+package com.mmwtl.atlasappwidget;
 
 import android.content.ComponentName;
 

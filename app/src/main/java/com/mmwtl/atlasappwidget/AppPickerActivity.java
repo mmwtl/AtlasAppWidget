@@ -1,4 +1,4 @@
-package mmwtl.atlasappwidget;
+package com.mmwtl.atlasappwidget;
 
 import android.app.AlertDialog;
 import android.content.Intent;
@@ -23,38 +23,55 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import java.util.ArrayList;
+import java.io.IOException;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 public final class AppPickerActivity extends ScaledActivity {
     private static final int REQUEST_ICON = 401;
+    private static final String STATE_PENDING_ICON_COMPONENT = "pending_icon_component";
 
-    private final ExecutorService loader = Executors.newSingleThreadExecutor();
+    private final ExecutorService loader = Executors.newFixedThreadPool(2);
+    private final ExecutorService importer = Executors.newSingleThreadExecutor();
     private Prefs prefs;
     private ListView listView;
     private ProgressBar progress;
     private TextView resultSummary;
     private AppAdapter adapter;
     private String pendingIconComponent;
+    private final Set<String> iconLoads = Collections.synchronizedSet(new HashSet<>());
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         prefs = new Prefs(this);
-        getWindow().setStatusBarColor(Ui.BACKGROUND);
-        getWindow().setNavigationBarColor(Ui.BACKGROUND);
-        setContentView(buildContent());
+        if (savedInstanceState != null) {
+            pendingIconComponent = savedInstanceState.getString(STATE_PENDING_ICON_COMPONENT);
+        }
+        View content = buildContent();
+        setContentView(content);
+        Ui.applySystemBarInsets(content);
         loadApplications();
     }
 
     @Override
     protected void onDestroy() {
         loader.shutdownNow();
+        importer.shutdown();
         super.onDestroy();
+    }
+
+    @Override
+    protected void onSaveInstanceState(Bundle outState) {
+        super.onSaveInstanceState(outState);
+        outState.putString(STATE_PENDING_ICON_COMPONENT, pendingIconComponent);
     }
 
     private View buildContent() {
@@ -66,10 +83,10 @@ public final class AppPickerActivity extends ScaledActivity {
         LinearLayout toolbar = new LinearLayout(this);
         toolbar.setOrientation(LinearLayout.HORIZONTAL);
         toolbar.setGravity(Gravity.CENTER_VERTICAL);
-        Button back = Ui.button(this, "← Назад");
+        Button back = Ui.button(this, R.string.picker_back);
         back.setOnClickListener(view -> finish());
         toolbar.addView(back);
-        TextView title = Ui.heading(this, "Приложения и activity", 24);
+        TextView title = Ui.heading(this, R.string.picker_title, 24);
         LinearLayout.LayoutParams titleParams = new LinearLayout.LayoutParams(
                 0,
                 ViewGroup.LayoutParams.WRAP_CONTENT,
@@ -80,7 +97,7 @@ public final class AppPickerActivity extends ScaledActivity {
         root.addView(toolbar);
 
         TextView explanation = Ui.text(this,
-                "Отображаются только экспортируемые activity с MAIN/LAUNCHER — те, которые Android разрешает запускать как отдельные иконки. Стрелки меняют порядок в панели.",
+                R.string.picker_hint,
                 14,
                 Ui.TEXT_SECONDARY
         );
@@ -89,7 +106,7 @@ public final class AppPickerActivity extends ScaledActivity {
         root.addView(explanation);
 
         EditText search = new EditText(this);
-        search.setHint("Поиск по названию, пакету или activity");
+        search.setHint(R.string.picker_search);
         search.setHintTextColor(Ui.TEXT_SECONDARY);
         search.setTextColor(Ui.TEXT);
         search.setSingleLine(true);
@@ -117,7 +134,7 @@ public final class AppPickerActivity extends ScaledActivity {
             }
         });
 
-        resultSummary = Ui.text(this, "Загрузка списка…", 13, Ui.TEXT_SECONDARY);
+        resultSummary = Ui.text(this, R.string.picker_loading, 13, Ui.TEXT_SECONDARY);
         Ui.topMargin(resultSummary, 10);
         root.addView(resultSummary);
 
@@ -154,6 +171,13 @@ public final class AppPickerActivity extends ScaledActivity {
     private void loadApplications() {
         loader.execute(() -> {
             List<AppEntry> entries = AppRepository.loadLaunchableActivities(this);
+            Set<String> available = new HashSet<>();
+            for (AppEntry entry : entries) {
+                available.add(entry.componentKey);
+            }
+            if (!entries.isEmpty()) {
+                prefs.retainSelectedComponents(available);
+            }
             runOnUiThread(() -> {
                 if (isFinishing() || isDestroyed()) {
                     return;
@@ -169,15 +193,18 @@ public final class AppPickerActivity extends ScaledActivity {
     private void showIconOptions(AppEntry entry) {
         boolean hasCustom = prefs.customIcon(entry.componentKey) != null;
         String[] options = hasCustom
-                ? new String[]{"Выбрать изображение", "Вернуть системную иконку", "Отмена"}
-                : new String[]{"Выбрать изображение", "Отмена"};
+                ? new String[]{getString(R.string.choose_image),
+                getString(R.string.restore_system_icon), getString(R.string.cancel)}
+                : new String[]{getString(R.string.choose_image), getString(R.string.cancel)};
         new AlertDialog.Builder(this)
                 .setTitle(entry.label + " — " + entry.activityLabel)
                 .setItems(options, (dialog, which) -> {
                     if (which == 0) {
                         chooseIcon(entry);
                     } else if (hasCustom && which == 1) {
+                        CustomIconStore.delete(this, prefs.customIcon(entry.componentKey));
                         prefs.setCustomIcon(entry.componentKey, null);
+                        IconLoader.clearComponent(entry.componentKey);
                         if (adapter != null) {
                             adapter.notifyDataSetChanged();
                         }
@@ -196,7 +223,7 @@ public final class AppPickerActivity extends ScaledActivity {
         try {
             startActivityForResult(intent, REQUEST_ICON);
         } catch (android.content.ActivityNotFoundException ignored) {
-            Toast.makeText(this, "В прошивке нет системного выбора файлов", Toast.LENGTH_LONG).show();
+            Toast.makeText(this, R.string.no_file_picker, Toast.LENGTH_LONG).show();
         }
     }
 
@@ -208,19 +235,41 @@ public final class AppPickerActivity extends ScaledActivity {
             return;
         }
         Uri uri = data.getData();
-        try {
-            getContentResolver().takePersistableUriPermission(
-                    uri,
-                    Intent.FLAG_GRANT_READ_URI_PERMISSION
-            );
-        } catch (SecurityException ignored) {
-            // Some document providers keep access without supporting persistable grants.
-        }
-        prefs.setCustomIcon(pendingIconComponent, uri.toString());
+        String component = pendingIconComponent;
         pendingIconComponent = null;
-        if (adapter != null) {
-            adapter.notifyDataSetChanged();
-        }
+        Toast.makeText(this, R.string.icon_importing, Toast.LENGTH_SHORT).show();
+        importer.execute(() -> {
+            try {
+                String previous = prefs.customIcon(component);
+                String stored = CustomIconStore.importIcon(
+                        getApplicationContext(),
+                        uri,
+                        component
+                );
+                prefs.setCustomIcon(component, stored);
+                if (!stored.equals(previous)) {
+                    CustomIconStore.delete(getApplicationContext(), previous);
+                }
+                IconLoader.clearComponent(component);
+                runOnUiThread(() -> {
+                    if (!isFinishing() && !isDestroyed()) {
+                        Toast.makeText(this, R.string.icon_saved, Toast.LENGTH_SHORT).show();
+                        if (adapter != null) {
+                            adapter.notifyDataSetChanged();
+                        }
+                    }
+                });
+            } catch (IOException | SecurityException error) {
+                AppLog.warn("Custom icon import failed for " + component, error);
+                runOnUiThread(() -> {
+                    if (!isFinishing() && !isDestroyed()) {
+                        Toast.makeText(this,
+                                R.string.icon_save_failed,
+                                Toast.LENGTH_LONG).show();
+                    }
+                });
+            }
+        });
     }
 
     private final class AppAdapter extends BaseAdapter {
@@ -315,19 +364,13 @@ public final class AppPickerActivity extends ScaledActivity {
                     entry.componentName.getPackageName(),
                     entry.componentName.getClassName()
             ));
-            IconLoader.Result icon = IconLoader.load(
-                    AppPickerActivity.this,
-                    prefs,
-                    entry,
-                    Ui.dp(AppPickerActivity.this, 56)
-            );
-            holder.icon.setImageDrawable(icon.drawable);
-            holder.icon.setScaleType(icon.custom
-                    ? ImageView.ScaleType.CENTER_CROP
-                    : ImageView.ScaleType.FIT_CENTER);
+            bindIcon(holder, entry);
             holder.check.setOnCheckedChangeListener(null);
             holder.check.setChecked(isSelected);
-            holder.check.setContentDescription((isSelected ? "Убрать " : "Добавить ") + entry.label);
+            holder.check.setContentDescription(getString(
+                    isSelected ? R.string.remove_app : R.string.add_app,
+                    entry.label
+            ));
             holder.check.setOnCheckedChangeListener((button, checked) -> {
                 prefs.setComponentSelected(entry.componentKey, checked);
                 refresh();
@@ -344,9 +387,52 @@ public final class AppPickerActivity extends ScaledActivity {
                 prefs.moveSelected(entry.componentKey, 1);
                 refresh();
             });
-            holder.iconButton.setText(icon.custom ? "Своя иконка" : "Иконка");
+            holder.iconButton.setText(prefs.customIcon(entry.componentKey) != null
+                    ? R.string.custom_icon : R.string.icon);
             holder.iconButton.setOnClickListener(view -> showIconOptions(entry));
             return convertView;
+        }
+
+        private void bindIcon(RowHolder holder, AppEntry entry) {
+            int targetPixels = Ui.dp(AppPickerActivity.this, 56);
+            String loadKey = entry.componentKey + "|"
+                    + prefs.customIcon(entry.componentKey) + "|" + targetPixels;
+            holder.icon.setTag(loadKey);
+            holder.icon.setImageDrawable(getPackageManager().getDefaultActivityIcon());
+            holder.icon.setScaleType(ImageView.ScaleType.FIT_CENTER);
+            if (!iconLoads.add(loadKey)) {
+                return;
+            }
+            loader.execute(() -> {
+                IconLoader.Result icon;
+                try {
+                    icon = IconLoader.load(
+                            getApplicationContext(),
+                            prefs,
+                            entry,
+                            targetPixels
+                    );
+                } catch (RuntimeException error) {
+                    AppLog.warnRateLimited(
+                            "picker-icon-" + entry.componentKey,
+                            "App-picker icon load failed",
+                            error
+                    );
+                    iconLoads.remove(loadKey);
+                    return;
+                }
+                iconLoads.remove(loadKey);
+                runOnUiThread(() -> {
+                    if (isFinishing() || isDestroyed()
+                            || !loadKey.equals(holder.icon.getTag())) {
+                        return;
+                    }
+                    holder.icon.setImageDrawable(icon.drawable);
+                    holder.icon.setScaleType(icon.custom
+                            ? ImageView.ScaleType.CENTER_CROP
+                            : ImageView.ScaleType.FIT_CENTER);
+                });
+            });
         }
 
         private RowHolder createRow() {
@@ -405,7 +491,7 @@ public final class AppPickerActivity extends ScaledActivity {
             actions.addView(spacer, new LinearLayout.LayoutParams(0, 1, 1f));
             holder.up = compactButton("↑");
             holder.down = compactButton("↓");
-            holder.iconButton = Ui.button(AppPickerActivity.this, "Иконка");
+            holder.iconButton = Ui.button(AppPickerActivity.this, R.string.icon);
             actions.addView(holder.up, compactParams());
             actions.addView(holder.down, compactParams());
             LinearLayout.LayoutParams iconButtonParams = new LinearLayout.LayoutParams(

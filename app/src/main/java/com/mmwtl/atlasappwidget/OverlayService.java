@@ -1,4 +1,4 @@
-package mmwtl.atlasappwidget;
+package com.mmwtl.atlasappwidget;
 
 import android.app.Notification;
 import android.app.NotificationChannel;
@@ -11,34 +11,42 @@ import android.content.SharedPreferences;
 import android.content.pm.ServiceInfo;
 import android.graphics.PixelFormat;
 import android.graphics.Rect;
+import android.graphics.Insets;
 import android.os.Build;
 import android.os.Handler;
 import android.os.IBinder;
 import android.os.Looper;
+import android.os.SystemClock;
 import android.provider.Settings;
 import android.view.Gravity;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.WindowManager;
+import android.view.WindowInsets;
+import android.view.WindowMetrics;
 import android.widget.Toast;
 
 import java.util.List;
 
 public final class OverlayService extends Service
         implements SharedPreferences.OnSharedPreferenceChangeListener, PanelView.Listener {
-    static final String ACTION_START = "mmwtl.atlasappwidget.action.START";
+    static final String ACTION_START = "com.mmwtl.atlasappwidget.action.START";
     static final String ACTION_START_AFTER_BOOT =
-            "mmwtl.atlasappwidget.action.START_AFTER_BOOT";
-    static final String ACTION_STOP = "mmwtl.atlasappwidget.action.STOP";
+            "com.mmwtl.atlasappwidget.action.START_AFTER_BOOT";
+    static final String ACTION_STOP = "com.mmwtl.atlasappwidget.action.STOP";
 
     private static final String EXTRA_BOOT_DELAY_MS = "boot_delay_ms";
     private static final String CHANNEL_ID = "atlas_app_widget_service";
     private static final int NOTIFICATION_ID = 2107;
-    private static final int POLL_INTERVAL_MS = 450;
+    private static final int POLL_VISIBLE_MS = 700;
+    private static final int POLL_HIDDEN_MS = 1_000;
+    private static final int POLL_ERROR_MS = 2_000;
     private static final int NOTIFICATION_VISIBLE = 1;
     private static final int NOTIFICATION_HIDDEN = 2;
     private static final int NOTIFICATION_PERMISSION_ERROR = 3;
     private static final int NOTIFICATION_BOOT_DELAY = 4;
+    private static final int NOTIFICATION_NO_APPS = 5;
+    private static volatile boolean running;
 
     private final Handler handler = new Handler(Looper.getMainLooper());
     private Prefs prefs;
@@ -62,21 +70,26 @@ public final class OverlayService extends Service
                 stopSelf();
                 return;
             }
+            int nextPollDelay;
             if (!Settings.canDrawOverlays(OverlayService.this)
                     || !ForegroundAppDetector.hasUsageAccess(OverlayService.this)) {
                 hidePanel();
                 updateNotification(NOTIFICATION_PERMISSION_ERROR);
-            } else if (System.currentTimeMillis() < suppressPanelUntil) {
+                nextPollDelay = POLL_ERROR_MS;
+            } else if (SystemClock.elapsedRealtime() < suppressPanelUntil) {
                 hidePanel();
                 updateNotification(NOTIFICATION_HIDDEN);
+                nextPollDelay = POLL_VISIBLE_MS;
             } else if (foregroundDetector().isHomeForeground()) {
-                showPanel();
-                updateNotification(NOTIFICATION_VISIBLE);
+                boolean hasApps = showPanel();
+                updateNotification(hasApps ? NOTIFICATION_VISIBLE : NOTIFICATION_NO_APPS);
+                nextPollDelay = hasApps ? POLL_VISIBLE_MS : POLL_ERROR_MS;
             } else {
                 hidePanel();
                 updateNotification(NOTIFICATION_HIDDEN);
+                nextPollDelay = POLL_HIDDEN_MS;
             }
-            handler.postDelayed(this, POLL_INTERVAL_MS);
+            handler.postDelayed(this, nextPollDelay);
         }
     };
 
@@ -111,6 +124,8 @@ public final class OverlayService extends Service
             startForeground(NOTIFICATION_ID, notification);
         }
         currentNotificationState = NOTIFICATION_HIDDEN;
+        running = true;
+        AppLog.info("Overlay service created");
     }
 
     @Override
@@ -157,12 +172,18 @@ public final class OverlayService extends Service
             prefs.raw().unregisterOnSharedPreferenceChangeListener(this);
         }
         stopForeground(STOP_FOREGROUND_REMOVE);
+        running = false;
+        AppLog.info("Overlay service destroyed");
         super.onDestroy();
     }
 
     @Override
     public IBinder onBind(Intent intent) {
         return null;
+    }
+
+    static boolean isRunning() {
+        return running;
     }
 
     @Override
@@ -182,13 +203,13 @@ public final class OverlayService extends Service
         });
     }
 
-    private void showPanel() {
+    private boolean showPanel() {
         if (windowManager == null) {
             windowManager = (WindowManager) getSystemService(WINDOW_SERVICE);
         }
         if (panel != null) {
             if (panel.isAttachedToWindow()) {
-                return;
+                return true;
             }
             // Some head-unit shells can detach an overlay while switching tasks
             // without going through our removal path. Do not keep a stale view
@@ -196,8 +217,12 @@ public final class OverlayService extends Service
             panel = null;
             panelParams = null;
         }
-        Rect bounds = windowManager.getCurrentWindowMetrics().getBounds();
+        Rect bounds = availableBounds();
         List<AppEntry> entries = AppRepository.loadSelectedActivities(this, prefs);
+        if (entries.isEmpty()) {
+            hidePanel();
+            return false;
+        }
         PanelView candidate = new PanelView(
                 this,
                 prefs,
@@ -205,6 +230,7 @@ public final class OverlayService extends Service
                 entries,
                 false,
                 bounds.width(),
+                bounds.height(),
                 this
         );
 
@@ -220,10 +246,11 @@ public final class OverlayService extends Service
         int storedX = prefs.getInt(Prefs.KEY_POSITION_X, Prefs.POSITION_UNSET);
         int storedY = prefs.getInt(Prefs.KEY_POSITION_Y, Prefs.POSITION_UNSET);
         params.x = storedX == Prefs.POSITION_UNSET
-                ? Math.max(0, (bounds.width() - candidate.panelWidth()) / 2)
+                ? bounds.left + Math.max(0, (bounds.width() - candidate.panelWidth()) / 2)
                 : storedX - candidate.outlineInset();
         params.y = storedY == Prefs.POSITION_UNSET
-                ? Math.max(0, Math.round((bounds.height() - candidate.panelHeight()) * 0.72f))
+                ? bounds.top + Math.max(0,
+                Math.round((bounds.height() - candidate.panelHeight()) * 0.72f))
                 : storedY - candidate.outlineInset();
         clampPosition(params, candidate, bounds);
 
@@ -231,10 +258,13 @@ public final class OverlayService extends Service
             windowManager.addView(candidate, params);
             panel = candidate;
             panelParams = params;
-        } catch (SecurityException | WindowManager.BadTokenException ignored) {
+            return true;
+        } catch (SecurityException | WindowManager.BadTokenException error) {
             panel = null;
             panelParams = null;
             updateNotification(NOTIFICATION_PERMISSION_ERROR);
+            AppLog.warn("Cannot attach overlay window", error);
+            return false;
         }
     }
 
@@ -275,11 +305,13 @@ public final class OverlayService extends Service
             case MotionEvent.ACTION_MOVE:
                 panelParams.x = dragStartWindowX + Math.round(event.getRawX() - dragStartRawX);
                 panelParams.y = dragStartWindowY + Math.round(event.getRawY() - dragStartRawY);
-                Rect bounds = windowManager.getCurrentWindowMetrics().getBounds();
+                Rect bounds = availableBounds();
                 clampPosition(panelParams, panel, bounds);
                 try {
                     windowManager.updateViewLayout(panel, panelParams);
-                } catch (IllegalArgumentException ignored) {
+                } catch (IllegalArgumentException error) {
+                    AppLog.warnRateLimited(
+                            "overlay-position", "Cannot update overlay position", error);
                     return false;
                 }
                 return true;
@@ -295,7 +327,7 @@ public final class OverlayService extends Service
 
     @Override
     public void onAppClicked(AppEntry entry) {
-        suppressPanelUntil = System.currentTimeMillis() + 1_500L;
+        suppressPanelUntil = SystemClock.elapsedRealtime() + 1_500L;
         hidePanel();
         Intent launch = new Intent(Intent.ACTION_MAIN)
                 .addCategory(Intent.CATEGORY_LAUNCHER)
@@ -304,13 +336,32 @@ public final class OverlayService extends Service
         try {
             startActivity(launch);
         } catch (ActivityNotFoundException | SecurityException error) {
-            Toast.makeText(this, "Не удалось открыть " + entry.label, Toast.LENGTH_SHORT).show();
+            AppLog.warn("Cannot launch selected activity " + entry.componentKey, error);
+            Toast.makeText(this, getString(R.string.launch_failed, entry.label),
+                    Toast.LENGTH_SHORT).show();
         }
     }
 
     private void clampPosition(WindowManager.LayoutParams params, PanelView target, Rect bounds) {
-        params.x = Math.max(0, Math.min(params.x, Math.max(0, bounds.width() - target.panelWidth())));
-        params.y = Math.max(0, Math.min(params.y, Math.max(0, bounds.height() - target.panelHeight())));
+        params.x = Math.max(bounds.left,
+                Math.min(params.x, Math.max(bounds.left, bounds.right - target.panelWidth())));
+        params.y = Math.max(bounds.top,
+                Math.min(params.y, Math.max(bounds.top, bounds.bottom - target.panelHeight())));
+    }
+
+    private Rect availableBounds() {
+        WindowMetrics metrics = windowManager.getCurrentWindowMetrics();
+        Rect full = metrics.getBounds();
+        Insets insets = metrics.getWindowInsets().getInsetsIgnoringVisibility(
+                WindowInsets.Type.systemBars() | WindowInsets.Type.displayCutout()
+        );
+        Rect safe = new Rect(
+                full.left + insets.left,
+                full.top + insets.top,
+                full.right - insets.right,
+                full.bottom - insets.bottom
+        );
+        return safe.width() > 0 && safe.height() > 0 ? safe : new Rect(full);
     }
 
     private void createNotificationChannel() {
@@ -332,6 +383,8 @@ public final class OverlayService extends Service
             description = getString(R.string.notification_boot_delay);
         } else if (state == NOTIFICATION_PERMISSION_ERROR) {
             description = getString(R.string.notification_permission_error);
+        } else if (state == NOTIFICATION_NO_APPS) {
+            description = getString(R.string.notification_no_apps);
         } else {
             description = getString(R.string.notification_hidden);
         }

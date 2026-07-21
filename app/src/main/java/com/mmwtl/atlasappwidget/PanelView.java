@@ -1,4 +1,4 @@
-package mmwtl.atlasappwidget;
+package com.mmwtl.atlasappwidget;
 
 import android.annotation.SuppressLint;
 import android.content.Context;
@@ -44,6 +44,7 @@ final class PanelView extends LinearLayout {
             List<AppEntry> entries,
             boolean preview,
             int availableWidthPixels,
+            int availableHeightPixels,
             Listener listener
     ) {
         super(context);
@@ -52,32 +53,46 @@ final class PanelView extends LinearLayout {
                 && (handlePosition == PanelConfig.HANDLE_TOP
                 || handlePosition == PanelConfig.HANDLE_BOTTOM);
         setOrientation(handleVertical ? VERTICAL : HORIZONTAL);
-        setGravity(handleVertical ? Gravity.CENTER_HORIZONTAL : Gravity.CENTER_VERTICAL);
+        setGravity(handleVertical
+                ? Gravity.CENTER_HORIZONTAL | Gravity.CENTER_VERTICAL
+                : Gravity.CENTER_VERTICAL);
 
         outlineInset = config.backgroundStrokeEnabled
                 ? Ui.dp(context, Math.max(1, Math.min(20, config.backgroundStrokeWidthDp)))
                 : 0;
-        int outerPadding = Ui.dp(context, config.paddingDp);
-        int gap = Ui.dp(context, config.gapDp);
+        int requestedPadding = Ui.dp(context, config.paddingDp);
+        int requestedGap = Ui.dp(context, config.gapDp);
         int handleSize = config.showDragHandle ? Ui.dp(context, 34) : 0;
         int handleGap = config.showDragHandle ? Ui.dp(context, 4) : 0;
         int configuredIconSize = Ui.dp(context, config.iconSizeDp);
         int labelHeight = config.showAppLabels ? Ui.dp(context, 20) : 0;
         int labelGap = config.showAppLabels ? Ui.dp(context, 4) : 0;
-        int cellHeight = configuredIconSize + labelGap + labelHeight;
         int rows = Math.max(1, config.rows);
         int columns = Math.max(1, config.columns);
-
-        int backgroundWidth = Math.max(Ui.dp(context, 180),
-                Math.round(availableWidthPixels * Math.max(25, Math.min(100, config.widthPercent)) / 100f));
-        int gridHeight = rows * cellHeight + Math.max(0, rows - 1) * gap;
-        int backgroundHeight = Math.max(
+        PanelLayout layout = PanelLayout.calculate(
+                availableWidthPixels,
+                availableHeightPixels,
+                config.widthPercent,
+                Ui.dp(context, 180),
                 Ui.dp(context, 54),
-                gridHeight + outerPadding * 2
-                        + (handleVertical ? handleSize + handleGap : 0)
+                configuredIconSize,
+                labelHeight,
+                labelGap,
+                rows,
+                columns,
+                requestedPadding,
+                requestedGap,
+                config.showDragHandle,
+                handleVertical,
+                handleSize,
+                handleGap,
+                outlineInset
         );
-        panelWidth = backgroundWidth + outlineInset * 2;
-        panelHeight = backgroundHeight + outlineInset * 2;
+        int backgroundWidth = layout.backgroundWidth;
+        int backgroundHeight = layout.backgroundHeight;
+        int outerPadding = layout.padding;
+        panelWidth = layout.panelWidth;
+        panelHeight = layout.panelHeight;
         int contentInset = outerPadding + outlineInset;
         setPadding(contentInset, contentInset, contentInset, contentInset);
 
@@ -122,7 +137,7 @@ final class PanelView extends LinearLayout {
             handle.setTextSize(28);
             handle.setTextColor(Ui.TEXT_SECONDARY);
             handle.setGravity(Gravity.CENTER);
-            handle.setContentDescription("Перетащить панель");
+            handle.setContentDescription(context.getString(R.string.drag_panel));
             if (handleVertical) {
                 handleParams = new LinearLayout.LayoutParams(
                         ViewGroup.LayoutParams.MATCH_PARENT,
@@ -158,16 +173,11 @@ final class PanelView extends LinearLayout {
             setOnTouchListener(emptySpaceDragTouchListener);
         }
 
-        int horizontalHandleSpace = config.showDragHandle && !handleVertical
-                ? handleSize + handleGap
-                : 0;
-        int gridWidth = Math.max(
-                1,
-                backgroundWidth - outerPadding * 2 - horizontalHandleSpace
-        );
-        int totalHorizontalGaps = Math.max(0, columns - 1) * gap;
-        int cellWidth = Math.max(1, (gridWidth - totalHorizontalGaps) / columns);
-        int actualIconSize = Math.max(1, Math.min(configuredIconSize, cellWidth));
+        int gridWidth = layout.gridWidth;
+        int gridHeight = layout.gridHeight;
+        int cellWidth = layout.cellWidth;
+        int cellHeight = layout.cellHeight;
+        int actualIconSize = layout.iconSize;
 
         GridLayout grid = new GridLayout(context);
         grid.setColumnCount(columns);
@@ -195,19 +205,19 @@ final class PanelView extends LinearLayout {
             cellParams.width = cellWidth;
             cellParams.height = cellHeight;
             if (column > 0) {
-                cellParams.leftMargin = gap;
+                cellParams.leftMargin = layout.horizontalGap;
             }
             if (row > 0) {
-                cellParams.topMargin = gap;
+                cellParams.topMargin = layout.verticalGap;
             }
             grid.addView(cell, cellParams);
 
             AppEntry entry = index < entries.size() ? entries.get(index) : null;
             if (entry != null) {
                 addAppIcon(cell, prefs, config, entry, actualIconSize,
-                        configuredIconSize, labelHeight, listener);
+                        actualIconSize, labelHeight, listener);
             } else if (preview && index < Math.min(4, slotCount)) {
-                addPlaceholder(cell, config, actualIconSize, configuredIconSize, index);
+                addPlaceholder(cell, config, actualIconSize, actualIconSize, index);
             }
         }
 

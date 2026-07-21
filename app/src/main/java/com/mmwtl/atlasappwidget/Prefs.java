@@ -1,4 +1,4 @@
-package mmwtl.atlasappwidget;
+package com.mmwtl.atlasappwidget;
 
 import android.content.Context;
 import android.content.SharedPreferences;
@@ -9,6 +9,7 @@ import org.json.JSONObject;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 
 final class Prefs {
     static final int MAX_AUTO_START_DELAY_SECONDS = 300;
@@ -95,8 +96,10 @@ final class Prefs {
                     result.add(value);
                 }
             }
-        } catch (JSONException ignored) {
+        } catch (JSONException error) {
             // Corrupt preferences should not prevent the settings screen opening.
+            AppLog.warnRateLimited(
+                    "selected-components-json", "Selected-components JSON is corrupt", error);
         }
         return result;
     }
@@ -125,6 +128,13 @@ final class Prefs {
         writeSelected(current);
     }
 
+    synchronized void retainSelectedComponents(Set<String> availableComponents) {
+        List<String> current = selectedComponents();
+        if (current.removeIf(component -> !availableComponents.contains(component))) {
+            writeSelected(current);
+        }
+    }
+
     private void writeSelected(List<String> selected) {
         JSONArray array = new JSONArray();
         for (String component : selected) {
@@ -148,15 +158,17 @@ final class Prefs {
                 object.put(component, uri);
             }
             values.edit().putString(KEY_CUSTOM_ICONS, object.toString()).apply();
-        } catch (JSONException ignored) {
+        } catch (JSONException error) {
             // A component name is always a valid JSONObject key.
+            AppLog.warnRateLimited("custom-icons-write", "Cannot update custom-icon JSON", error);
         }
     }
 
     private JSONObject readCustomIcons() {
         try {
             return new JSONObject(values.getString(KEY_CUSTOM_ICONS, "{}"));
-        } catch (JSONException ignored) {
+        } catch (JSONException error) {
+            AppLog.warnRateLimited("custom-icons-json", "Custom-icon JSON is corrupt", error);
             return new JSONObject();
         }
     }

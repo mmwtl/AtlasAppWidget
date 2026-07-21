@@ -1,4 +1,4 @@
-package mmwtl.atlasappwidget;
+package com.mmwtl.atlasappwidget;
 
 final class PanelConfig {
     static final int PANEL_RADIUS_FULLY_ROUNDED = 80;

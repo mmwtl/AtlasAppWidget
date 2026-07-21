@@ -1,4 +1,4 @@
-package mmwtl.atlasappwidget;
+package com.mmwtl.atlasappwidget;
 
 import android.content.BroadcastReceiver;
 import android.content.Context;
@@ -23,7 +23,8 @@ public final class DelayedBootReceiver extends BroadcastReceiver {
         }
         try {
             OverlayService.start(context);
-        } catch (RuntimeException ignored) {
+        } catch (RuntimeException error) {
+            AppLog.warn("Delayed boot start failed", error);
             prefs.putBoolean(Prefs.KEY_SERVICE_ENABLED, false);
         }
     }

@@ -1,5 +1,6 @@
-package mmwtl.atlasappwidget;
+package com.mmwtl.atlasappwidget;
 
+import android.annotation.SuppressLint;
 import android.app.AlarmManager;
 import android.app.PendingIntent;
 import android.content.BroadcastReceiver;
@@ -11,7 +12,7 @@ import android.provider.Settings;
 
 public final class BootReceiver extends BroadcastReceiver {
     static final String ACTION_DELAYED_BOOT_START =
-            "mmwtl.atlasappwidget.action.DELAYED_BOOT_START";
+            "com.mmwtl.atlasappwidget.action.DELAYED_BOOT_START";
     private static final int DELAYED_START_REQUEST_CODE = 2108;
 
     @Override
@@ -52,13 +53,15 @@ public final class BootReceiver extends BroadcastReceiver {
                     prefs.remove(Prefs.KEY_AUTO_START_PENDING_UNTIL_MS);
                     OverlayService.start(context);
                 }
-            } catch (RuntimeException ignored) {
+            } catch (RuntimeException error) {
+                AppLog.warn("Boot start failed for action " + action, error);
                 prefs.putBoolean(Prefs.KEY_SERVICE_ENABLED, false);
                 prefs.remove(Prefs.KEY_AUTO_START_PENDING_UNTIL_MS);
             }
         }
     }
 
+    @SuppressLint("MissingPermission")
     private void scheduleDelayedStart(Context context, Prefs prefs, int delaySeconds) {
         int boundedDelaySeconds = Math.max(0,
                 Math.min(Prefs.MAX_AUTO_START_DELAY_SECONDS, delaySeconds));
@@ -73,6 +76,9 @@ public final class BootReceiver extends BroadcastReceiver {
         }
         prefs.putLong(Prefs.KEY_AUTO_START_PENDING_UNTIL_MS,
                 System.currentTimeMillis() + delayMs);
+        // This path is intentionally restricted to Android 11, where no exact-alarm
+        // special access exists. Newer releases start the FGS during the boot exemption
+        // and perform the short delay inside the service.
         alarmManager.setExactAndAllowWhileIdle(
                 AlarmManager.ELAPSED_REALTIME_WAKEUP,
                 SystemClock.elapsedRealtime() + delayMs,
