@@ -20,9 +20,10 @@
     <string name="allow_overlay">Разрешить поверх других окон</string>
     <string name="allow_usage">Разрешить доступ к статистике</string>
     <string name="allow_notifications">Разрешить уведомления</string>
-    <string name="panel_apps_title">2. Панель и приложения</string>
+    <string name="panel_apps_title">2. Приложения</string>
     <string name="choose_apps">Выбрать приложения, activity и иконки</string>
     <string name="show_app_labels">Показывать названия приложений</string>
+    <string name="system_status_title">3. Показатели системы</string>
     <string name="show_system_status">Показывать CPU, RAM и TEMP</string>
     <string name="system_status_position">Расположение показателей</string>
     <string-array name="system_status_positions">
@@ -32,12 +33,14 @@
     <string name="system_status_text_size">Размер надписей CPU / RAM / TEMP</string>
     <string name="system_status_text_weight">Толщина надписей</string>
     <string name="system_status_hint">CPU и температура SoC зависят от данных, доступных в прошивке. Если датчик SoC недоступен, TEMP использует температуру батареи; недоступное значение показывается как —.</string>
+    <string name="movement_title">4. Перемещение панели</string>
     <string name="show_drag_handle">Показывать ручку перетаскивания</string>
     <string name="drag_handle_position">Расположение ручки</string>
     <string-array name="drag_handle_positions">
         <item>Слева</item><item>Справа</item><item>Сверху</item><item>Снизу</item>
     </string-array>
     <string name="drag_handle_hint">Если ручка скрыта, удерживайте пустое место панели 1 секунду, затем перетаскивайте.</string>
+    <string name="service_title">5. Запуск и сервис</string>
     <string name="auto_start">Автозапуск после загрузки ГУ</string>
     <string name="auto_start_permission_warning">Автозапуск сохранён, но без двух специальных разрешений он не сработает</string>
     <string name="auto_start_delay">Задержка автозапуска</string>
@@ -45,9 +48,9 @@
     <string name="start_panel">Запустить панель</string>
     <string name="reset_panel_position">Сбросить позицию панели</string>
     <string name="position_reset">Позиция сброшена</string>
-    <string name="preview_title">Предпросмотр</string>
-    <string name="preview_hint">Фактический размер задаётся в процентах ширины экрана ГУ. Ручку можно скрыть в настройках выше.</string>
-    <string name="geometry_title">3. Геометрия</string>
+    <string name="preview_title">6. Предпросмотр</string>
+    <string name="preview_hint">Фактический размер задаётся в процентах ширины экрана ГУ. Ручка и показатели настраиваются в отдельных разделах выше.</string>
+    <string name="geometry_title">7. Геометрия</string>
     <string name="panel_width">Ширина панели</string>
     <string name="columns">Столбцы</string>
     <string name="rows">Ряды</string>
@@ -55,7 +58,7 @@
     <string name="icon_shape">Форма иконок</string>
     <string name="padding">Внутренний отступ</string>
     <string name="icon_gap">Интервал между иконками</string>
-    <string name="background_title">4. Фон панели</string>
+    <string name="background_title">8. Оформление панели</string>
     <string name="panel_radius">Радиус панели</string>
     <string name="background_opacity">Прозрачность фона</string>
     <string name="change_background_color">Изменить цвет фона</string>
@@ -67,7 +70,7 @@
     <string name="stroke_opacity">Прозрачность обводки</string>
     <string name="head_unit_note_title">Важно для автомобильной ГУ</string>
     <string name="head_unit_note">Некоторые прошивки отдельно блокируют автозапуск и фоновые сервисы. Если после перезагрузки панель не стартует, разрешите автозапуск и работу без ограничений в менеджере питания самой ГУ. Android API не может выдать эти OEM-разрешения автоматически.</string>
-    <string name="scale_title">5. Масштаб приложения</string>
+    <string name="scale_title">9. Масштаб приложения</string>
     <string name="scale_hint">Меняет размер экранов и элементов приложения без изменения системного масштаба ГУ. Геометрия overlay-панели настраивается отдельно выше.</string>
     <string name="scale">Масштаб</string>
     <string name="picker_back">← Назад</string>

@@ -45,6 +45,8 @@ public final class MainActivity extends ScaledActivity
     private Switch appLabelsSwitch;
     private Switch systemStatusSwitch;
     private Spinner systemStatusPositionSpinner;
+    private LinearLayout systemStatusOptions;
+    private LinearLayout dragHandleOptions;
     private Switch backgroundStrokeSwitch;
     private FrameLayout previewContainer;
     private Button backgroundColorButton;
@@ -155,16 +157,16 @@ public final class MainActivity extends ScaledActivity
         permissions.addView(notificationButton);
         content.addView(permissions);
 
-        LinearLayout control = Ui.card(this);
-        control.addView(Ui.heading(this, R.string.panel_apps_title, 20));
+        LinearLayout apps = Ui.card(this);
+        apps.addView(Ui.heading(this, R.string.panel_apps_title, 20));
         selectedSummary = Ui.text(this, "", 14, Ui.TEXT_SECONDARY);
         Ui.topMargin(selectedSummary, 8);
-        control.addView(selectedSummary);
+        apps.addView(selectedSummary);
 
         Button appsButton = Ui.button(this, R.string.choose_apps);
         Ui.topMargin(appsButton, 12);
         appsButton.setOnClickListener(view -> startActivity(new Intent(this, AppPickerActivity.class)));
-        control.addView(appsButton);
+        apps.addView(appsButton);
 
         appLabelsSwitch = new Switch(this);
         appLabelsSwitch.setText(R.string.show_app_labels);
@@ -176,7 +178,11 @@ public final class MainActivity extends ScaledActivity
                 prefs.putBoolean(Prefs.KEY_SHOW_APP_LABELS, checked);
             }
         });
-        control.addView(appLabelsSwitch);
+        apps.addView(appLabelsSwitch);
+        content.addView(apps);
+
+        LinearLayout systemStatus = Ui.card(this);
+        systemStatus.addView(Ui.heading(this, R.string.system_status_title, 20));
 
         systemStatusSwitch = new Switch(this);
         systemStatusSwitch.setText(R.string.show_system_status);
@@ -187,11 +193,14 @@ public final class MainActivity extends ScaledActivity
             if (!updatingSwitch) {
                 prefs.putBoolean(Prefs.KEY_SHOW_SYSTEM_STATUS, checked);
             }
-            if (systemStatusPositionSpinner != null) {
-                systemStatusPositionSpinner.setEnabled(checked);
+            if (systemStatusOptions != null) {
+                setSettingsGroupEnabled(systemStatusOptions, checked);
             }
         });
-        control.addView(systemStatusSwitch);
+        systemStatus.addView(systemStatusSwitch);
+
+        systemStatusOptions = settingsGroup();
+        systemStatus.addView(systemStatusOptions);
 
         TextView systemStatusPositionLabel = Ui.text(this,
                 R.string.system_status_position,
@@ -199,7 +208,7 @@ public final class MainActivity extends ScaledActivity
                 Ui.TEXT
         );
         Ui.topMargin(systemStatusPositionLabel, 8);
-        control.addView(systemStatusPositionLabel);
+        systemStatusOptions.addView(systemStatusPositionLabel);
         systemStatusPositionSpinner = new Spinner(this);
         String[] systemStatusPositions = getResources().getStringArray(
                 R.array.system_status_positions);
@@ -235,16 +244,16 @@ public final class MainActivity extends ScaledActivity
                     public void onNothingSelected(android.widget.AdapterView<?> parent) {
                     }
                 });
-        control.addView(systemStatusPositionSpinner);
+        systemStatusOptions.addView(systemStatusPositionSpinner);
 
-        addSlider(control, getString(R.string.system_status_line_height),
+        addSlider(systemStatusOptions, getString(R.string.system_status_line_height),
                 PanelConfig.STATUS_LINE_HEIGHT_MIN_DP,
                 PanelConfig.STATUS_LINE_HEIGHT_MAX_DP,
                 prefs.getInt(Prefs.KEY_SYSTEM_STATUS_LINE_HEIGHT_DP,
                         PanelConfig.STATUS_LINE_HEIGHT_DEFAULT_DP),
                 value -> getString(R.string.dp_value, value),
                 value -> prefs.putInt(Prefs.KEY_SYSTEM_STATUS_LINE_HEIGHT_DP, value));
-        addSlider(control, getString(R.string.system_status_text_size),
+        addSlider(systemStatusOptions, getString(R.string.system_status_text_size),
                 PanelConfig.STATUS_TEXT_SIZE_MIN_SP,
                 PanelConfig.STATUS_TEXT_SIZE_MAX_SP,
                 prefs.getInt(Prefs.KEY_SYSTEM_STATUS_TEXT_SIZE_SP,
@@ -255,7 +264,7 @@ public final class MainActivity extends ScaledActivity
                 Prefs.KEY_SYSTEM_STATUS_TEXT_WEIGHT,
                 PanelConfig.STATUS_TEXT_WEIGHT_DEFAULT
         );
-        addSlider(control, getString(R.string.system_status_text_weight),
+        addSlider(systemStatusOptions, getString(R.string.system_status_text_weight),
                 PanelConfig.STATUS_TEXT_WEIGHT_MIN / 100,
                 PanelConfig.STATUS_TEXT_WEIGHT_MAX / 100,
                 Math.max(PanelConfig.STATUS_TEXT_WEIGHT_MIN,
@@ -270,7 +279,11 @@ public final class MainActivity extends ScaledActivity
                 Ui.TEXT_SECONDARY
         );
         systemStatusHint.setLineSpacing(0, 1.1f);
-        control.addView(systemStatusHint);
+        systemStatusOptions.addView(systemStatusHint);
+        content.addView(systemStatus);
+
+        LinearLayout movement = Ui.card(this);
+        movement.addView(Ui.heading(this, R.string.movement_title, 20));
 
         dragHandleSwitch = new Switch(this);
         dragHandleSwitch.setText(R.string.show_drag_handle);
@@ -281,8 +294,14 @@ public final class MainActivity extends ScaledActivity
             if (!updatingSwitch) {
                 prefs.putBoolean(Prefs.KEY_SHOW_DRAG_HANDLE, checked);
             }
+            if (dragHandleOptions != null) {
+                setSettingsGroupEnabled(dragHandleOptions, checked);
+            }
         });
-        control.addView(dragHandleSwitch);
+        movement.addView(dragHandleSwitch);
+
+        dragHandleOptions = settingsGroup();
+        movement.addView(dragHandleOptions);
 
         TextView dragHandlePositionLabel = Ui.text(this,
                 R.string.drag_handle_position,
@@ -290,7 +309,7 @@ public final class MainActivity extends ScaledActivity
                 Ui.TEXT
         );
         Ui.topMargin(dragHandlePositionLabel, 8);
-        control.addView(dragHandlePositionLabel);
+        dragHandleOptions.addView(dragHandlePositionLabel);
         Spinner dragHandlePosition = new Spinner(this);
         String[] dragHandlePositions = getResources().getStringArray(R.array.drag_handle_positions);
         ArrayAdapter<String> dragHandlePositionAdapter = new ArrayAdapter<>(
@@ -322,7 +341,7 @@ public final class MainActivity extends ScaledActivity
                     public void onNothingSelected(android.widget.AdapterView<?> parent) {
                     }
                 });
-        control.addView(dragHandlePosition);
+        dragHandleOptions.addView(dragHandlePosition);
 
         TextView dragHandleHint = Ui.text(this,
                 R.string.drag_handle_hint,
@@ -330,7 +349,20 @@ public final class MainActivity extends ScaledActivity
                 Ui.TEXT_SECONDARY
         );
         dragHandleHint.setLineSpacing(0, 1.1f);
-        control.addView(dragHandleHint);
+        dragHandleOptions.addView(dragHandleHint);
+
+        Button resetPosition = Ui.button(this, R.string.reset_panel_position);
+        Ui.topMargin(resetPosition, 12);
+        resetPosition.setOnClickListener(view -> {
+            prefs.putInt(Prefs.KEY_POSITION_X, Prefs.POSITION_UNSET);
+            prefs.putInt(Prefs.KEY_POSITION_Y, Prefs.POSITION_UNSET);
+            Toast.makeText(this, R.string.position_reset, Toast.LENGTH_SHORT).show();
+        });
+        movement.addView(resetPosition);
+        content.addView(movement);
+
+        LinearLayout service = Ui.card(this);
+        service.addView(Ui.heading(this, R.string.service_title, 20));
 
         autoStartSwitch = new Switch(this);
         autoStartSwitch.setText(R.string.auto_start);
@@ -356,9 +388,9 @@ public final class MainActivity extends ScaledActivity
                         Toast.LENGTH_LONG).show();
             }
         });
-        control.addView(autoStartSwitch);
+        service.addView(autoStartSwitch);
 
-        addSlider(control, getString(R.string.auto_start_delay), 0,
+        addSlider(service, getString(R.string.auto_start_delay), 0,
                 Prefs.MAX_AUTO_START_DELAY_SECONDS,
                 prefs.getInt(Prefs.KEY_AUTO_START_DELAY_SECONDS, 0),
                 this::formatAutoStartDelay,
@@ -368,10 +400,11 @@ public final class MainActivity extends ScaledActivity
                 13,
                 Ui.TEXT_SECONDARY
         );
-        control.addView(autoStartDelayHint);
+        service.addView(autoStartDelayHint);
 
         serviceStatus = Ui.text(this, "", 14, Ui.TEXT_SECONDARY);
-        control.addView(serviceStatus);
+        Ui.topMargin(serviceStatus, 12);
+        service.addView(serviceStatus);
 
         LinearLayout serviceButtons = new LinearLayout(this);
         serviceButtons.setOrientation(LinearLayout.HORIZONTAL);
@@ -389,17 +422,20 @@ public final class MainActivity extends ScaledActivity
         stopParams.leftMargin = Ui.dp(this, 10);
         serviceButtons.addView(stopButton, stopParams);
         stopButton.setOnClickListener(view -> stopPanel());
-        control.addView(serviceButtons);
+        service.addView(serviceButtons);
+        content.addView(service);
 
-        Button resetPosition = Ui.button(this, R.string.reset_panel_position);
-        Ui.topMargin(resetPosition, 10);
-        resetPosition.setOnClickListener(view -> {
-            prefs.putInt(Prefs.KEY_POSITION_X, Prefs.POSITION_UNSET);
-            prefs.putInt(Prefs.KEY_POSITION_Y, Prefs.POSITION_UNSET);
-            Toast.makeText(this, R.string.position_reset, Toast.LENGTH_SHORT).show();
-        });
-        control.addView(resetPosition);
-        content.addView(control);
+        LinearLayout notes = Ui.card(this);
+        notes.addView(Ui.heading(this, R.string.head_unit_note_title, 18));
+        TextView note = Ui.text(this,
+                R.string.head_unit_note,
+                14,
+                Ui.TEXT_SECONDARY
+        );
+        note.setLineSpacing(0, 1.15f);
+        Ui.topMargin(note, 7);
+        notes.addView(note);
+        content.addView(notes);
 
         LinearLayout preview = Ui.card(this);
         preview.addView(Ui.heading(this, R.string.preview_title, 20));
@@ -426,18 +462,6 @@ public final class MainActivity extends ScaledActivity
         content.addView(buildGeometryCard());
         content.addView(buildBackgroundCard());
 
-        LinearLayout notes = Ui.card(this);
-        notes.addView(Ui.heading(this, R.string.head_unit_note_title, 18));
-        TextView note = Ui.text(this,
-                R.string.head_unit_note,
-                14,
-                Ui.TEXT_SECONDARY
-        );
-        note.setLineSpacing(0, 1.15f);
-        Ui.topMargin(note, 7);
-        notes.addView(note);
-        content.addView(notes);
-
         LinearLayout scale = Ui.card(this);
         scale.addView(Ui.heading(this, R.string.scale_title, 20));
         TextView scaleHint = Ui.text(this,
@@ -452,6 +476,38 @@ public final class MainActivity extends ScaledActivity
         content.addView(scale);
 
         return scroll;
+    }
+
+    private LinearLayout settingsGroup() {
+        LinearLayout group = new LinearLayout(this);
+        group.setOrientation(LinearLayout.VERTICAL);
+        group.setPadding(
+                Ui.dp(this, 16),
+                Ui.dp(this, 4),
+                Ui.dp(this, 16),
+                Ui.dp(this, 12)
+        );
+        group.setBackground(Ui.rounded(Ui.SURFACE_RAISED, Ui.dp(this, 8)));
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+        );
+        params.topMargin = Ui.dp(this, 8);
+        group.setLayoutParams(params);
+        return group;
+    }
+
+    private void setSettingsGroupEnabled(View view, boolean enabled) {
+        view.setEnabled(enabled);
+        if (view instanceof ViewGroup) {
+            ViewGroup group = (ViewGroup) view;
+            for (int index = 0; index < group.getChildCount(); index++) {
+                setSettingsGroupEnabled(group.getChildAt(index), enabled);
+            }
+        }
+        if (view == systemStatusOptions || view == dragHandleOptions) {
+            view.setAlpha(enabled ? 1f : 0.42f);
+        }
     }
 
     private LinearLayout buildGeometryCard() {
@@ -718,7 +774,8 @@ public final class MainActivity extends ScaledActivity
                 serviceEnabled && (serviceRunning || autoStartPending));
         updatingSwitch = true;
         autoStartSwitch.setChecked(prefs.getBoolean(Prefs.KEY_AUTO_START, false));
-        dragHandleSwitch.setChecked(prefs.getBoolean(Prefs.KEY_SHOW_DRAG_HANDLE, true));
+        boolean showDragHandle = prefs.getBoolean(Prefs.KEY_SHOW_DRAG_HANDLE, true);
+        dragHandleSwitch.setChecked(showDragHandle);
         appLabelsSwitch.setChecked(prefs.getBoolean(Prefs.KEY_SHOW_APP_LABELS, false));
         boolean showSystemStatus = prefs.getBoolean(Prefs.KEY_SHOW_SYSTEM_STATUS, false);
         systemStatusSwitch.setChecked(showSystemStatus);
@@ -728,10 +785,11 @@ public final class MainActivity extends ScaledActivity
                         prefs.getInt(Prefs.KEY_SYSTEM_STATUS_POSITION,
                                 PanelConfig.STATUS_BOTTOM))
         ));
-        systemStatusPositionSpinner.setEnabled(showSystemStatus);
         backgroundStrokeSwitch.setChecked(
                 prefs.getBoolean(Prefs.KEY_BACKGROUND_STROKE_ENABLED, false));
         updatingSwitch = false;
+        setSettingsGroupEnabled(systemStatusOptions, showSystemStatus);
+        setSettingsGroupEnabled(dragHandleOptions, showDragHandle);
 
         List<String> selected = prefs.selectedComponents();
         PanelConfig config = prefs.panelConfig();
