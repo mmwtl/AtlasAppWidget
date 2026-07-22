@@ -71,8 +71,17 @@ public final class PanelLayoutTest {
         PanelLayout withoutStatus = customLayout(false, false, false);
         PanelLayout withStatus = customLayout(false, false, true);
 
-        assertEquals(40, withStatus.panelHeight - withoutStatus.panelHeight);
+        assertEquals(46, withStatus.panelHeight - withoutStatus.panelHeight);
         assertEquals(withoutStatus.iconSize, withStatus.iconSize);
+    }
+
+    @Test
+    public void enlargedSystemStatusReservesDynamicHeightAndGap() {
+        PanelLayout withoutStatus = customLayout(false, false, false, 30);
+        PanelLayout enlargedStatus = customLayout(false, false, true, 54);
+
+        assertEquals(70, enlargedStatus.panelHeight - withoutStatus.panelHeight);
+        assertEquals(withoutStatus.iconSize, enlargedStatus.iconSize);
     }
 
     private static PanelLayout layout(
@@ -105,7 +114,7 @@ public final class PanelLayoutTest {
                 4,
                 false,
                 30,
-                10,
+                16,
                 outline
         );
     }
@@ -119,10 +128,19 @@ public final class PanelLayoutTest {
             boolean verticalHandle,
             boolean showSystemStatus
     ) {
+        return customLayout(showHandle, verticalHandle, showSystemStatus, 30);
+    }
+
+    private static PanelLayout customLayout(
+            boolean showHandle,
+            boolean verticalHandle,
+            boolean showSystemStatus,
+            int systemStatusHeight
+    ) {
         return PanelLayout.calculate(
                 1440, 1920, 72, 180, 54, 72, 20, 4,
                 1, 5, 14, 12, showHandle, verticalHandle, 34, 4,
-                showSystemStatus, 30, 10, 0
+                showSystemStatus, systemStatusHeight, 16, 0
         );
     }
 }

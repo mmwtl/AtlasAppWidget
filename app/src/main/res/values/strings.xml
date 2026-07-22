@@ -28,6 +28,9 @@
     <string-array name="system_status_positions">
         <item>Сверху</item><item>Снизу</item>
     </string-array>
+    <string name="system_status_line_height">Толщина статусных линий</string>
+    <string name="system_status_text_size">Размер надписей CPU / RAM / TEMP</string>
+    <string name="system_status_text_weight">Толщина надписей</string>
     <string name="system_status_hint">CPU и температура SoC зависят от данных, доступных в прошивке. Если датчик SoC недоступен, TEMP использует температуру батареи; недоступное значение показывается как —.</string>
     <string name="show_drag_handle">Показывать ручку перетаскивания</string>
     <string name="drag_handle_position">Расположение ручки</string>
@@ -91,6 +94,11 @@
     <string name="color_blue">Синий</string>
     <string name="screen_percent">%1$d%% экрана</string>
     <string name="dp_value">%1$d dp</string>
+    <string name="sp_value">%1$d sp</string>
+    <string name="font_weight_thin">тонкий · %1$d</string>
+    <string name="font_weight_normal">обычный · %1$d</string>
+    <string name="font_weight_semibold">полужирный · %1$d</string>
+    <string name="font_weight_bold">жирный · %1$d</string>
     <string name="percent_value">%1$d%%</string>
     <string name="shape_square">квадрат</string>
     <string name="shape_circle">круг</string>

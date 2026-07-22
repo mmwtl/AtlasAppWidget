@@ -23,6 +23,9 @@ final class Prefs {
     static final String KEY_SHOW_APP_LABELS = "show_app_labels";
     static final String KEY_SHOW_SYSTEM_STATUS = "show_system_status";
     static final String KEY_SYSTEM_STATUS_POSITION = "system_status_position";
+    static final String KEY_SYSTEM_STATUS_LINE_HEIGHT_DP = "system_status_line_height_dp";
+    static final String KEY_SYSTEM_STATUS_TEXT_SIZE_SP = "system_status_text_size_sp";
+    static final String KEY_SYSTEM_STATUS_TEXT_WEIGHT = "system_status_text_weight";
     static final String KEY_WIDTH_PERCENT = "width_percent";
     static final String KEY_COLUMNS = "columns";
     static final String KEY_ROWS = "rows";

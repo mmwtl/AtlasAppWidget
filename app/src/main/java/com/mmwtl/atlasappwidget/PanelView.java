@@ -66,6 +66,12 @@ final class PanelView extends LinearLayout {
         int configuredIconSize = Ui.dp(context, config.iconSizeDp);
         int labelHeight = config.showAppLabels ? Ui.dp(context, 20) : 0;
         int labelGap = config.showAppLabels ? Ui.dp(context, 4) : 0;
+        int systemStatusHeight = SystemStatusView.heightPixels(
+                context,
+                config.systemStatusTextSizeSp,
+                config.systemStatusTextWeight,
+                config.systemStatusLineHeightDp
+        );
         int rows = Math.max(1, config.rows);
         int columns = Math.max(1, config.columns);
         PanelLayout layout = PanelLayout.calculate(
@@ -86,7 +92,7 @@ final class PanelView extends LinearLayout {
                 handleSize,
                 handleGap,
                 config.showSystemStatus,
-                Ui.dp(context, SystemStatusView.HEIGHT_DP),
+                systemStatusHeight,
                 Ui.dp(context, SystemStatusView.GAP_DP),
                 outlineInset
         );
@@ -199,9 +205,17 @@ final class PanelView extends LinearLayout {
             shortcutArea.addView(handle, handleParams);
         }
 
-        systemStatusView = config.showSystemStatus ? new SystemStatusView(context) : null;
+        systemStatusView = config.showSystemStatus
+                ? new SystemStatusView(
+                        context,
+                        config.systemStatusTextSizeSp,
+                        config.systemStatusTextWeight,
+                        config.systemStatusLineHeightDp,
+                        systemStatusHeight
+                )
+                : null;
         if (systemStatusView != null && config.systemStatusPosition == PanelConfig.STATUS_TOP) {
-            addSystemStatusView(systemStatusView, false);
+            addSystemStatusView(systemStatusView, systemStatusHeight, false);
         }
         int shortcutHeight = gridHeight + (handleVertical ? handleSize + handleGap : 0);
         addView(shortcutArea, new LinearLayout.LayoutParams(
@@ -209,7 +223,7 @@ final class PanelView extends LinearLayout {
                 shortcutHeight
         ));
         if (systemStatusView != null && config.systemStatusPosition == PanelConfig.STATUS_BOTTOM) {
-            addSystemStatusView(systemStatusView, true);
+            addSystemStatusView(systemStatusView, systemStatusHeight, true);
         }
         if (systemStatusView != null) {
             systemStatusView.update(preview
@@ -269,10 +283,14 @@ final class PanelView extends LinearLayout {
         }
     }
 
-    private void addSystemStatusView(SystemStatusView status, boolean belowShortcuts) {
+    private void addSystemStatusView(
+            SystemStatusView status,
+            int statusHeight,
+            boolean belowShortcuts
+    ) {
         LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
-                Ui.dp(getContext(), SystemStatusView.HEIGHT_DP)
+                statusHeight
         );
         if (belowShortcuts) {
             params.topMargin = Ui.dp(getContext(), SystemStatusView.GAP_DP);

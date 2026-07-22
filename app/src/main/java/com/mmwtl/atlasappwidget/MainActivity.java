@@ -237,6 +237,33 @@ public final class MainActivity extends ScaledActivity
                 });
         control.addView(systemStatusPositionSpinner);
 
+        addSlider(control, getString(R.string.system_status_line_height),
+                PanelConfig.STATUS_LINE_HEIGHT_MIN_DP,
+                PanelConfig.STATUS_LINE_HEIGHT_MAX_DP,
+                prefs.getInt(Prefs.KEY_SYSTEM_STATUS_LINE_HEIGHT_DP,
+                        PanelConfig.STATUS_LINE_HEIGHT_DEFAULT_DP),
+                value -> getString(R.string.dp_value, value),
+                value -> prefs.putInt(Prefs.KEY_SYSTEM_STATUS_LINE_HEIGHT_DP, value));
+        addSlider(control, getString(R.string.system_status_text_size),
+                PanelConfig.STATUS_TEXT_SIZE_MIN_SP,
+                PanelConfig.STATUS_TEXT_SIZE_MAX_SP,
+                prefs.getInt(Prefs.KEY_SYSTEM_STATUS_TEXT_SIZE_SP,
+                        PanelConfig.STATUS_TEXT_SIZE_DEFAULT_SP),
+                value -> getString(R.string.sp_value, value),
+                value -> prefs.putInt(Prefs.KEY_SYSTEM_STATUS_TEXT_SIZE_SP, value));
+        int configuredStatusWeight = prefs.getInt(
+                Prefs.KEY_SYSTEM_STATUS_TEXT_WEIGHT,
+                PanelConfig.STATUS_TEXT_WEIGHT_DEFAULT
+        );
+        addSlider(control, getString(R.string.system_status_text_weight),
+                PanelConfig.STATUS_TEXT_WEIGHT_MIN / 100,
+                PanelConfig.STATUS_TEXT_WEIGHT_MAX / 100,
+                Math.max(PanelConfig.STATUS_TEXT_WEIGHT_MIN,
+                        Math.min(PanelConfig.STATUS_TEXT_WEIGHT_MAX,
+                                configuredStatusWeight)) / 100,
+                value -> formatSystemStatusTextWeight(value * 100),
+                value -> prefs.putInt(Prefs.KEY_SYSTEM_STATUS_TEXT_WEIGHT, value * 100));
+
         TextView systemStatusHint = Ui.text(this,
                 R.string.system_status_hint,
                 13,
@@ -625,6 +652,20 @@ public final class MainActivity extends ScaledActivity
         return tenths % 10 == 0
                 ? tenths / 10 + "×"
                 : tenths / 10 + "." + tenths % 10 + "×";
+    }
+
+    private String formatSystemStatusTextWeight(int weight) {
+        int label;
+        if (weight <= 300) {
+            label = R.string.font_weight_thin;
+        } else if (weight <= 500) {
+            label = R.string.font_weight_normal;
+        } else if (weight <= 700) {
+            label = R.string.font_weight_semibold;
+        } else {
+            label = R.string.font_weight_bold;
+        }
+        return getString(label, weight);
     }
 
     private String formatAutoStartDelay(int seconds) {
