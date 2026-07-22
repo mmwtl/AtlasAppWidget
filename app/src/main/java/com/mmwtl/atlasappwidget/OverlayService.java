@@ -27,6 +27,9 @@ import android.view.WindowMetrics;
 import android.widget.Toast;
 
 import java.util.List;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.RejectedExecutionException;
 
 public final class OverlayService extends Service
         implements SharedPreferences.OnSharedPreferenceChangeListener, PanelView.Listener {
@@ -41,6 +44,7 @@ public final class OverlayService extends Service
     private static final int POLL_VISIBLE_MS = 700;
     private static final int POLL_HIDDEN_MS = 1_000;
     private static final int POLL_ERROR_MS = 2_000;
+    private static final int SYSTEM_STATUS_REFRESH_MS = 2_000;
     private static final int NOTIFICATION_VISIBLE = 1;
     private static final int NOTIFICATION_HIDDEN = 2;
     private static final int NOTIFICATION_PERMISSION_ERROR = 3;
@@ -49,13 +53,16 @@ public final class OverlayService extends Service
     private static volatile boolean running;
 
     private final Handler handler = new Handler(Looper.getMainLooper());
+    private final ExecutorService systemStatusExecutor = Executors.newSingleThreadExecutor();
     private Prefs prefs;
     private WindowManager windowManager;
     private ForegroundAppDetector foregroundDetector;
+    private SystemMetricsSampler systemMetricsSampler;
     private PanelView panel;
     private WindowManager.LayoutParams panelParams;
     private int currentNotificationState;
     private long suppressPanelUntil;
+    private long nextSystemStatusRefresh;
 
     private float dragStartRawX;
     private float dragStartRawY;
@@ -82,6 +89,9 @@ public final class OverlayService extends Service
                 nextPollDelay = POLL_VISIBLE_MS;
             } else if (foregroundDetector().isHomeForeground()) {
                 boolean hasApps = showPanel();
+                if (hasApps) {
+                    refreshSystemStatusIfNeeded();
+                }
                 updateNotification(hasApps ? NOTIFICATION_VISIBLE : NOTIFICATION_NO_APPS);
                 nextPollDelay = hasApps ? POLL_VISIBLE_MS : POLL_ERROR_MS;
             } else {
@@ -111,6 +121,7 @@ public final class OverlayService extends Service
     public void onCreate() {
         super.onCreate();
         prefs = new Prefs(this);
+        systemMetricsSampler = new SystemMetricsSampler(this);
         prefs.raw().registerOnSharedPreferenceChangeListener(this);
         createNotificationChannel();
         Notification notification = buildNotification(NOTIFICATION_HIDDEN);
@@ -168,6 +179,7 @@ public final class OverlayService extends Service
     public void onDestroy() {
         handler.removeCallbacksAndMessages(null);
         hidePanel();
+        systemStatusExecutor.shutdownNow();
         if (prefs != null) {
             prefs.raw().unregisterOnSharedPreferenceChangeListener(this);
         }
@@ -258,6 +270,7 @@ public final class OverlayService extends Service
             windowManager.addView(candidate, params);
             panel = candidate;
             panelParams = params;
+            nextSystemStatusRefresh = 0;
             return true;
         } catch (SecurityException | WindowManager.BadTokenException error) {
             panel = null;
@@ -286,8 +299,40 @@ public final class OverlayService extends Service
         } catch (IllegalArgumentException ignored) {
             // The system may already have removed the overlay after permission revocation.
         }
+        if (systemMetricsSampler != null) {
+            try {
+                systemStatusExecutor.execute(systemMetricsSampler::resetCpuBaseline);
+            } catch (RejectedExecutionException ignored) {
+                // Service teardown already stopped the sampler.
+            }
+        }
+        nextSystemStatusRefresh = 0;
         panel = null;
         panelParams = null;
+    }
+
+    private void refreshSystemStatusIfNeeded() {
+        if (panel == null || !panel.hasSystemStatus()) {
+            return;
+        }
+        long now = SystemClock.elapsedRealtime();
+        if (now < nextSystemStatusRefresh) {
+            return;
+        }
+        nextSystemStatusRefresh = now + SYSTEM_STATUS_REFRESH_MS;
+        PanelView target = panel;
+        try {
+            systemStatusExecutor.execute(() -> {
+                SystemStatusSnapshot snapshot = systemMetricsSampler.sample();
+                handler.post(() -> {
+                    if (running && panel == target && target.isAttachedToWindow()) {
+                        target.updateSystemStatus(snapshot);
+                    }
+                });
+            });
+        } catch (RejectedExecutionException ignored) {
+            // Service teardown already stopped the sampler.
+        }
     }
 
     @Override

@@ -23,6 +23,12 @@
     <string name="panel_apps_title">2. Панель и приложения</string>
     <string name="choose_apps">Выбрать приложения, activity и иконки</string>
     <string name="show_app_labels">Показывать названия приложений</string>
+    <string name="show_system_status">Показывать CPU, RAM и TEMP</string>
+    <string name="system_status_position">Расположение показателей</string>
+    <string-array name="system_status_positions">
+        <item>Сверху</item><item>Снизу</item>
+    </string-array>
+    <string name="system_status_hint">CPU и температура SoC зависят от данных, доступных в прошивке. Если датчик SoC недоступен, TEMP использует температуру батареи; недоступное значение показывается как —.</string>
     <string name="show_drag_handle">Показывать ручку перетаскивания</string>
     <string name="drag_handle_position">Расположение ручки</string>
     <string-array name="drag_handle_positions">

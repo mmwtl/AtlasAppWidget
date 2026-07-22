@@ -66,6 +66,15 @@ public final class PanelLayoutTest {
         assertEquals(72, layout.iconSize);
     }
 
+    @Test
+    public void systemStatusAddsOnlyItsReservedVerticalSpace() {
+        PanelLayout withoutStatus = customLayout(false, false, false);
+        PanelLayout withStatus = customLayout(false, false, true);
+
+        assertEquals(40, withStatus.panelHeight - withoutStatus.panelHeight);
+        assertEquals(withoutStatus.iconSize, withStatus.iconSize);
+    }
+
     private static PanelLayout layout(
             int width,
             int height,
@@ -94,14 +103,26 @@ public final class PanelLayoutTest {
                 false,
                 34,
                 4,
+                false,
+                30,
+                10,
                 outline
         );
     }
 
     private static PanelLayout customLayout(boolean showHandle, boolean verticalHandle) {
+        return customLayout(showHandle, verticalHandle, false);
+    }
+
+    private static PanelLayout customLayout(
+            boolean showHandle,
+            boolean verticalHandle,
+            boolean showSystemStatus
+    ) {
         return PanelLayout.calculate(
                 1440, 1920, 72, 180, 54, 72, 20, 4,
-                1, 5, 14, 12, showHandle, verticalHandle, 34, 4, 0
+                1, 5, 14, 12, showHandle, verticalHandle, 34, 4,
+                showSystemStatus, 30, 10, 0
         );
     }
 }

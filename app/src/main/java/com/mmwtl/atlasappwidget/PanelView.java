@@ -35,6 +35,7 @@ final class PanelView extends LinearLayout {
     private final int panelWidth;
     private final int panelHeight;
     private final int outlineInset;
+    private final SystemStatusView systemStatusView;
     private EmptySpaceDragTouchListener emptySpaceDragTouchListener;
 
     PanelView(
@@ -52,10 +53,8 @@ final class PanelView extends LinearLayout {
         boolean handleVertical = config.showDragHandle
                 && (handlePosition == PanelConfig.HANDLE_TOP
                 || handlePosition == PanelConfig.HANDLE_BOTTOM);
-        setOrientation(handleVertical ? VERTICAL : HORIZONTAL);
-        setGravity(handleVertical
-                ? Gravity.CENTER_HORIZONTAL | Gravity.CENTER_VERTICAL
-                : Gravity.CENTER_VERTICAL);
+        setOrientation(VERTICAL);
+        setGravity(Gravity.CENTER);
 
         outlineInset = config.backgroundStrokeEnabled
                 ? Ui.dp(context, Math.max(1, Math.min(20, config.backgroundStrokeWidthDp)))
@@ -86,6 +85,9 @@ final class PanelView extends LinearLayout {
                 handleVertical,
                 handleSize,
                 handleGap,
+                config.showSystemStatus,
+                Ui.dp(context, SystemStatusView.HEIGHT_DP),
+                Ui.dp(context, SystemStatusView.GAP_DP),
                 outlineInset
         );
         int backgroundWidth = layout.backgroundWidth;
@@ -184,14 +186,35 @@ final class PanelView extends LinearLayout {
         grid.setRowCount(rows);
         grid.setOrientation(GridLayout.HORIZONTAL);
         LinearLayout.LayoutParams gridParams = new LinearLayout.LayoutParams(gridWidth, gridHeight);
+        LinearLayout shortcutArea = new LinearLayout(context);
+        shortcutArea.setOrientation(handleVertical ? VERTICAL : HORIZONTAL);
+        shortcutArea.setGravity(Gravity.CENTER);
         boolean handleBeforeGrid = handlePosition == PanelConfig.HANDLE_LEFT
                 || handlePosition == PanelConfig.HANDLE_TOP;
         if (handle != null && handleBeforeGrid) {
-            addView(handle, handleParams);
+            shortcutArea.addView(handle, handleParams);
         }
-        addView(grid, gridParams);
+        shortcutArea.addView(grid, gridParams);
         if (handle != null && !handleBeforeGrid) {
-            addView(handle, handleParams);
+            shortcutArea.addView(handle, handleParams);
+        }
+
+        systemStatusView = config.showSystemStatus ? new SystemStatusView(context) : null;
+        if (systemStatusView != null && config.systemStatusPosition == PanelConfig.STATUS_TOP) {
+            addSystemStatusView(systemStatusView, false);
+        }
+        int shortcutHeight = gridHeight + (handleVertical ? handleSize + handleGap : 0);
+        addView(shortcutArea, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                shortcutHeight
+        ));
+        if (systemStatusView != null && config.systemStatusPosition == PanelConfig.STATUS_BOTTOM) {
+            addSystemStatusView(systemStatusView, true);
+        }
+        if (systemStatusView != null) {
+            systemStatusView.update(preview
+                    ? SystemStatusSnapshot.preview()
+                    : SystemStatusSnapshot.unavailable());
         }
 
         int slotCount = rows * columns;
@@ -234,6 +257,29 @@ final class PanelView extends LinearLayout {
 
     int outlineInset() {
         return outlineInset;
+    }
+
+    boolean hasSystemStatus() {
+        return systemStatusView != null;
+    }
+
+    void updateSystemStatus(SystemStatusSnapshot snapshot) {
+        if (systemStatusView != null) {
+            systemStatusView.update(snapshot);
+        }
+    }
+
+    private void addSystemStatusView(SystemStatusView status, boolean belowShortcuts) {
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                Ui.dp(getContext(), SystemStatusView.HEIGHT_DP)
+        );
+        if (belowShortcuts) {
+            params.topMargin = Ui.dp(getContext(), SystemStatusView.GAP_DP);
+        } else {
+            params.bottomMargin = Ui.dp(getContext(), SystemStatusView.GAP_DP);
+        }
+        addView(status, params);
     }
 
     @Override

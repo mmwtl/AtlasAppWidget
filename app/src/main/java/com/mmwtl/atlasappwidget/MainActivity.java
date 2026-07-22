@@ -43,6 +43,8 @@ public final class MainActivity extends ScaledActivity
     private Switch autoStartSwitch;
     private Switch dragHandleSwitch;
     private Switch appLabelsSwitch;
+    private Switch systemStatusSwitch;
+    private Spinner systemStatusPositionSpinner;
     private Switch backgroundStrokeSwitch;
     private FrameLayout previewContainer;
     private Button backgroundColorButton;
@@ -175,6 +177,73 @@ public final class MainActivity extends ScaledActivity
             }
         });
         control.addView(appLabelsSwitch);
+
+        systemStatusSwitch = new Switch(this);
+        systemStatusSwitch.setText(R.string.show_system_status);
+        systemStatusSwitch.setTextColor(Ui.TEXT);
+        systemStatusSwitch.setTextSize(15);
+        systemStatusSwitch.setPadding(0, Ui.dp(this, 14), 0, Ui.dp(this, 4));
+        systemStatusSwitch.setOnCheckedChangeListener((button, checked) -> {
+            if (!updatingSwitch) {
+                prefs.putBoolean(Prefs.KEY_SHOW_SYSTEM_STATUS, checked);
+            }
+            if (systemStatusPositionSpinner != null) {
+                systemStatusPositionSpinner.setEnabled(checked);
+            }
+        });
+        control.addView(systemStatusSwitch);
+
+        TextView systemStatusPositionLabel = Ui.text(this,
+                R.string.system_status_position,
+                14,
+                Ui.TEXT
+        );
+        Ui.topMargin(systemStatusPositionLabel, 8);
+        control.addView(systemStatusPositionLabel);
+        systemStatusPositionSpinner = new Spinner(this);
+        String[] systemStatusPositions = getResources().getStringArray(
+                R.array.system_status_positions);
+        ArrayAdapter<String> systemStatusPositionAdapter = new ArrayAdapter<>(
+                this,
+                android.R.layout.simple_spinner_item,
+                systemStatusPositions
+        );
+        systemStatusPositionAdapter.setDropDownViewResource(
+                android.R.layout.simple_spinner_dropdown_item);
+        systemStatusPositionSpinner.setAdapter(systemStatusPositionAdapter);
+        systemStatusPositionSpinner.setSelection(Math.max(
+                PanelConfig.STATUS_TOP,
+                Math.min(PanelConfig.STATUS_BOTTOM,
+                        prefs.getInt(Prefs.KEY_SYSTEM_STATUS_POSITION,
+                                PanelConfig.STATUS_BOTTOM))
+        ));
+        systemStatusPositionSpinner.setOnItemSelectedListener(
+                new android.widget.AdapterView.OnItemSelectedListener() {
+                    @Override
+                    public void onItemSelected(
+                            android.widget.AdapterView<?> parent,
+                            View view,
+                            int position,
+                            long id
+                    ) {
+                        if (!updatingSwitch) {
+                            prefs.putInt(Prefs.KEY_SYSTEM_STATUS_POSITION, position);
+                        }
+                    }
+
+                    @Override
+                    public void onNothingSelected(android.widget.AdapterView<?> parent) {
+                    }
+                });
+        control.addView(systemStatusPositionSpinner);
+
+        TextView systemStatusHint = Ui.text(this,
+                R.string.system_status_hint,
+                13,
+                Ui.TEXT_SECONDARY
+        );
+        systemStatusHint.setLineSpacing(0, 1.1f);
+        control.addView(systemStatusHint);
 
         dragHandleSwitch = new Switch(this);
         dragHandleSwitch.setText(R.string.show_drag_handle);
@@ -610,6 +679,15 @@ public final class MainActivity extends ScaledActivity
         autoStartSwitch.setChecked(prefs.getBoolean(Prefs.KEY_AUTO_START, false));
         dragHandleSwitch.setChecked(prefs.getBoolean(Prefs.KEY_SHOW_DRAG_HANDLE, true));
         appLabelsSwitch.setChecked(prefs.getBoolean(Prefs.KEY_SHOW_APP_LABELS, false));
+        boolean showSystemStatus = prefs.getBoolean(Prefs.KEY_SHOW_SYSTEM_STATUS, false);
+        systemStatusSwitch.setChecked(showSystemStatus);
+        systemStatusPositionSpinner.setSelection(Math.max(
+                PanelConfig.STATUS_TOP,
+                Math.min(PanelConfig.STATUS_BOTTOM,
+                        prefs.getInt(Prefs.KEY_SYSTEM_STATUS_POSITION,
+                                PanelConfig.STATUS_BOTTOM))
+        ));
+        systemStatusPositionSpinner.setEnabled(showSystemStatus);
         backgroundStrokeSwitch.setChecked(
                 prefs.getBoolean(Prefs.KEY_BACKGROUND_STROKE_ENABLED, false));
         updatingSwitch = false;

@@ -59,6 +59,9 @@ final class PanelLayout {
             boolean verticalHandle,
             int handleSize,
             int handleGap,
+            boolean showSystemStatus,
+            int systemStatusHeight,
+            int systemStatusGap,
             int outlineInset
     ) {
         int safeWidth = Math.max(1, availableWidth);
@@ -77,6 +80,9 @@ final class PanelLayout {
         int verticalHandleSpace = showHandle && verticalHandle
                 ? Math.max(0, handleSize) + Math.max(0, handleGap)
                 : 0;
+        int statusSpace = showSystemStatus
+                ? Math.max(1, systemStatusHeight) + Math.max(0, systemStatusGap)
+                : 0;
 
         int requestedWidth = Math.round(
                 safeWidth * Math.max(25, Math.min(100, widthPercent)) / 100f);
@@ -91,7 +97,7 @@ final class PanelLayout {
         );
         int maxVerticalPadding = Math.max(
                 0,
-                (maxBackgroundHeight - verticalHandleSpace
+                (maxBackgroundHeight - verticalHandleSpace - statusSpace
                         - safeRows * (fixedCellHeight + 1)) / 2
         );
         int padding = Math.max(0, Math.min(
@@ -114,7 +120,7 @@ final class PanelLayout {
 
         int availableGridHeight = Math.max(
                 1,
-                maxBackgroundHeight - padding * 2 - verticalHandleSpace
+                maxBackgroundHeight - padding * 2 - verticalHandleSpace - statusSpace
         );
         int maxVerticalGap = safeRows == 1
                 ? 0
@@ -133,7 +139,7 @@ final class PanelLayout {
         );
         int cellHeight = iconSize + fixedCellHeight;
         int gridHeight = safeRows * cellHeight + verticalGap * (safeRows - 1);
-        int contentHeight = gridHeight + padding * 2 + verticalHandleSpace;
+        int contentHeight = gridHeight + padding * 2 + verticalHandleSpace + statusSpace;
         int backgroundHeight = Math.min(
                 maxBackgroundHeight,
                 Math.max(Math.max(1, minimumHeight), contentHeight)

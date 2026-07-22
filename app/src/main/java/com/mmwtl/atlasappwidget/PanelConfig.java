@@ -6,10 +6,14 @@ final class PanelConfig {
     static final int HANDLE_RIGHT = 1;
     static final int HANDLE_TOP = 2;
     static final int HANDLE_BOTTOM = 3;
+    static final int STATUS_TOP = 0;
+    static final int STATUS_BOTTOM = 1;
 
     final boolean showDragHandle;
     final int dragHandlePosition;
     final boolean showAppLabels;
+    final boolean showSystemStatus;
+    final int systemStatusPosition;
     final int widthPercent;
     final int columns;
     final int rows;
@@ -30,6 +34,9 @@ final class PanelConfig {
         dragHandlePosition = Math.max(HANDLE_LEFT, Math.min(HANDLE_BOTTOM,
                 prefs.getInt(Prefs.KEY_DRAG_HANDLE_POSITION, HANDLE_LEFT)));
         showAppLabels = prefs.getBoolean(Prefs.KEY_SHOW_APP_LABELS, false);
+        showSystemStatus = prefs.getBoolean(Prefs.KEY_SHOW_SYSTEM_STATUS, false);
+        systemStatusPosition = Math.max(STATUS_TOP, Math.min(STATUS_BOTTOM,
+                prefs.getInt(Prefs.KEY_SYSTEM_STATUS_POSITION, STATUS_BOTTOM)));
         widthPercent = prefs.getInt(Prefs.KEY_WIDTH_PERCENT, 72);
         columns = prefs.getInt(Prefs.KEY_COLUMNS, 5);
         rows = prefs.getInt(Prefs.KEY_ROWS, 1);

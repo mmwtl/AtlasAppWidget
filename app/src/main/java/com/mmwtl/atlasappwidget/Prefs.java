@@ -21,6 +21,8 @@ final class Prefs {
     static final String KEY_SHOW_DRAG_HANDLE = "show_drag_handle";
     static final String KEY_DRAG_HANDLE_POSITION = "drag_handle_position";
     static final String KEY_SHOW_APP_LABELS = "show_app_labels";
+    static final String KEY_SHOW_SYSTEM_STATUS = "show_system_status";
+    static final String KEY_SYSTEM_STATUS_POSITION = "system_status_position";
     static final String KEY_WIDTH_PERCENT = "width_percent";
     static final String KEY_COLUMNS = "columns";
     static final String KEY_ROWS = "rows";
