@@ -121,7 +121,7 @@ public final class OverlayService extends Service
     public void onCreate() {
         super.onCreate();
         prefs = new Prefs(this);
-        systemMetricsSampler = new SystemMetricsSampler(this);
+        systemMetricsSampler = new SystemMetricsSampler(this, prefs);
         prefs.raw().registerOnSharedPreferenceChangeListener(this);
         createNotificationChannel();
         Notification notification = buildNotification(NOTIFICATION_HIDDEN);
