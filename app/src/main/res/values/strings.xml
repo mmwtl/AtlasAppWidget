@@ -27,12 +27,12 @@
     <string name="show_system_status">Показывать CPU и RAM</string>
     <string name="system_status_position">Расположение показателей</string>
     <string-array name="system_status_positions">
-        <item>Сверху</item><item>Снизу</item>
+        <item>Сверху</item><item>Снизу</item><item>Слева</item><item>Справа</item>
     </string-array>
     <string name="system_status_line_height">Толщина статусных линий</string>
     <string name="system_status_text_size">Размер надписей CPU / RAM</string>
     <string name="system_status_text_weight">Толщина надписей</string>
-    <string name="system_status_hint">Если прошивка закрывает системную статистику процессора, значение CPU показывается как —. RAM остаётся доступной через Android API.</string>
+    <string name="system_status_hint">Сверху и снизу показываются значения с горизонтальными шкалами. Слева и справа — вертикальные полосы без надписей: CPU синяя, RAM золотая; заполнение идёт снизу вверх. Размер и толщина надписей применяются только сверху и снизу. Если прошивка закрывает статистику процессора, CPU остаётся пустой.</string>
     <string name="movement_title">4. Перемещение панели</string>
     <string name="show_drag_handle">Показывать ручку перетаскивания</string>
     <string name="drag_handle_position">Расположение ручки</string>

@@ -53,7 +53,10 @@ final class PanelView extends LinearLayout {
         boolean handleVertical = config.showDragHandle
                 && (handlePosition == PanelConfig.HANDLE_TOP
                 || handlePosition == PanelConfig.HANDLE_BOTTOM);
-        setOrientation(VERTICAL);
+        boolean systemStatusSide = config.showSystemStatus
+                && (config.systemStatusPosition == PanelConfig.STATUS_LEFT
+                || config.systemStatusPosition == PanelConfig.STATUS_RIGHT);
+        setOrientation(systemStatusSide ? HORIZONTAL : VERTICAL);
         setGravity(Gravity.CENTER);
 
         outlineInset = config.backgroundStrokeEnabled
@@ -72,6 +75,12 @@ final class PanelView extends LinearLayout {
                 config.systemStatusTextWeight,
                 config.systemStatusLineHeightDp
         );
+        int systemStatusSideWidth = SystemStatusView.sideWidthPixels(
+                context,
+                config.systemStatusLineHeightDp
+        );
+        int systemStatusSize = systemStatusSide
+                ? systemStatusSideWidth : systemStatusHeight;
         int rows = Math.max(1, config.rows);
         int columns = Math.max(1, config.columns);
         PanelLayout layout = PanelLayout.calculate(
@@ -92,7 +101,8 @@ final class PanelView extends LinearLayout {
                 handleSize,
                 handleGap,
                 config.showSystemStatus,
-                systemStatusHeight,
+                systemStatusSide,
+                systemStatusSize,
                 Ui.dp(context, SystemStatusView.GAP_DP),
                 outlineInset
         );
@@ -211,19 +221,29 @@ final class PanelView extends LinearLayout {
                         config.systemStatusTextSizeSp,
                         config.systemStatusTextWeight,
                         config.systemStatusLineHeightDp,
-                        systemStatusHeight
+                        systemStatusSide ? layout.gridHeight : systemStatusHeight,
+                        systemStatusSide
                 )
                 : null;
         if (systemStatusView != null && config.systemStatusPosition == PanelConfig.STATUS_TOP) {
             addSystemStatusView(systemStatusView, systemStatusHeight, false);
         }
         int shortcutHeight = gridHeight + (handleVertical ? handleSize + handleGap : 0);
+        int shortcutWidth = gridWidth + (handleVertical ? 0 : handleSize + handleGap);
+        if (systemStatusView != null
+                && config.systemStatusPosition == PanelConfig.STATUS_LEFT) {
+            addSideSystemStatusView(systemStatusView, systemStatusSideWidth, false);
+        }
         addView(shortcutArea, new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
+                systemStatusSide ? shortcutWidth : ViewGroup.LayoutParams.MATCH_PARENT,
                 shortcutHeight
         ));
         if (systemStatusView != null && config.systemStatusPosition == PanelConfig.STATUS_BOTTOM) {
             addSystemStatusView(systemStatusView, systemStatusHeight, true);
+        }
+        if (systemStatusView != null
+                && config.systemStatusPosition == PanelConfig.STATUS_RIGHT) {
+            addSideSystemStatusView(systemStatusView, systemStatusSideWidth, true);
         }
         if (systemStatusView != null) {
             systemStatusView.update(preview
@@ -296,6 +316,23 @@ final class PanelView extends LinearLayout {
             params.topMargin = Ui.dp(getContext(), SystemStatusView.GAP_DP);
         } else {
             params.bottomMargin = Ui.dp(getContext(), SystemStatusView.GAP_DP);
+        }
+        addView(status, params);
+    }
+
+    private void addSideSystemStatusView(
+            SystemStatusView status,
+            int statusWidth,
+            boolean afterShortcuts
+    ) {
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
+                statusWidth,
+                ViewGroup.LayoutParams.MATCH_PARENT
+        );
+        if (afterShortcuts) {
+            params.leftMargin = Ui.dp(getContext(), SystemStatusView.GAP_DP);
+        } else {
+            params.rightMargin = Ui.dp(getContext(), SystemStatusView.GAP_DP);
         }
         addView(status, params);
     }

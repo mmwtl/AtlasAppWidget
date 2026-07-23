@@ -16,6 +16,7 @@ import java.util.Locale;
 final class SystemStatusView extends LinearLayout {
     private static final int MIN_HEIGHT_DP = 30;
     private static final int TEXT_TRACK_GAP_DP = 5;
+    private static final int SIDE_TRACK_GAP_DP = 4;
     static final int GAP_DP = 16;
 
     private static final int TRACK_COLOR = 0xFF454545;
@@ -30,7 +31,8 @@ final class SystemStatusView extends LinearLayout {
             int textSizeSp,
             int textWeight,
             int lineHeightDp,
-            int statusHeight
+            int statusHeight,
+            boolean sideMode
     ) {
         super(context);
         setOrientation(HORIZONTAL);
@@ -38,10 +40,14 @@ final class SystemStatusView extends LinearLayout {
 
         int labelHeight = labelHeightPixels(context, textSizeSp, textWeight);
         cpu = addMetric("CPU", CPU_COLOR, textSizeSp, textWeight,
-                lineHeightDp, labelHeight);
-        addDivider(statusHeight);
+                lineHeightDp, labelHeight, sideMode);
+        if (sideMode) {
+            addSideGap();
+        } else {
+            addDivider(statusHeight);
+        }
         ram = addMetric("RAM", RAM_COLOR, textSizeSp, textWeight,
-                lineHeightDp, labelHeight);
+                lineHeightDp, labelHeight, sideMode);
         setImportantForAccessibility(IMPORTANT_FOR_ACCESSIBILITY_YES);
     }
 
@@ -54,9 +60,13 @@ final class SystemStatusView extends LinearLayout {
         );
     }
 
+    static int sideWidthPixels(Context context, int lineHeightDp) {
+        return Ui.dp(context, lineHeightDp * 2 + SIDE_TRACK_GAP_DP);
+    }
+
     void update(SystemStatusSnapshot snapshot) {
-        cpu.update(snapshot.cpuPercent, true);
-        ram.update(snapshot.ramPercent, true);
+        cpu.update(snapshot.cpuPercent);
+        ram.update(snapshot.ramPercent);
         setContentDescription(String.format(
                 Locale.getDefault(),
                 "%s, %s",
@@ -71,12 +81,26 @@ final class SystemStatusView extends LinearLayout {
             int textSizeSp,
             int textWeight,
             int lineHeightDp,
-            int labelHeight
+            int labelHeight,
+            boolean sideMode
     ) {
         MetricView metric = new MetricView(getContext(), name, color,
-                textSizeSp, textWeight, lineHeightDp, labelHeight);
-        addView(metric, new LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT, 1f));
+                textSizeSp, textWeight, lineHeightDp, labelHeight, sideMode);
+        LayoutParams params = sideMode
+                ? new LayoutParams(
+                Ui.dp(getContext(), lineHeightDp),
+                ViewGroup.LayoutParams.MATCH_PARENT)
+                : new LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT, 1f);
+        addView(metric, params);
         return metric;
+    }
+
+    private void addSideGap() {
+        View gap = new View(getContext());
+        addView(gap, new LayoutParams(
+                Ui.dp(getContext(), SIDE_TRACK_GAP_DP),
+                ViewGroup.LayoutParams.MATCH_PARENT
+        ));
     }
 
     private void addDivider(int statusHeight) {
@@ -109,6 +133,7 @@ final class SystemStatusView extends LinearLayout {
         private final TextView label;
         private final FrameLayout track;
         private final View fill;
+        private final boolean sideMode;
         private int progress;
 
         MetricView(
@@ -118,67 +143,85 @@ final class SystemStatusView extends LinearLayout {
                 int textSizeSp,
                 int textWeight,
                 int lineHeightDp,
-                int labelHeight
+                int labelHeight,
+                boolean sideMode
         ) {
             super(context);
             this.name = name;
-            setOrientation(VERTICAL);
+            this.sideMode = sideMode;
             setGravity(Gravity.CENTER);
 
             label = Ui.text(context, name + " —", textSizeSp, Ui.TEXT);
             label.setTypeface(Typeface.create(Typeface.DEFAULT, textWeight, false));
             label.setGravity(Gravity.CENTER);
             label.setIncludeFontPadding(false);
-            addView(label, new LayoutParams(
-                    ViewGroup.LayoutParams.MATCH_PARENT,
-                    labelHeight
-            ));
 
             int lineHeight = Ui.dp(context, lineHeightDp);
             track = new FrameLayout(context);
             track.setBackground(Ui.rounded(TRACK_COLOR, lineHeight / 2f));
             track.addOnLayoutChangeListener((view, left, top, right, bottom,
-                    oldLeft, oldTop, oldRight, oldBottom) -> updateFillWidth());
+                    oldLeft, oldTop, oldRight, oldBottom) -> updateFillLength());
             fill = new View(context);
             fill.setBackground(Ui.rounded(color, lineHeight / 2f));
-            track.addView(fill, new FrameLayout.LayoutParams(
-                    0,
-                    ViewGroup.LayoutParams.MATCH_PARENT
-            ));
-            LayoutParams trackParams = new LayoutParams(
-                    ViewGroup.LayoutParams.MATCH_PARENT,
-                    lineHeight
-            );
-            trackParams.topMargin = Ui.dp(context, TEXT_TRACK_GAP_DP);
-            addView(track, trackParams);
+            if (sideMode) {
+                FrameLayout.LayoutParams fillParams = new FrameLayout.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT,
+                        0,
+                        Gravity.BOTTOM
+                );
+                track.addView(fill, fillParams);
+                addView(track, new LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT,
+                        ViewGroup.LayoutParams.MATCH_PARENT
+                ));
+            } else {
+                setOrientation(VERTICAL);
+                addView(label, new LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT,
+                        labelHeight
+                ));
+                track.addView(fill, new FrameLayout.LayoutParams(
+                        0,
+                        ViewGroup.LayoutParams.MATCH_PARENT
+                ));
+                LayoutParams trackParams = new LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT,
+                        lineHeight
+                );
+                trackParams.topMargin = Ui.dp(context, TEXT_TRACK_GAP_DP);
+                addView(track, trackParams);
+            }
         }
 
-        void update(int value, boolean percent) {
+        void update(int value) {
             if (value == SystemStatusSnapshot.UNAVAILABLE) {
                 label.setText(name + " —");
                 progress = 0;
             } else {
-                label.setText(percent
-                        ? String.format(Locale.getDefault(), "%s %d%%", name, value)
-                        : String.format(Locale.getDefault(), "%s %d°", name, value));
-                progress = percent ? value : Math.max(0, Math.min(100, value));
+                label.setText(String.format(
+                        Locale.getDefault(), "%s %d%%", name, value));
+                progress = Math.max(0, Math.min(100, value));
             }
-            updateFillWidth();
+            updateFillLength();
         }
 
         @Override
         protected void onSizeChanged(int width, int height, int oldWidth, int oldHeight) {
             super.onSizeChanged(width, height, oldWidth, oldHeight);
-            updateFillWidth();
+            updateFillLength();
         }
 
-        private void updateFillWidth() {
-            int trackWidth = track.getWidth();
-            if (trackWidth <= 0) {
+        private void updateFillLength() {
+            int trackLength = sideMode ? track.getHeight() : track.getWidth();
+            if (trackLength <= 0) {
                 return;
             }
             ViewGroup.LayoutParams params = fill.getLayoutParams();
-            params.width = Math.round(trackWidth * progress / 100f);
+            if (sideMode) {
+                params.height = Math.round(trackLength * progress / 100f);
+            } else {
+                params.width = Math.round(trackLength * progress / 100f);
+            }
             fill.setLayoutParams(params);
         }
     }

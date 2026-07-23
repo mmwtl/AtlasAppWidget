@@ -8,6 +8,8 @@ final class PanelConfig {
     static final int HANDLE_BOTTOM = 3;
     static final int STATUS_TOP = 0;
     static final int STATUS_BOTTOM = 1;
+    static final int STATUS_LEFT = 2;
+    static final int STATUS_RIGHT = 3;
     static final int STATUS_LINE_HEIGHT_MIN_DP = 2;
     static final int STATUS_LINE_HEIGHT_MAX_DP = 20;
     static final int STATUS_LINE_HEIGHT_DEFAULT_DP = 6;
@@ -47,7 +49,7 @@ final class PanelConfig {
                 prefs.getInt(Prefs.KEY_DRAG_HANDLE_POSITION, HANDLE_LEFT)));
         showAppLabels = prefs.getBoolean(Prefs.KEY_SHOW_APP_LABELS, false);
         showSystemStatus = prefs.getBoolean(Prefs.KEY_SHOW_SYSTEM_STATUS, false);
-        systemStatusPosition = Math.max(STATUS_TOP, Math.min(STATUS_BOTTOM,
+        systemStatusPosition = Math.max(STATUS_TOP, Math.min(STATUS_RIGHT,
                 prefs.getInt(Prefs.KEY_SYSTEM_STATUS_POSITION, STATUS_BOTTOM)));
         systemStatusLineHeightDp = clamp(
                 prefs.getInt(Prefs.KEY_SYSTEM_STATUS_LINE_HEIGHT_DP,

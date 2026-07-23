@@ -84,6 +84,15 @@ public final class PanelLayoutTest {
         assertEquals(withoutStatus.iconSize, enlargedStatus.iconSize);
     }
 
+    @Test
+    public void sideSystemStatusReservesWidthWithoutIncreasingHeight() {
+        PanelLayout withoutStatus = customLayout(false, false, false, false, 16);
+        PanelLayout sideStatus = customLayout(false, false, true, true, 16);
+
+        assertEquals(withoutStatus.panelHeight, sideStatus.panelHeight);
+        assertEquals(32, withoutStatus.gridWidth - sideStatus.gridWidth);
+    }
+
     private static PanelLayout layout(
             int width,
             int height,
@@ -113,6 +122,7 @@ public final class PanelLayoutTest {
                 34,
                 4,
                 false,
+                false,
                 30,
                 16,
                 outline
@@ -137,10 +147,21 @@ public final class PanelLayoutTest {
             boolean showSystemStatus,
             int systemStatusHeight
     ) {
+        return customLayout(showHandle, verticalHandle, showSystemStatus,
+                false, systemStatusHeight);
+    }
+
+    private static PanelLayout customLayout(
+            boolean showHandle,
+            boolean verticalHandle,
+            boolean showSystemStatus,
+            boolean sideSystemStatus,
+            int systemStatusSize
+    ) {
         return PanelLayout.calculate(
                 1440, 1920, 72, 180, 54, 72, 20, 4,
                 1, 5, 14, 12, showHandle, verticalHandle, 34, 4,
-                showSystemStatus, systemStatusHeight, 16, 0
+                showSystemStatus, sideSystemStatus, systemStatusSize, 16, 0
         );
     }
 }

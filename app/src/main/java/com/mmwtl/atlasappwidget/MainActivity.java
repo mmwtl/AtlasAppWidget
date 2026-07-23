@@ -222,7 +222,7 @@ public final class MainActivity extends ScaledActivity
         systemStatusPositionSpinner.setAdapter(systemStatusPositionAdapter);
         systemStatusPositionSpinner.setSelection(Math.max(
                 PanelConfig.STATUS_TOP,
-                Math.min(PanelConfig.STATUS_BOTTOM,
+                Math.min(PanelConfig.STATUS_RIGHT,
                         prefs.getInt(Prefs.KEY_SYSTEM_STATUS_POSITION,
                                 PanelConfig.STATUS_BOTTOM))
         ));
@@ -781,7 +781,7 @@ public final class MainActivity extends ScaledActivity
         systemStatusSwitch.setChecked(showSystemStatus);
         systemStatusPositionSpinner.setSelection(Math.max(
                 PanelConfig.STATUS_TOP,
-                Math.min(PanelConfig.STATUS_BOTTOM,
+                Math.min(PanelConfig.STATUS_RIGHT,
                         prefs.getInt(Prefs.KEY_SYSTEM_STATUS_POSITION,
                                 PanelConfig.STATUS_BOTTOM))
         ));
