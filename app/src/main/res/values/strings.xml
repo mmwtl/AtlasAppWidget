@@ -24,33 +24,15 @@
     <string name="choose_apps">Выбрать приложения, activity и иконки</string>
     <string name="show_app_labels">Показывать названия приложений</string>
     <string name="system_status_title">3. Показатели системы</string>
-    <string name="show_system_status">Показывать CPU, RAM и TEMP</string>
+    <string name="show_system_status">Показывать CPU и RAM</string>
     <string name="system_status_position">Расположение показателей</string>
     <string-array name="system_status_positions">
         <item>Сверху</item><item>Снизу</item>
     </string-array>
     <string name="system_status_line_height">Толщина статусных линий</string>
-    <string name="system_status_text_size">Размер надписей CPU / RAM / TEMP</string>
+    <string name="system_status_text_size">Размер надписей CPU / RAM</string>
     <string name="system_status_text_weight">Толщина надписей</string>
-    <string name="temperature_source">Источник температуры</string>
-    <string name="temperature_source_auto">Автоматически · %1$s</string>
-    <string name="temperature_source_hardware_cpu">Android CPU API · %1$s</string>
-    <string name="temperature_source_battery">Батарея Android · %1$s</string>
-    <string name="temperature_source_thermal">%1$s · %2$s · %3$s</string>
-    <string name="temperature_source_saved_missing">Сохранённый источник · %1$s · не найден</string>
-    <string name="temperature_source_pending">поиск…</string>
-    <string name="refresh_temperature_sources">Проверить датчики TEMP</string>
-    <string name="temperature_diagnostics_waiting">Данные датчиков ещё не проверены.</string>
-    <string name="temperature_diagnostics_scanning">Проверяю доступные источники температуры…</string>
-    <string name="temperature_diagnostics_auto">Автовыбор: %1$s</string>
-    <string name="temperature_diagnostics_hardware">Android CPU API: %1$s</string>
-    <string name="temperature_diagnostics_battery">Батарея Android: %1$s</string>
-    <string name="temperature_diagnostics_sysfs_denied">Thermal-зоны: нет доступа из приложения</string>
-    <string name="temperature_diagnostics_thermal_count">Thermal-зоны: %1$d</string>
-    <string name="temperature_diagnostics_more">…и ещё %1$d; полный список доступен в выборе источника</string>
-    <string name="temperature_unavailable">нет данных</string>
-    <string name="temperature_celsius">%1$d °C</string>
-    <string name="system_status_hint">Автовыбор сначала проверяет официальный CPU API, затем подходящие thermal-зоны и только потом температуру батареи. Для нестандартной прошивки можно вручную выбрать любую найденную зону. TEMP батареи — это не температура процессора.</string>
+    <string name="system_status_hint">Если прошивка закрывает системную статистику процессора, значение CPU показывается как —. RAM остаётся доступной через Android API.</string>
     <string name="movement_title">4. Перемещение панели</string>
     <string name="show_drag_handle">Показывать ручку перетаскивания</string>
     <string name="drag_handle_position">Расположение ручки</string>

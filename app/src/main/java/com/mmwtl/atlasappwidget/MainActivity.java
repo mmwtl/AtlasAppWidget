@@ -24,11 +24,7 @@ import android.widget.Switch;
 import android.widget.TextView;
 import android.widget.Toast;
 
-import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.RejectedExecutionException;
 
 public final class MainActivity extends ScaledActivity
         implements SharedPreferences.OnSharedPreferenceChangeListener {
@@ -37,27 +33,8 @@ public final class MainActivity extends ScaledActivity
     }
 
     private static final int REQUEST_NOTIFICATIONS = 301;
-    private static final int MAX_TEMPERATURE_DIAGNOSTIC_ZONES = 12;
-
-    private static final class TemperatureChoice {
-        final String id;
-        final String label;
-
-        TemperatureChoice(String id, String label) {
-            this.id = id;
-            this.label = label;
-        }
-
-        @Override
-        public String toString() {
-            return label;
-        }
-    }
 
     private Prefs prefs;
-    private final ExecutorService temperatureDiagnosticsExecutor =
-            Executors.newSingleThreadExecutor();
-    private SystemMetricsSampler temperatureDiagnosticsSampler;
     private TextView overlayStatus;
     private TextView usageStatus;
     private TextView notificationStatus;
@@ -68,9 +45,6 @@ public final class MainActivity extends ScaledActivity
     private Switch appLabelsSwitch;
     private Switch systemStatusSwitch;
     private Spinner systemStatusPositionSpinner;
-    private Spinner temperatureSourceSpinner;
-    private TextView temperatureDiagnosticsView;
-    private Button refreshTemperatureSourcesButton;
     private LinearLayout systemStatusOptions;
     private LinearLayout dragHandleOptions;
     private Switch backgroundStrokeSwitch;
@@ -78,14 +52,11 @@ public final class MainActivity extends ScaledActivity
     private Button backgroundColorButton;
     private Button backgroundStrokeColorButton;
     private boolean updatingSwitch;
-    private boolean updatingTemperatureSource;
-    private int temperatureDiagnosticsGeneration;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         prefs = new Prefs(this);
-        temperatureDiagnosticsSampler = new SystemMetricsSampler(this, prefs);
         View content = buildContent();
         setContentView(content);
         Ui.applySystemBarInsets(content);
@@ -97,13 +68,10 @@ public final class MainActivity extends ScaledActivity
         super.onResume();
         refreshStatus();
         refreshPreviewSoon();
-        refreshTemperatureDiagnostics();
     }
 
     @Override
     protected void onDestroy() {
-        temperatureDiagnosticsGeneration++;
-        temperatureDiagnosticsExecutor.shutdownNow();
         prefs.raw().unregisterOnSharedPreferenceChangeListener(this);
         super.onDestroy();
     }
@@ -277,67 +245,6 @@ public final class MainActivity extends ScaledActivity
                     }
                 });
         systemStatusOptions.addView(systemStatusPositionSpinner);
-
-        TextView temperatureSourceLabel = Ui.text(this,
-                R.string.temperature_source,
-                14,
-                Ui.TEXT
-        );
-        Ui.topMargin(temperatureSourceLabel, 12);
-        systemStatusOptions.addView(temperatureSourceLabel);
-
-        temperatureSourceSpinner = new Spinner(this);
-        temperatureSourceSpinner.setOnItemSelectedListener(
-                new android.widget.AdapterView.OnItemSelectedListener() {
-                    @Override
-                    public void onItemSelected(
-                            android.widget.AdapterView<?> parent,
-                            View view,
-                            int position,
-                            long id
-                    ) {
-                        Object item = parent.getItemAtPosition(position);
-                        if (!updatingTemperatureSource && item instanceof TemperatureChoice) {
-                            prefs.putString(
-                                    Prefs.KEY_TEMPERATURE_SOURCE,
-                                    ((TemperatureChoice) item).id
-                            );
-                        }
-                    }
-
-                    @Override
-                    public void onNothingSelected(android.widget.AdapterView<?> parent) {
-                    }
-                });
-        systemStatusOptions.addView(temperatureSourceSpinner);
-        updateTemperatureSourceChoices(null);
-
-        refreshTemperatureSourcesButton = Ui.button(
-                this,
-                R.string.refresh_temperature_sources
-        );
-        Ui.topMargin(refreshTemperatureSourcesButton, 8);
-        refreshTemperatureSourcesButton.setOnClickListener(
-                view -> refreshTemperatureDiagnostics());
-        systemStatusOptions.addView(refreshTemperatureSourcesButton);
-
-        temperatureDiagnosticsView = Ui.text(
-                this,
-                R.string.temperature_diagnostics_waiting,
-                13,
-                Ui.TEXT_SECONDARY
-        );
-        temperatureDiagnosticsView.setLineSpacing(0, 1.12f);
-        temperatureDiagnosticsView.setPadding(
-                Ui.dp(this, 12),
-                Ui.dp(this, 10),
-                Ui.dp(this, 12),
-                Ui.dp(this, 10)
-        );
-        temperatureDiagnosticsView.setBackground(
-                Ui.rounded(Ui.SURFACE, Ui.dp(this, 6)));
-        Ui.topMargin(temperatureDiagnosticsView, 8);
-        systemStatusOptions.addView(temperatureDiagnosticsView);
 
         addSlider(systemStatusOptions, getString(R.string.system_status_line_height),
                 PanelConfig.STATUS_LINE_HEIGHT_MIN_DP,
@@ -569,191 +476,6 @@ public final class MainActivity extends ScaledActivity
         content.addView(scale);
 
         return scroll;
-    }
-
-    private void refreshTemperatureDiagnostics() {
-        if (temperatureDiagnosticsView == null || refreshTemperatureSourcesButton == null) {
-            return;
-        }
-        int generation = ++temperatureDiagnosticsGeneration;
-        temperatureDiagnosticsView.setText(R.string.temperature_diagnostics_scanning);
-        refreshTemperatureSourcesButton.setEnabled(false);
-        try {
-            temperatureDiagnosticsExecutor.execute(() -> {
-                SystemMetricsSampler.TemperatureDiagnostics diagnostics =
-                        temperatureDiagnosticsSampler.temperatureDiagnostics();
-                runOnUiThread(() -> {
-                    if (isFinishing() || isDestroyed()
-                            || generation != temperatureDiagnosticsGeneration) {
-                        return;
-                    }
-                    updateTemperatureSourceChoices(diagnostics);
-                    temperatureDiagnosticsView.setText(
-                            formatTemperatureDiagnostics(diagnostics));
-                    refreshTemperatureSourcesButton.setEnabled(
-                            prefs.getBoolean(Prefs.KEY_SHOW_SYSTEM_STATUS, false));
-                });
-            });
-        } catch (RejectedExecutionException ignored) {
-            // Activity teardown already stopped diagnostics.
-        }
-    }
-
-    private void updateTemperatureSourceChoices(
-            SystemMetricsSampler.TemperatureDiagnostics diagnostics
-    ) {
-        if (temperatureSourceSpinner == null) {
-            return;
-        }
-        String selectedId = prefs.getString(
-                Prefs.KEY_TEMPERATURE_SOURCE,
-                SystemMetricsSampler.TEMPERATURE_SOURCE_AUTO
-        );
-        ArrayList<TemperatureChoice> choices = new ArrayList<>();
-        String autoDetail = diagnostics == null
-                ? getString(R.string.temperature_source_pending)
-                : temperatureSourceDescription(diagnostics.automaticSourceId, diagnostics);
-        choices.add(new TemperatureChoice(
-                SystemMetricsSampler.TEMPERATURE_SOURCE_AUTO,
-                getString(R.string.temperature_source_auto, autoDetail)
-        ));
-        if (diagnostics != null && (diagnostics.hardwareCpuCelsius != null
-                || SystemMetricsSampler.TEMPERATURE_SOURCE_HARDWARE_CPU.equals(selectedId))) {
-            choices.add(new TemperatureChoice(
-                    SystemMetricsSampler.TEMPERATURE_SOURCE_HARDWARE_CPU,
-                    getString(
-                            R.string.temperature_source_hardware_cpu,
-                            formatTemperatureValue(diagnostics.hardwareCpuCelsius)
-                    )
-            ));
-        }
-        Integer battery = diagnostics == null ? null : diagnostics.batteryCelsius;
-        choices.add(new TemperatureChoice(
-                SystemMetricsSampler.TEMPERATURE_SOURCE_BATTERY,
-                getString(
-                        R.string.temperature_source_battery,
-                        formatTemperatureValue(battery)
-                )
-        ));
-        if (diagnostics != null) {
-            for (SystemMetricsSampler.TemperatureSource source
-                    : diagnostics.thermalSources) {
-                choices.add(new TemperatureChoice(
-                        source.id,
-                        formatThermalSource(source)
-                ));
-            }
-        }
-        if (findTemperatureChoice(choices, selectedId) < 0) {
-            choices.add(new TemperatureChoice(
-                    selectedId,
-                    getString(R.string.temperature_source_saved_missing, selectedId)
-            ));
-        }
-
-        ArrayAdapter<TemperatureChoice> adapter = new ArrayAdapter<>(
-                this,
-                android.R.layout.simple_spinner_item,
-                choices
-        );
-        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
-        updatingTemperatureSource = true;
-        temperatureSourceSpinner.setAdapter(adapter);
-        temperatureSourceSpinner.setSelection(
-                Math.max(0, findTemperatureChoice(choices, selectedId)));
-        updatingTemperatureSource = false;
-    }
-
-    private int findTemperatureChoice(List<TemperatureChoice> choices, String id) {
-        for (int index = 0; index < choices.size(); index++) {
-            if (choices.get(index).id.equals(id)) {
-                return index;
-            }
-        }
-        return -1;
-    }
-
-    private String formatTemperatureDiagnostics(
-            SystemMetricsSampler.TemperatureDiagnostics diagnostics
-    ) {
-        StringBuilder result = new StringBuilder();
-        result.append(getString(
-                R.string.temperature_diagnostics_auto,
-                temperatureSourceDescription(diagnostics.automaticSourceId, diagnostics)
-        ));
-        result.append('\n').append(getString(
-                R.string.temperature_diagnostics_hardware,
-                formatTemperatureValue(diagnostics.hardwareCpuCelsius)
-        ));
-        result.append('\n').append(getString(
-                R.string.temperature_diagnostics_battery,
-                formatTemperatureValue(diagnostics.batteryCelsius)
-        ));
-        if (!diagnostics.thermalRootAccessible) {
-            result.append('\n').append(getString(R.string.temperature_diagnostics_sysfs_denied));
-            return result.toString();
-        }
-        result.append('\n').append(getString(
-                R.string.temperature_diagnostics_thermal_count,
-                diagnostics.thermalSources.size()
-        ));
-        int shown = Math.min(
-                MAX_TEMPERATURE_DIAGNOSTIC_ZONES,
-                diagnostics.thermalSources.size()
-        );
-        for (int index = 0; index < shown; index++) {
-            result.append('\n').append("• ").append(
-                    formatThermalSource(diagnostics.thermalSources.get(index)));
-        }
-        if (shown < diagnostics.thermalSources.size()) {
-            result.append('\n').append(getString(
-                    R.string.temperature_diagnostics_more,
-                    diagnostics.thermalSources.size() - shown
-            ));
-        }
-        return result.toString();
-    }
-
-    private String temperatureSourceDescription(
-            String sourceId,
-            SystemMetricsSampler.TemperatureDiagnostics diagnostics
-    ) {
-        if (sourceId == null) {
-            return getString(R.string.temperature_unavailable);
-        }
-        if (SystemMetricsSampler.TEMPERATURE_SOURCE_HARDWARE_CPU.equals(sourceId)) {
-            return getString(
-                    R.string.temperature_source_hardware_cpu,
-                    formatTemperatureValue(diagnostics.hardwareCpuCelsius)
-            );
-        }
-        if (SystemMetricsSampler.TEMPERATURE_SOURCE_BATTERY.equals(sourceId)) {
-            return getString(
-                    R.string.temperature_source_battery,
-                    formatTemperatureValue(diagnostics.batteryCelsius)
-            );
-        }
-        for (SystemMetricsSampler.TemperatureSource source : diagnostics.thermalSources) {
-            if (source.id.equals(sourceId)) {
-                return formatThermalSource(source);
-            }
-        }
-        return getString(R.string.temperature_unavailable);
-    }
-
-    private String formatThermalSource(SystemMetricsSampler.TemperatureSource source) {
-        return getString(
-                R.string.temperature_source_thermal,
-                source.zoneName,
-                source.type,
-                formatTemperatureValue(source.temperatureCelsius)
-        );
-    }
-
-    private String formatTemperatureValue(Integer celsius) {
-        return celsius == null
-                ? getString(R.string.temperature_unavailable)
-                : getString(R.string.temperature_celsius, celsius);
     }
 
     private LinearLayout settingsGroup() {

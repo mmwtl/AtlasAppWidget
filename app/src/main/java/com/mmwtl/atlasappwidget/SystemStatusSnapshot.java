@@ -5,19 +5,17 @@ final class SystemStatusSnapshot {
 
     final int cpuPercent;
     final int ramPercent;
-    final int temperatureCelsius;
 
-    SystemStatusSnapshot(int cpuPercent, int ramPercent, int temperatureCelsius) {
+    SystemStatusSnapshot(int cpuPercent, int ramPercent) {
         this.cpuPercent = cpuPercent;
         this.ramPercent = ramPercent;
-        this.temperatureCelsius = temperatureCelsius;
     }
 
     static SystemStatusSnapshot unavailable() {
-        return new SystemStatusSnapshot(UNAVAILABLE, UNAVAILABLE, UNAVAILABLE);
+        return new SystemStatusSnapshot(UNAVAILABLE, UNAVAILABLE);
     }
 
     static SystemStatusSnapshot preview() {
-        return new SystemStatusSnapshot(38, 62, 54);
+        return new SystemStatusSnapshot(38, 62);
     }
 }

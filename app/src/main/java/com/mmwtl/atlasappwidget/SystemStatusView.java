@@ -21,11 +21,9 @@ final class SystemStatusView extends LinearLayout {
     private static final int TRACK_COLOR = 0xFF454545;
     private static final int CPU_COLOR = 0xFF7893A0;
     private static final int RAM_COLOR = 0xFFC49A62;
-    private static final int TEMPERATURE_COLOR = 0xFFC9786B;
 
     private final MetricView cpu;
     private final MetricView ram;
-    private final MetricView temperature;
 
     SystemStatusView(
             Context context,
@@ -44,9 +42,6 @@ final class SystemStatusView extends LinearLayout {
         addDivider(statusHeight);
         ram = addMetric("RAM", RAM_COLOR, textSizeSp, textWeight,
                 lineHeightDp, labelHeight);
-        addDivider(statusHeight);
-        temperature = addMetric("TEMP", TEMPERATURE_COLOR, textSizeSp, textWeight,
-                lineHeightDp, labelHeight);
         setImportantForAccessibility(IMPORTANT_FOR_ACCESSIBILITY_YES);
     }
 
@@ -62,13 +57,11 @@ final class SystemStatusView extends LinearLayout {
     void update(SystemStatusSnapshot snapshot) {
         cpu.update(snapshot.cpuPercent, true);
         ram.update(snapshot.ramPercent, true);
-        temperature.update(snapshot.temperatureCelsius, false);
         setContentDescription(String.format(
                 Locale.getDefault(),
-                "%s, %s, %s",
+                "%s, %s",
                 cpu.label.getText(),
-                ram.label.getText(),
-                temperature.label.getText()
+                ram.label.getText()
         ));
     }
 
