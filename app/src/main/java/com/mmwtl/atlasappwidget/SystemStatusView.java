@@ -22,9 +22,11 @@ final class SystemStatusView extends LinearLayout {
     private static final int TRACK_COLOR = 0xFF454545;
     private static final int CPU_COLOR = 0xFF7893A0;
     private static final int RAM_COLOR = 0xFFC49A62;
+    private static final int FUEL_COLOR = 0xFF8BA37A;
 
     private final MetricView cpu;
     private final MetricView ram;
+    private final MetricView fuel;
 
     SystemStatusView(
             Context context,
@@ -48,6 +50,13 @@ final class SystemStatusView extends LinearLayout {
         }
         ram = addMetric("RAM", RAM_COLOR, textSizeSp, textWeight,
                 lineHeightDp, labelHeight, sideMode);
+        if (sideMode) {
+            addSideGap();
+        } else {
+            addDivider(statusHeight);
+        }
+        fuel = addMetric("FUEL", FUEL_COLOR, textSizeSp, textWeight,
+                lineHeightDp, labelHeight, sideMode);
         setImportantForAccessibility(IMPORTANT_FOR_ACCESSIBILITY_YES);
     }
 
@@ -61,17 +70,19 @@ final class SystemStatusView extends LinearLayout {
     }
 
     static int sideWidthPixels(Context context, int lineHeightDp) {
-        return Ui.dp(context, lineHeightDp * 2 + SIDE_TRACK_GAP_DP);
+        return Ui.dp(context, lineHeightDp * 3 + SIDE_TRACK_GAP_DP * 2);
     }
 
     void update(SystemStatusSnapshot snapshot) {
-        cpu.update(snapshot.cpuPercent);
-        ram.update(snapshot.ramPercent);
+        cpu.updatePercent(snapshot.cpuPercent);
+        ram.updatePercent(snapshot.ramPercent);
+        fuel.updateLiters(snapshot.fuelLiters, snapshot.fuelPercent);
         setContentDescription(String.format(
                 Locale.getDefault(),
-                "%s, %s",
+                "%s, %s, %s",
                 cpu.label.getText(),
-                ram.label.getText()
+                ram.label.getText(),
+                fuel.label.getText()
         ));
     }
 
@@ -193,15 +204,27 @@ final class SystemStatusView extends LinearLayout {
             }
         }
 
-        void update(int value) {
+        void updatePercent(int value) {
             if (value == SystemStatusSnapshot.UNAVAILABLE) {
-                label.setText(name + " —");
-                progress = 0;
+                updateValue("—", 0);
             } else {
-                label.setText(String.format(
-                        Locale.getDefault(), "%s %d%%", name, value));
-                progress = Math.max(0, Math.min(100, value));
+                updateValue(String.format(Locale.getDefault(), "%d%%", value), value);
             }
+        }
+
+        void updateLiters(int liters, int percent) {
+            if (liters == SystemStatusSnapshot.UNAVAILABLE
+                    || percent == SystemStatusSnapshot.UNAVAILABLE) {
+                updateValue("—", 0);
+            } else {
+                updateValue(String.format(Locale.getDefault(), "%d л", liters), percent);
+            }
+        }
+
+        private void updateValue(String valueText, int valueProgress) {
+            label.setText(String.format(
+                    Locale.getDefault(), "%s %s", name, valueText));
+            progress = Math.max(0, Math.min(100, valueProgress));
             updateFillLength();
         }
 

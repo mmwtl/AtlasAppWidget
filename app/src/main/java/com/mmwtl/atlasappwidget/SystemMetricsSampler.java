@@ -13,15 +13,23 @@ final class SystemMetricsSampler {
     private static final File PROC_STAT = new File("/proc/stat");
 
     private final ActivityManager activityManager;
+    private final FuelLevelProvider fuelLevelProvider;
     private CpuTicks previousCpuTicks;
 
-    SystemMetricsSampler(Context context) {
+    SystemMetricsSampler(Context context, FuelLevelProvider fuelLevelProvider) {
         activityManager = context.getApplicationContext()
                 .getSystemService(ActivityManager.class);
+        this.fuelLevelProvider = fuelLevelProvider;
     }
 
     SystemStatusSnapshot sample() {
-        return new SystemStatusSnapshot(readCpuPercent(), readRamPercent());
+        FuelLevelProvider.Reading fuel = fuelLevelProvider.reading();
+        return new SystemStatusSnapshot(
+                readCpuPercent(),
+                readRamPercent(),
+                fuel.liters,
+                fuel.percent
+        );
     }
 
     void resetCpuBaseline() {

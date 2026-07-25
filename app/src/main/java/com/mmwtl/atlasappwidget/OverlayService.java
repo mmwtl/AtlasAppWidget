@@ -57,6 +57,7 @@ public final class OverlayService extends Service
     private Prefs prefs;
     private WindowManager windowManager;
     private ForegroundAppDetector foregroundDetector;
+    private FuelLevelProvider fuelLevelProvider;
     private SystemMetricsSampler systemMetricsSampler;
     private PanelView panel;
     private WindowManager.LayoutParams panelParams;
@@ -121,7 +122,11 @@ public final class OverlayService extends Service
     public void onCreate() {
         super.onCreate();
         prefs = new Prefs(this);
-        systemMetricsSampler = new SystemMetricsSampler(this);
+        fuelLevelProvider = new FuelLevelProvider(this);
+        if (prefs.getBoolean(Prefs.KEY_SHOW_SYSTEM_STATUS, false)) {
+            fuelLevelProvider.start();
+        }
+        systemMetricsSampler = new SystemMetricsSampler(this, fuelLevelProvider);
         prefs.raw().registerOnSharedPreferenceChangeListener(this);
         createNotificationChannel();
         Notification notification = buildNotification(NOTIFICATION_HIDDEN);
@@ -180,6 +185,9 @@ public final class OverlayService extends Service
         handler.removeCallbacksAndMessages(null);
         hidePanel();
         systemStatusExecutor.shutdownNow();
+        if (fuelLevelProvider != null) {
+            fuelLevelProvider.stop();
+        }
         if (prefs != null) {
             prefs.raw().unregisterOnSharedPreferenceChangeListener(this);
         }
@@ -200,6 +208,13 @@ public final class OverlayService extends Service
 
     @Override
     public void onSharedPreferenceChanged(SharedPreferences sharedPreferences, String key) {
+        if (Prefs.KEY_SHOW_SYSTEM_STATUS.equals(key) && fuelLevelProvider != null) {
+            if (sharedPreferences.getBoolean(Prefs.KEY_SHOW_SYSTEM_STATUS, false)) {
+                fuelLevelProvider.start();
+            } else {
+                fuelLevelProvider.stop();
+            }
+        }
         if (Prefs.KEY_POSITION_X.equals(key) || Prefs.KEY_POSITION_Y.equals(key)
                 || Prefs.KEY_SERVICE_ENABLED.equals(key)
                 || Prefs.KEY_AUTO_START.equals(key)

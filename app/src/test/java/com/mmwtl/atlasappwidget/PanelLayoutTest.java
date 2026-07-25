@@ -86,11 +86,11 @@ public final class PanelLayoutTest {
 
     @Test
     public void sideSystemStatusReservesWidthWithoutIncreasingHeight() {
-        PanelLayout withoutStatus = customLayout(false, false, false, false, 16);
-        PanelLayout sideStatus = customLayout(false, false, true, true, 16);
+        PanelLayout withoutStatus = customLayout(false, false, false, false, 26);
+        PanelLayout sideStatus = customLayout(false, false, true, true, 26);
 
         assertEquals(withoutStatus.panelHeight, sideStatus.panelHeight);
-        assertEquals(32, withoutStatus.gridWidth - sideStatus.gridWidth);
+        assertEquals(42, withoutStatus.gridWidth - sideStatus.gridWidth);
     }
 
     private static PanelLayout layout(

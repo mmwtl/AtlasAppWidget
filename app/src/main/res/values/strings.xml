@@ -24,15 +24,15 @@
     <string name="choose_apps">Выбрать приложения, activity и иконки</string>
     <string name="show_app_labels">Показывать названия приложений</string>
     <string name="system_status_title">3. Показатели системы</string>
-    <string name="show_system_status">Показывать CPU и RAM</string>
+    <string name="show_system_status">Показывать CPU, RAM и FUEL</string>
     <string name="system_status_position">Расположение показателей</string>
     <string-array name="system_status_positions">
         <item>Сверху</item><item>Снизу</item><item>Слева</item><item>Справа</item>
     </string-array>
     <string name="system_status_line_height">Толщина статусных линий</string>
-    <string name="system_status_text_size">Размер надписей CPU / RAM</string>
+    <string name="system_status_text_size">Размер надписей CPU / RAM / FUEL</string>
     <string name="system_status_text_weight">Толщина надписей</string>
-    <string name="system_status_hint">Сверху и снизу показываются значения с горизонтальными шкалами. Слева и справа — вертикальные полосы без надписей: CPU синяя, RAM золотая; заполнение идёт снизу вверх. Размер и толщина надписей применяются только сверху и снизу. Если прошивка закрывает статистику процессора, CPU остаётся пустой.</string>
+    <string name="system_status_hint">Сверху и снизу показываются значения с горизонтальными шкалами. Слева и справа — вертикальные полосы без надписей: CPU синяя, RAM золотая, FUEL зелёная; заполнение идёт снизу вверх. FUEL получает данные из GInputBridge: 0 датчика отображается как 4 л, 50 — как 54 л. Размер и толщина надписей применяются только сверху и снизу. Если данные недоступны, соответствующая шкала остаётся пустой.</string>
     <string name="movement_title">4. Перемещение панели</string>
     <string name="show_drag_handle">Показывать ручку перетаскивания</string>
     <string name="drag_handle_position">Расположение ручки</string>
