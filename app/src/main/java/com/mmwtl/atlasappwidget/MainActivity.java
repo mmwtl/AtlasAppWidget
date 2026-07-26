@@ -1,6 +1,7 @@
 package com.mmwtl.atlasappwidget;
 
 import android.Manifest;
+import android.app.AlertDialog;
 import android.content.ActivityNotFoundException;
 import android.content.Intent;
 import android.content.SharedPreferences;
@@ -10,11 +11,13 @@ import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.provider.Settings;
+import android.text.InputType;
 import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
+import android.widget.EditText;
 import android.widget.FrameLayout;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
@@ -44,8 +47,12 @@ public final class MainActivity extends ScaledActivity
     private Switch dragHandleSwitch;
     private Switch appLabelsSwitch;
     private Switch systemStatusSwitch;
+    private Switch cpuStatusSwitch;
+    private Switch ramStatusSwitch;
+    private Switch fuelStatusSwitch;
     private Spinner systemStatusPositionSpinner;
     private LinearLayout systemStatusOptions;
+    private TextView fuelFormulaSummary;
     private LinearLayout dragHandleOptions;
     private Switch backgroundStrokeSwitch;
     private FrameLayout previewContainer;
@@ -202,6 +209,29 @@ public final class MainActivity extends ScaledActivity
         systemStatusOptions = settingsGroup();
         systemStatus.addView(systemStatusOptions);
 
+        TextView visibleMetrics = Ui.text(this,
+                R.string.system_status_visible_metrics,
+                14,
+                Ui.TEXT
+        );
+        Ui.topMargin(visibleMetrics, 8);
+        systemStatusOptions.addView(visibleMetrics);
+        cpuStatusSwitch = addMetricSwitch(
+                systemStatusOptions,
+                R.string.show_cpu_status,
+                Prefs.KEY_SHOW_CPU_STATUS
+        );
+        ramStatusSwitch = addMetricSwitch(
+                systemStatusOptions,
+                R.string.show_ram_status,
+                Prefs.KEY_SHOW_RAM_STATUS
+        );
+        fuelStatusSwitch = addMetricSwitch(
+                systemStatusOptions,
+                R.string.show_fuel_status,
+                Prefs.KEY_SHOW_FUEL_STATUS
+        );
+
         TextView systemStatusPositionLabel = Ui.text(this,
                 R.string.system_status_position,
                 14,
@@ -280,6 +310,27 @@ public final class MainActivity extends ScaledActivity
         );
         systemStatusHint.setLineSpacing(0, 1.1f);
         systemStatusOptions.addView(systemStatusHint);
+
+        LinearLayout fuelSettings = settingsGroup();
+        systemStatus.addView(fuelSettings);
+        fuelSettings.addView(Ui.heading(this, R.string.fuel_settings_title, 17));
+        fuelFormulaSummary = Ui.text(this, "", 14, Ui.TEXT_SECONDARY);
+        fuelFormulaSummary.setLineSpacing(0, 1.1f);
+        Ui.topMargin(fuelFormulaSummary, 7);
+        fuelSettings.addView(fuelFormulaSummary);
+        Button fuelFormulaButton = Ui.button(this, R.string.change_fuel_formula);
+        Ui.topMargin(fuelFormulaButton, 10);
+        fuelFormulaButton.setOnClickListener(view -> showFuelFormulaDialog());
+        fuelSettings.addView(fuelFormulaButton);
+        TextView fuelTileHint = Ui.text(
+                this,
+                R.string.fuel_tile_settings_hint,
+                13,
+                Ui.TEXT_SECONDARY
+        );
+        fuelTileHint.setLineSpacing(0, 1.1f);
+        Ui.topMargin(fuelTileHint, 8);
+        fuelSettings.addView(fuelTileHint);
         content.addView(systemStatus);
 
         LinearLayout movement = Ui.card(this);
@@ -390,9 +441,14 @@ public final class MainActivity extends ScaledActivity
         });
         service.addView(autoStartSwitch);
 
-        addSlider(service, getString(R.string.auto_start_delay), 0,
+        addSlider(service, getString(R.string.auto_start_delay),
+                Prefs.MIN_AUTO_START_DELAY_SECONDS,
                 Prefs.MAX_AUTO_START_DELAY_SECONDS,
-                prefs.getInt(Prefs.KEY_AUTO_START_DELAY_SECONDS, 0),
+                Math.max(Prefs.MIN_AUTO_START_DELAY_SECONDS,
+                        prefs.getInt(
+                                Prefs.KEY_AUTO_START_DELAY_SECONDS,
+                                Prefs.MIN_AUTO_START_DELAY_SECONDS
+                        )),
                 this::formatAutoStartDelay,
                 value -> prefs.putInt(Prefs.KEY_AUTO_START_DELAY_SECONDS, value));
         TextView autoStartDelayHint = Ui.text(this,
@@ -779,6 +835,9 @@ public final class MainActivity extends ScaledActivity
         appLabelsSwitch.setChecked(prefs.getBoolean(Prefs.KEY_SHOW_APP_LABELS, false));
         boolean showSystemStatus = prefs.getBoolean(Prefs.KEY_SHOW_SYSTEM_STATUS, false);
         systemStatusSwitch.setChecked(showSystemStatus);
+        cpuStatusSwitch.setChecked(prefs.getBoolean(Prefs.KEY_SHOW_CPU_STATUS, true));
+        ramStatusSwitch.setChecked(prefs.getBoolean(Prefs.KEY_SHOW_RAM_STATUS, true));
+        fuelStatusSwitch.setChecked(prefs.getBoolean(Prefs.KEY_SHOW_FUEL_STATUS, true));
         systemStatusPositionSpinner.setSelection(Math.max(
                 PanelConfig.STATUS_TOP,
                 Math.min(PanelConfig.STATUS_RIGHT,
@@ -790,6 +849,7 @@ public final class MainActivity extends ScaledActivity
         updatingSwitch = false;
         setSettingsGroupEnabled(systemStatusOptions, showSystemStatus);
         setSettingsGroupEnabled(dragHandleOptions, showDragHandle);
+        refreshFuelFormulaSummary();
 
         List<String> selected = prefs.selectedComponents();
         PanelConfig config = prefs.panelConfig();
@@ -812,6 +872,176 @@ public final class MainActivity extends ScaledActivity
                 getString(R.string.stroke_color),
                 prefs.getInt(Prefs.KEY_BACKGROUND_STROKE_COLOR, Ui.ACCENT)
         );
+    }
+
+    private Switch addMetricSwitch(
+            LinearLayout parent,
+            int labelResource,
+            String preferenceKey
+    ) {
+        Switch metric = new Switch(this);
+        metric.setText(labelResource);
+        metric.setTextColor(Ui.TEXT);
+        metric.setTextSize(14);
+        metric.setPadding(0, Ui.dp(this, 7), 0, Ui.dp(this, 2));
+        metric.setOnCheckedChangeListener((button, checked) ->
+                onMetricVisibilityChanged(metric, preferenceKey, checked));
+        parent.addView(metric);
+        return metric;
+    }
+
+    private void onMetricVisibilityChanged(
+            Switch source,
+            String preferenceKey,
+            boolean checked
+    ) {
+        if (updatingSwitch) {
+            return;
+        }
+        boolean cpu = Prefs.KEY_SHOW_CPU_STATUS.equals(preferenceKey)
+                ? checked : prefs.getBoolean(Prefs.KEY_SHOW_CPU_STATUS, true);
+        boolean ram = Prefs.KEY_SHOW_RAM_STATUS.equals(preferenceKey)
+                ? checked : prefs.getBoolean(Prefs.KEY_SHOW_RAM_STATUS, true);
+        boolean fuel = Prefs.KEY_SHOW_FUEL_STATUS.equals(preferenceKey)
+                ? checked : prefs.getBoolean(Prefs.KEY_SHOW_FUEL_STATUS, true);
+        if (!cpu && !ram && !fuel) {
+            updatingSwitch = true;
+            source.setChecked(true);
+            updatingSwitch = false;
+            Toast.makeText(this,
+                    R.string.keep_one_system_status,
+                    Toast.LENGTH_SHORT).show();
+            return;
+        }
+        prefs.putBoolean(preferenceKey, checked);
+    }
+
+    private void refreshFuelFormulaSummary() {
+        if (fuelFormulaSummary == null) {
+            return;
+        }
+        float multiplier = prefs.getFloat(
+                Prefs.KEY_FUEL_MULTIPLIER,
+                FuelLevelProvider.DEFAULT_MULTIPLIER
+        );
+        float offset = prefs.getFloat(
+                Prefs.KEY_FUEL_OFFSET,
+                FuelLevelProvider.DEFAULT_OFFSET
+        );
+        fuelFormulaSummary.setText(getString(
+                R.string.fuel_formula_summary,
+                FuelDetailsView.formatNumber(multiplier),
+                FuelDetailsView.formatSignedOffset(offset)
+        ));
+    }
+
+    private void showFuelFormulaDialog() {
+        LinearLayout fields = new LinearLayout(this);
+        fields.setOrientation(LinearLayout.VERTICAL);
+        fields.setPadding(Ui.dp(this, 24), Ui.dp(this, 8),
+                Ui.dp(this, 24), 0);
+
+        TextView explanation = Ui.text(
+                this,
+                R.string.fuel_formula_dialog_hint,
+                14,
+                Ui.TEXT_SECONDARY
+        );
+        explanation.setLineSpacing(0, 1.1f);
+        fields.addView(explanation);
+
+        TextView multiplierLabel = Ui.text(
+                this, R.string.fuel_multiplier, 14, Ui.TEXT);
+        Ui.topMargin(multiplierLabel, 12);
+        fields.addView(multiplierLabel);
+        EditText multiplier = formulaField(
+                prefs.getFloat(
+                        Prefs.KEY_FUEL_MULTIPLIER,
+                        FuelLevelProvider.DEFAULT_MULTIPLIER
+                )
+        );
+        fields.addView(multiplier);
+        TextView offsetLabel = Ui.text(
+                this, R.string.fuel_offset, 14, Ui.TEXT);
+        Ui.topMargin(offsetLabel, 12);
+        fields.addView(offsetLabel);
+        EditText offset = formulaField(
+                prefs.getFloat(
+                        Prefs.KEY_FUEL_OFFSET,
+                        FuelLevelProvider.DEFAULT_OFFSET
+                )
+        );
+        fields.addView(offset);
+
+        AlertDialog dialog = new AlertDialog.Builder(this)
+                .setTitle(R.string.fuel_formula_dialog_title)
+                .setView(fields)
+                .setNegativeButton(R.string.cancel, null)
+                .setPositiveButton(R.string.done, null)
+                .create();
+        dialog.setOnShowListener(ignored ->
+                dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(view -> {
+                    Float parsedMultiplier = parseFormulaValue(multiplier);
+                    Float parsedOffset = parseFormulaValue(offset);
+                    if (parsedMultiplier == null || parsedOffset == null) {
+                        return;
+                    }
+                    if (Math.abs(parsedMultiplier) > 100f) {
+                        multiplier.setError(getString(R.string.fuel_multiplier_range));
+                        return;
+                    }
+                    if (Math.abs(parsedOffset) > 1_000f) {
+                        offset.setError(getString(R.string.fuel_offset_range));
+                        return;
+                    }
+                    prefs.putFuelFormula(parsedMultiplier, parsedOffset);
+                    dialog.dismiss();
+                }));
+        dialog.show();
+        if (dialog.getWindow() != null) {
+            int availableWidth = Math.max(
+                    1,
+                    getWindowManager().getCurrentWindowMetrics().getBounds().width()
+                            - Ui.dp(this, 32)
+            );
+            dialog.getWindow().setLayout(
+                    Math.min(availableWidth, Ui.dp(this, 640)),
+                    ViewGroup.LayoutParams.WRAP_CONTENT
+            );
+        }
+    }
+
+    private EditText formulaField(float value) {
+        EditText field = new EditText(this);
+        field.setText(FuelDetailsView.formatNumber(value));
+        field.setSelectAllOnFocus(true);
+        field.setSingleLine(true);
+        field.setTextColor(Ui.TEXT);
+        field.setHintTextColor(Ui.TEXT_SECONDARY);
+        field.setInputType(InputType.TYPE_CLASS_NUMBER
+                | InputType.TYPE_NUMBER_FLAG_DECIMAL
+                | InputType.TYPE_NUMBER_FLAG_SIGNED);
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+        );
+        params.topMargin = Ui.dp(this, 2);
+        field.setLayoutParams(params);
+        return field;
+    }
+
+    private Float parseFormulaValue(EditText field) {
+        String value = field.getText().toString().trim().replace(',', '.');
+        try {
+            float parsed = Float.parseFloat(value);
+            if (Float.isFinite(parsed)) {
+                return parsed;
+            }
+        } catch (NumberFormatException ignored) {
+            // Error is attached to the corresponding field below.
+        }
+        field.setError(getString(R.string.fuel_formula_invalid));
+        return null;
     }
 
     private void updateColorButton(Button button, String label, int color) {

@@ -24,6 +24,9 @@ final class PanelConfig {
     final int dragHandlePosition;
     final boolean showAppLabels;
     final boolean showSystemStatus;
+    final boolean showCpuStatus;
+    final boolean showRamStatus;
+    final boolean showFuelStatus;
     final int systemStatusPosition;
     final int systemStatusLineHeightDp;
     final int systemStatusTextSizeSp;
@@ -48,7 +51,11 @@ final class PanelConfig {
         dragHandlePosition = Math.max(HANDLE_LEFT, Math.min(HANDLE_BOTTOM,
                 prefs.getInt(Prefs.KEY_DRAG_HANDLE_POSITION, HANDLE_LEFT)));
         showAppLabels = prefs.getBoolean(Prefs.KEY_SHOW_APP_LABELS, false);
-        showSystemStatus = prefs.getBoolean(Prefs.KEY_SHOW_SYSTEM_STATUS, false);
+        showCpuStatus = prefs.getBoolean(Prefs.KEY_SHOW_CPU_STATUS, true);
+        showRamStatus = prefs.getBoolean(Prefs.KEY_SHOW_RAM_STATUS, true);
+        showFuelStatus = prefs.getBoolean(Prefs.KEY_SHOW_FUEL_STATUS, true);
+        showSystemStatus = prefs.getBoolean(Prefs.KEY_SHOW_SYSTEM_STATUS, false)
+                && systemStatusMetricCount() > 0;
         systemStatusPosition = Math.max(STATUS_TOP, Math.min(STATUS_RIGHT,
                 prefs.getInt(Prefs.KEY_SYSTEM_STATUS_POSITION, STATUS_BOTTOM)));
         systemStatusLineHeightDp = clamp(
@@ -83,6 +90,20 @@ final class PanelConfig {
         backgroundStrokeAlpha = prefs.getInt(Prefs.KEY_BACKGROUND_STROKE_ALPHA, 200);
         backgroundStrokeColor = prefs.getInt(Prefs.KEY_BACKGROUND_STROKE_COLOR, 0xFF7893A0);
         panelRadiusDp = prefs.getInt(Prefs.KEY_PANEL_RADIUS_DP, 8);
+    }
+
+    int systemStatusMetricCount() {
+        int count = 0;
+        if (showCpuStatus) {
+            count++;
+        }
+        if (showRamStatus) {
+            count++;
+        }
+        if (showFuelStatus) {
+            count++;
+        }
+        return count;
     }
 
     private static int clamp(int value, int minimum, int maximum) {

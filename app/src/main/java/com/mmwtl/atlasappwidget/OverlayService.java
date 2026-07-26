@@ -41,8 +41,8 @@ public final class OverlayService extends Service
     private static final String EXTRA_BOOT_DELAY_MS = "boot_delay_ms";
     private static final String CHANNEL_ID = "atlas_app_widget_service";
     private static final int NOTIFICATION_ID = 2107;
-    private static final int POLL_VISIBLE_MS = 700;
-    private static final int POLL_HIDDEN_MS = 1_000;
+    private static final int POLL_VISIBLE_MS = 1_000;
+    private static final int POLL_HIDDEN_MS = 1_500;
     private static final int POLL_ERROR_MS = 2_000;
     private static final int SYSTEM_STATUS_REFRESH_MS = 2_000;
     private static final int NOTIFICATION_VISIBLE = 1;
@@ -61,9 +61,11 @@ public final class OverlayService extends Service
     private SystemMetricsSampler systemMetricsSampler;
     private PanelView panel;
     private WindowManager.LayoutParams panelParams;
+    private FuelDetailsView fuelDetailsView;
     private int currentNotificationState;
     private long suppressPanelUntil;
     private long nextSystemStatusRefresh;
+    private boolean metricsActive;
 
     private float dragStartRawX;
     private float dragStartRawY;
@@ -73,7 +75,10 @@ public final class OverlayService extends Service
     private final Runnable foregroundPoll = new Runnable() {
         @Override
         public void run() {
-            prefs.remove(Prefs.KEY_AUTO_START_PENDING_UNTIL_MS);
+            if (!metricsActive) {
+                metricsActive = true;
+                syncFuelProvider();
+            }
             if (!prefs.getBoolean(Prefs.KEY_SERVICE_ENABLED, false)) {
                 stopSelf();
                 return;
@@ -104,6 +109,13 @@ public final class OverlayService extends Service
         }
     };
 
+    private final Runnable bootDelayComplete = () -> {
+        prefs.remove(Prefs.KEY_AUTO_START_PENDING_UNTIL_MS);
+        metricsActive = true;
+        syncFuelProvider();
+        foregroundPoll.run();
+    };
+
     static void start(android.content.Context context) {
         Intent intent = new Intent(context, OverlayService.class).setAction(ACTION_START);
         context.startForegroundService(intent);
@@ -122,10 +134,7 @@ public final class OverlayService extends Service
     public void onCreate() {
         super.onCreate();
         prefs = new Prefs(this);
-        fuelLevelProvider = new FuelLevelProvider(this);
-        if (prefs.getBoolean(Prefs.KEY_SHOW_SYSTEM_STATUS, false)) {
-            fuelLevelProvider.start();
-        }
+        fuelLevelProvider = new FuelLevelProvider(this, prefs);
         systemMetricsSampler = new SystemMetricsSampler(this, fuelLevelProvider);
         prefs.raw().registerOnSharedPreferenceChangeListener(this);
         createNotificationChannel();
@@ -155,6 +164,7 @@ public final class OverlayService extends Service
         }
         prefs.putBoolean(Prefs.KEY_SERVICE_ENABLED, true);
         handler.removeCallbacks(foregroundPoll);
+        handler.removeCallbacks(bootDelayComplete);
         long delayMs = 0;
         if (ACTION_START_AFTER_BOOT.equals(action)) {
             delayMs = Math.max(0, intent.getLongExtra(EXTRA_BOOT_DELAY_MS, 0));
@@ -170,9 +180,11 @@ public final class OverlayService extends Service
             prefs.remove(Prefs.KEY_AUTO_START_PENDING_UNTIL_MS);
         }
         if (delayMs > 0) {
+            metricsActive = false;
+            fuelLevelProvider.stop();
             hidePanel();
             updateNotification(NOTIFICATION_BOOT_DELAY);
-            handler.postDelayed(foregroundPoll, delayMs);
+            handler.postDelayed(bootDelayComplete, delayMs);
         } else {
             prefs.remove(Prefs.KEY_AUTO_START_PENDING_UNTIL_MS);
             handler.post(foregroundPoll);
@@ -208,13 +220,6 @@ public final class OverlayService extends Service
 
     @Override
     public void onSharedPreferenceChanged(SharedPreferences sharedPreferences, String key) {
-        if (Prefs.KEY_SHOW_SYSTEM_STATUS.equals(key) && fuelLevelProvider != null) {
-            if (sharedPreferences.getBoolean(Prefs.KEY_SHOW_SYSTEM_STATUS, false)) {
-                fuelLevelProvider.start();
-            } else {
-                fuelLevelProvider.stop();
-            }
-        }
         if (Prefs.KEY_POSITION_X.equals(key) || Prefs.KEY_POSITION_Y.equals(key)
                 || Prefs.KEY_SERVICE_ENABLED.equals(key)
                 || Prefs.KEY_AUTO_START.equals(key)
@@ -223,6 +228,7 @@ public final class OverlayService extends Service
             return;
         }
         handler.post(() -> {
+            syncFuelProvider();
             if (panel != null) {
                 hidePanel();
                 showPanel();
@@ -304,6 +310,7 @@ public final class OverlayService extends Service
     }
 
     private void hidePanel() {
+        dismissFuelDetails();
         if (panel == null || windowManager == null) {
             panel = null;
             panelParams = null;
@@ -327,7 +334,7 @@ public final class OverlayService extends Service
     }
 
     private void refreshSystemStatusIfNeeded() {
-        if (panel == null || !panel.hasSystemStatus()) {
+        if (panel == null || !panel.needsMetricUpdates()) {
             return;
         }
         long now = SystemClock.elapsedRealtime();
@@ -336,12 +343,26 @@ public final class OverlayService extends Service
         }
         nextSystemStatusRefresh = now + SYSTEM_STATUS_REFRESH_MS;
         PanelView target = panel;
+        boolean sampleCpu = target.needsCpuUpdates();
+        boolean sampleRam = target.needsRamUpdates();
+        boolean sampleFuel = target.needsFuelUpdates();
         try {
             systemStatusExecutor.execute(() -> {
-                SystemStatusSnapshot snapshot = systemMetricsSampler.sample();
+                SystemStatusSnapshot snapshot = systemMetricsSampler.sample(
+                        sampleCpu,
+                        sampleRam,
+                        sampleFuel
+                );
+                FuelLevelProvider.Reading fuelReading = sampleFuel
+                        ? fuelLevelProvider.reading()
+                        : FuelLevelProvider.Reading.unavailable();
                 handler.post(() -> {
                     if (running && panel == target && target.isAttachedToWindow()) {
-                        target.updateSystemStatus(snapshot);
+                        target.updateSystemStatus(snapshot, fuelReading);
+                        if (fuelDetailsView != null
+                                && fuelDetailsView.isAttachedToWindow()) {
+                            fuelDetailsView.update(fuelReading);
+                        }
                     }
                 });
             });
@@ -399,6 +420,60 @@ public final class OverlayService extends Service
             AppLog.warn("Cannot launch selected activity " + entry.componentKey, error);
             Toast.makeText(this, getString(R.string.launch_failed, entry.label),
                     Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    @Override
+    public void onFuelTileClicked() {
+        if (windowManager == null) {
+            windowManager = (WindowManager) getSystemService(WINDOW_SERVICE);
+        }
+        dismissFuelDetails();
+        FuelDetailsView details = new FuelDetailsView(this, prefs, this::dismissFuelDetails);
+        details.update(fuelLevelProvider.reading());
+        Rect bounds = availableBounds();
+        int width = Math.max(1, Math.min(
+                Ui.dp(this, 440),
+                bounds.width() - Ui.dp(this, 32)
+        ));
+        WindowManager.LayoutParams params = new WindowManager.LayoutParams(
+                width,
+                WindowManager.LayoutParams.WRAP_CONTENT,
+                WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
+                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
+                        | WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL,
+                PixelFormat.TRANSLUCENT
+        );
+        params.gravity = Gravity.CENTER;
+        try {
+            windowManager.addView(details, params);
+            fuelDetailsView = details;
+        } catch (SecurityException | WindowManager.BadTokenException error) {
+            AppLog.warn("Cannot show fuel details overlay", error);
+        }
+    }
+
+    private void dismissFuelDetails() {
+        if (fuelDetailsView == null || windowManager == null) {
+            fuelDetailsView = null;
+            return;
+        }
+        try {
+            windowManager.removeViewImmediate(fuelDetailsView);
+        } catch (IllegalArgumentException ignored) {
+            // The popup may already be detached while HOME is changing.
+        }
+        fuelDetailsView = null;
+    }
+
+    private void syncFuelProvider() {
+        if (fuelLevelProvider == null || !metricsActive) {
+            return;
+        }
+        if (prefs.needsFuelData()) {
+            fuelLevelProvider.start();
+        } else {
+            fuelLevelProvider.stop();
         }
     }
 

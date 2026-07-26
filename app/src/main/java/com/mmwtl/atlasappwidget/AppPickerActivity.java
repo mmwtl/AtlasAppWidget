@@ -172,10 +172,12 @@ public final class AppPickerActivity extends ScaledActivity {
         loader.execute(() -> {
             List<AppEntry> entries = AppRepository.loadLaunchableActivities(this);
             Set<String> available = new HashSet<>();
+            boolean hasApplicationEntry = false;
             for (AppEntry entry : entries) {
                 available.add(entry.componentKey);
+                hasApplicationEntry |= !entry.isFuel();
             }
-            if (!entries.isEmpty()) {
+            if (hasApplicationEntry) {
                 prefs.retainSelectedComponents(available);
             }
             runOnUiThread(() -> {
@@ -304,6 +306,9 @@ public final class AppPickerActivity extends ScaledActivity {
                 if (rightIndex != null) {
                     return 1;
                 }
+                if (left.isFuel() != right.isFuel()) {
+                    return left.isFuel() ? -1 : 1;
+                }
                 int label = left.label.compareToIgnoreCase(right.label);
                 return label != 0 ? label : left.activityLabel.compareToIgnoreCase(right.activityLabel);
             });
@@ -359,7 +364,9 @@ public final class AppPickerActivity extends ScaledActivity {
             ));
             holder.appLabel.setText(entry.label);
             holder.activityLabel.setText(entry.activityLabel);
-            holder.componentLabel.setText(getString(
+            holder.componentLabel.setText(entry.isFuel()
+                    ? getString(R.string.fuel_tile_component_label)
+                    : getString(
                     R.string.component_lines,
                     entry.componentName.getPackageName(),
                     entry.componentName.getClassName()
@@ -387,14 +394,30 @@ public final class AppPickerActivity extends ScaledActivity {
                 prefs.moveSelected(entry.componentKey, 1);
                 refresh();
             });
-            holder.iconButton.setText(prefs.customIcon(entry.componentKey) != null
-                    ? R.string.custom_icon : R.string.icon);
-            holder.iconButton.setOnClickListener(view -> showIconOptions(entry));
+            holder.iconButton.setVisibility(entry.isFuel() ? View.GONE : View.VISIBLE);
+            if (!entry.isFuel()) {
+                holder.iconButton.setText(prefs.customIcon(entry.componentKey) != null
+                        ? R.string.custom_icon : R.string.icon);
+                holder.iconButton.setOnClickListener(view -> showIconOptions(entry));
+            } else {
+                holder.iconButton.setOnClickListener(null);
+            }
             return convertView;
         }
 
         private void bindIcon(RowHolder holder, AppEntry entry) {
             int targetPixels = Ui.dp(AppPickerActivity.this, 56);
+            if (entry.isFuel()) {
+                FuelTileDrawable fuel = new FuelTileDrawable(
+                        getString(R.string.fuel_free_short),
+                        getString(R.string.fuel_filled_short)
+                );
+                fuel.showPreview();
+                holder.icon.setTag(entry.componentKey);
+                holder.icon.setImageDrawable(fuel);
+                holder.icon.setScaleType(ImageView.ScaleType.FIT_CENTER);
+                return;
+            }
             String loadKey = entry.componentKey + "|"
                     + prefs.customIcon(entry.componentKey) + "|" + targetPixels;
             holder.icon.setTag(loadKey);

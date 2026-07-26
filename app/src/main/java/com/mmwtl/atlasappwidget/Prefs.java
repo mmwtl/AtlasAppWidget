@@ -12,6 +12,7 @@ import java.util.List;
 import java.util.Set;
 
 final class Prefs {
+    static final int MIN_AUTO_START_DELAY_SECONDS = 15;
     static final int MAX_AUTO_START_DELAY_SECONDS = 300;
     static final String KEY_AUTO_START = "auto_start";
     static final String KEY_AUTO_START_DELAY_SECONDS = "auto_start_delay_seconds";
@@ -22,10 +23,15 @@ final class Prefs {
     static final String KEY_DRAG_HANDLE_POSITION = "drag_handle_position";
     static final String KEY_SHOW_APP_LABELS = "show_app_labels";
     static final String KEY_SHOW_SYSTEM_STATUS = "show_system_status";
+    static final String KEY_SHOW_CPU_STATUS = "show_cpu_status";
+    static final String KEY_SHOW_RAM_STATUS = "show_ram_status";
+    static final String KEY_SHOW_FUEL_STATUS = "show_fuel_status";
     static final String KEY_SYSTEM_STATUS_POSITION = "system_status_position";
     static final String KEY_SYSTEM_STATUS_LINE_HEIGHT_DP = "system_status_line_height_dp";
     static final String KEY_SYSTEM_STATUS_TEXT_SIZE_SP = "system_status_text_size_sp";
     static final String KEY_SYSTEM_STATUS_TEXT_WEIGHT = "system_status_text_weight";
+    static final String KEY_FUEL_MULTIPLIER = "fuel_multiplier";
+    static final String KEY_FUEL_OFFSET = "fuel_offset";
     static final String KEY_WIDTH_PERCENT = "width_percent";
     static final String KEY_COLUMNS = "columns";
     static final String KEY_ROWS = "rows";
@@ -42,7 +48,7 @@ final class Prefs {
     static final String KEY_PANEL_RADIUS_DP = "panel_radius_dp";
     static final String KEY_POSITION_X = "position_x";
     static final String KEY_POSITION_Y = "position_y";
-    private static final String KEY_SELECTED_COMPONENTS = "selected_components_json";
+    static final String KEY_SELECTED_COMPONENTS = "selected_components_json";
     private static final String KEY_CUSTOM_ICONS = "custom_icons_json";
 
     static final int POSITION_UNSET = Integer.MIN_VALUE;
@@ -82,12 +88,33 @@ final class Prefs {
         values.edit().putLong(key, value).apply();
     }
 
+    float getFloat(String key, float fallback) {
+        return values.getFloat(key, fallback);
+    }
+
+    void putFloat(String key, float value) {
+        values.edit().putFloat(key, value).apply();
+    }
+
+    void putFuelFormula(float multiplier, float offset) {
+        values.edit()
+                .putFloat(KEY_FUEL_MULTIPLIER, multiplier)
+                .putFloat(KEY_FUEL_OFFSET, offset)
+                .apply();
+    }
+
     void remove(String key) {
         values.edit().remove(key).apply();
     }
 
     PanelConfig panelConfig() {
         return new PanelConfig(this);
+    }
+
+    boolean needsFuelData() {
+        boolean fuelGraphEnabled = getBoolean(KEY_SHOW_SYSTEM_STATUS, false)
+                && getBoolean(KEY_SHOW_FUEL_STATUS, true);
+        return fuelGraphEnabled || selectedComponents().contains(AppEntry.FUEL_COMPONENT_KEY);
     }
 
     synchronized List<String> selectedComponents() {

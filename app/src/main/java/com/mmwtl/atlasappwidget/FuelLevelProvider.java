@@ -22,12 +22,14 @@ final class FuelLevelProvider {
     static final String EXTRA_VALUE = "value";
     static final int SENSOR_TYPE_FUEL_LEVEL = 1_050_112;
     static final int TANK_CAPACITY_LITERS = 54;
-    static final int SENSOR_RANGE_LITERS = 50;
-    static final int RESERVE_OFFSET_LITERS =
-            TANK_CAPACITY_LITERS - SENSOR_RANGE_LITERS;
+    static final float DEFAULT_MULTIPLIER = 1f;
+    static final float DEFAULT_OFFSET = 4f;
 
     private final Context context;
-    private volatile Reading current = Reading.unavailable();
+    private final Prefs prefs;
+    private volatile float currentSensorValue = Float.NaN;
+    private volatile long currentReceivedAtMillis;
+    private int lastLoggedLiters = SystemStatusSnapshot.UNAVAILABLE;
     private boolean registered;
 
     private final BroadcastReceiver receiver = new BroadcastReceiver() {
@@ -41,22 +43,25 @@ final class FuelLevelProvider {
                     && !ACTION_SENSOR_FLOAT_CHANGED.equals(action)) {
                 return;
             }
-            Reading parsed = parseResponse(
+            Float parsed = parseSensorValue(
                     intent.getStringExtra(EXTRA_ID),
                     intent.getStringExtra(EXTRA_VALUE)
             );
             if (parsed != null) {
-                boolean changed = current.liters != parsed.liters;
-                current = parsed;
-                if (changed) {
-                    AppLog.info("Fuel level received: " + parsed.liters + " L");
+                currentSensorValue = parsed;
+                currentReceivedAtMillis = System.currentTimeMillis();
+                Reading reading = reading();
+                if (reading != null && reading.liters != lastLoggedLiters) {
+                    lastLoggedLiters = reading.liters;
+                    AppLog.info("Fuel level received: " + reading.liters + " L");
                 }
             }
         }
     };
 
-    FuelLevelProvider(Context context) {
+    FuelLevelProvider(Context context, Prefs prefs) {
         this.context = context.getApplicationContext();
+        this.prefs = prefs;
     }
 
     @SuppressLint("UnspecifiedRegisterReceiverFlag")
@@ -97,7 +102,16 @@ final class FuelLevelProvider {
     }
 
     Reading reading() {
-        return current;
+        float sensorValue = currentSensorValue;
+        if (!Float.isFinite(sensorValue)) {
+            return Reading.unavailable();
+        }
+        return fromSensorValue(
+                sensorValue,
+                prefs.getFloat(Prefs.KEY_FUEL_MULTIPLIER, DEFAULT_MULTIPLIER),
+                prefs.getFloat(Prefs.KEY_FUEL_OFFSET, DEFAULT_OFFSET),
+                currentReceivedAtMillis
+        );
     }
 
     private void sendSensorCommand(String action) {
@@ -111,7 +125,7 @@ final class FuelLevelProvider {
         }
     }
 
-    static Reading parseResponse(String rawId, String rawValue) {
+    static Float parseSensorValue(String rawId, String rawValue) {
         if (rawId == null || rawValue == null) {
             return null;
         }
@@ -119,39 +133,95 @@ final class FuelLevelProvider {
             if (Integer.parseInt(rawId.trim()) != SENSOR_TYPE_FUEL_LEVEL) {
                 return null;
             }
-            return fromSensorValue(Float.parseFloat(rawValue.trim()));
+            float value = Float.parseFloat(rawValue.trim());
+            return Float.isFinite(value) ? value : null;
         } catch (NumberFormatException error) {
             return null;
         }
     }
 
-    static Reading fromSensorValue(float sensorLiters) {
-        if (!Float.isFinite(sensorLiters) || sensorLiters < 0f) {
+    static Reading fromSensorValue(float sensorValue) {
+        return fromSensorValue(sensorValue, DEFAULT_MULTIPLIER, DEFAULT_OFFSET, 0L);
+    }
+
+    static Reading fromSensorValue(float sensorValue, float multiplier, float offset) {
+        return fromSensorValue(sensorValue, multiplier, offset, 0L);
+    }
+
+    private static Reading fromSensorValue(
+            float sensorValue,
+            float multiplier,
+            float offset,
+            long receivedAtMillis
+    ) {
+        if (!Float.isFinite(sensorValue)
+                || !Float.isFinite(multiplier)
+                || !Float.isFinite(offset)) {
             return null;
         }
-        float boundedSensorLiters = Math.min(SENSOR_RANGE_LITERS, sensorLiters);
-        int liters = Math.round(boundedSensorLiters + RESERVE_OFFSET_LITERS);
-        int percent = Math.round(liters * 100f / TANK_CAPACITY_LITERS);
+        float calculatedLiters = sensorValue * multiplier + offset;
+        if (!Float.isFinite(calculatedLiters)) {
+            return null;
+        }
+        float boundedLiters = Math.max(0f,
+                Math.min(TANK_CAPACITY_LITERS, calculatedLiters));
+        int liters = Math.round(boundedLiters);
+        int percent = Math.round(boundedLiters * 100f / TANK_CAPACITY_LITERS);
         return new Reading(
-                Math.max(RESERVE_OFFSET_LITERS,
-                        Math.min(TANK_CAPACITY_LITERS, liters)),
-                Math.max(0, Math.min(100, percent))
+                sensorValue,
+                multiplier,
+                offset,
+                calculatedLiters,
+                Math.max(0, Math.min(TANK_CAPACITY_LITERS, liters)),
+                Math.max(0, Math.min(100, percent)),
+                receivedAtMillis
         );
     }
 
     static final class Reading {
+        final float sensorValue;
+        final float multiplier;
+        final float offset;
+        final float calculatedLiters;
         final int liters;
+        final int freeLiters;
         final int percent;
+        final long receivedAtMillis;
 
-        Reading(int liters, int percent) {
+        Reading(
+                float sensorValue,
+                float multiplier,
+                float offset,
+                float calculatedLiters,
+                int liters,
+                int percent,
+                long receivedAtMillis
+        ) {
+            this.sensorValue = sensorValue;
+            this.multiplier = multiplier;
+            this.offset = offset;
+            this.calculatedLiters = calculatedLiters;
             this.liters = liters;
+            this.freeLiters = liters == SystemStatusSnapshot.UNAVAILABLE
+                    ? SystemStatusSnapshot.UNAVAILABLE
+                    : TANK_CAPACITY_LITERS - liters;
             this.percent = percent;
+            this.receivedAtMillis = receivedAtMillis;
+        }
+
+        boolean isAvailable() {
+            return liters != SystemStatusSnapshot.UNAVAILABLE;
         }
 
         static Reading unavailable() {
             return new Reading(
+                    Float.NaN,
+                    Float.NaN,
+                    Float.NaN,
+                    Float.NaN,
                     SystemStatusSnapshot.UNAVAILABLE,
-                    SystemStatusSnapshot.UNAVAILABLE
+                    SystemStatusSnapshot.UNAVAILABLE,
+                    0L
             );
         }
     }

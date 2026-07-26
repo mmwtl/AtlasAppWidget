@@ -1,5 +1,6 @@
 package com.mmwtl.atlasappwidget;
 
+import android.annotation.SuppressLint;
 import android.content.Context;
 import android.graphics.Paint;
 import android.graphics.Typeface;
@@ -11,8 +12,11 @@ import android.widget.FrameLayout;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Locale;
 
+@SuppressLint("ViewConstructor")
 final class SystemStatusView extends LinearLayout {
     private static final int MIN_HEIGHT_DP = 30;
     private static final int TEXT_TRACK_GAP_DP = 5;
@@ -34,29 +38,43 @@ final class SystemStatusView extends LinearLayout {
             int textWeight,
             int lineHeightDp,
             int statusHeight,
-            boolean sideMode
+            boolean sideMode,
+            boolean showCpu,
+            boolean showRam,
+            boolean showFuel
     ) {
         super(context);
         setOrientation(HORIZONTAL);
         setGravity(Gravity.CENTER_VERTICAL);
 
         int labelHeight = labelHeightPixels(context, textSizeSp, textWeight);
-        cpu = addMetric("CPU", CPU_COLOR, textSizeSp, textWeight,
-                lineHeightDp, labelHeight, sideMode);
-        if (sideMode) {
-            addSideGap();
+        int added = 0;
+        if (showCpu) {
+            cpu = addMetric("CPU", CPU_COLOR, textSizeSp, textWeight,
+                    lineHeightDp, labelHeight, sideMode);
+            added++;
         } else {
-            addDivider(statusHeight);
+            cpu = null;
         }
-        ram = addMetric("RAM", RAM_COLOR, textSizeSp, textWeight,
-                lineHeightDp, labelHeight, sideMode);
-        if (sideMode) {
-            addSideGap();
+        if (showRam) {
+            if (added > 0) {
+                addSeparator(statusHeight, sideMode);
+            }
+            ram = addMetric("RAM", RAM_COLOR, textSizeSp, textWeight,
+                    lineHeightDp, labelHeight, sideMode);
+            added++;
         } else {
-            addDivider(statusHeight);
+            ram = null;
         }
-        fuel = addMetric("FUEL", FUEL_COLOR, textSizeSp, textWeight,
-                lineHeightDp, labelHeight, sideMode);
+        if (showFuel) {
+            if (added > 0) {
+                addSeparator(statusHeight, sideMode);
+            }
+            fuel = addMetric("FUEL", FUEL_COLOR, textSizeSp, textWeight,
+                    lineHeightDp, labelHeight, sideMode);
+        } else {
+            fuel = null;
+        }
         setImportantForAccessibility(IMPORTANT_FOR_ACCESSIBILITY_YES);
     }
 
@@ -69,21 +87,27 @@ final class SystemStatusView extends LinearLayout {
         );
     }
 
-    static int sideWidthPixels(Context context, int lineHeightDp) {
-        return Ui.dp(context, lineHeightDp * 3 + SIDE_TRACK_GAP_DP * 2);
+    static int sideWidthPixels(Context context, int lineHeightDp, int metricCount) {
+        int boundedCount = Math.max(1, metricCount);
+        return Ui.dp(context, lineHeightDp * boundedCount
+                + SIDE_TRACK_GAP_DP * (boundedCount - 1));
     }
 
     void update(SystemStatusSnapshot snapshot) {
-        cpu.updatePercent(snapshot.cpuPercent);
-        ram.updatePercent(snapshot.ramPercent);
-        fuel.updateLiters(snapshot.fuelLiters, snapshot.fuelPercent);
-        setContentDescription(String.format(
-                Locale.getDefault(),
-                "%s, %s, %s",
-                cpu.label.getText(),
-                ram.label.getText(),
-                fuel.label.getText()
-        ));
+        List<CharSequence> descriptions = new ArrayList<>(3);
+        if (cpu != null) {
+            cpu.updatePercent(snapshot.cpuPercent);
+            descriptions.add(cpu.label.getText());
+        }
+        if (ram != null) {
+            ram.updatePercent(snapshot.ramPercent);
+            descriptions.add(ram.label.getText());
+        }
+        if (fuel != null) {
+            fuel.updateLiters(snapshot.fuelLiters, snapshot.fuelPercent);
+            descriptions.add(fuel.label.getText());
+        }
+        setContentDescription(android.text.TextUtils.join(", ", descriptions));
     }
 
     private MetricView addMetric(
@@ -112,6 +136,14 @@ final class SystemStatusView extends LinearLayout {
                 Ui.dp(getContext(), SIDE_TRACK_GAP_DP),
                 ViewGroup.LayoutParams.MATCH_PARENT
         ));
+    }
+
+    private void addSeparator(int statusHeight, boolean sideMode) {
+        if (sideMode) {
+            addSideGap();
+        } else {
+            addDivider(statusHeight);
+        }
     }
 
     private void addDivider(int statusHeight) {

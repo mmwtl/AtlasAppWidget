@@ -27,12 +27,37 @@ public final class FuelLevelProviderTest {
 
     @Test
     public void responseUsesStringExtrasAndRoundsLiters() {
+        Float sensorValue =
+                FuelLevelProvider.parseSensorValue("1050112", "25.4");
+        assertNotNull(sensorValue);
         FuelLevelProvider.Reading reading =
-                FuelLevelProvider.parseResponse("1050112", "25.4");
+                FuelLevelProvider.fromSensorValue(sensorValue);
 
         assertNotNull(reading);
         assertEquals(29, reading.liters);
         assertEquals(54, reading.percent);
+        assertEquals(25, reading.freeLiters);
+    }
+
+    @Test
+    public void customMultiplierAndOffsetAreAppliedBeforeClamping() {
+        FuelLevelProvider.Reading reading =
+                FuelLevelProvider.fromSensorValue(20f, 0.5f, 2f);
+
+        assertNotNull(reading);
+        assertEquals(12, reading.liters);
+        assertEquals(22, reading.percent);
+        assertEquals(42, reading.freeLiters);
+    }
+
+    @Test
+    public void negativeMultiplierSupportsInvertedSensors() {
+        FuelLevelProvider.Reading reading =
+                FuelLevelProvider.fromSensorValue(10f, -1f, 54f);
+
+        assertNotNull(reading);
+        assertEquals(44, reading.liters);
+        assertEquals(81, reading.percent);
     }
 
     @Test
@@ -46,9 +71,9 @@ public final class FuelLevelProviderTest {
 
     @Test
     public void rejectsWrongSensorAndInvalidValues() {
-        assertNull(FuelLevelProvider.parseResponse("42", "20"));
-        assertNull(FuelLevelProvider.parseResponse("1050112", "not-a-number"));
-        assertNull(FuelLevelProvider.fromSensorValue(-1f));
+        assertNull(FuelLevelProvider.parseSensorValue("42", "20"));
+        assertNull(FuelLevelProvider.parseSensorValue("1050112", "not-a-number"));
         assertNull(FuelLevelProvider.fromSensorValue(Float.NaN));
+        assertNull(FuelLevelProvider.fromSensorValue(10f, Float.NaN, 0f));
     }
 }

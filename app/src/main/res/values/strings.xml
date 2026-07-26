@@ -24,7 +24,12 @@
     <string name="choose_apps">Выбрать приложения, activity и иконки</string>
     <string name="show_app_labels">Показывать названия приложений</string>
     <string name="system_status_title">3. Показатели системы</string>
-    <string name="show_system_status">Показывать CPU, RAM и FUEL</string>
+    <string name="show_system_status">Показывать панель графиков</string>
+    <string name="system_status_visible_metrics">Какие графики показывать</string>
+    <string name="show_cpu_status">CPU</string>
+    <string name="show_ram_status">RAM</string>
+    <string name="show_fuel_status">Топливо</string>
+    <string name="keep_one_system_status">Оставьте включённым хотя бы один график</string>
     <string name="system_status_position">Расположение показателей</string>
     <string-array name="system_status_positions">
         <item>Сверху</item><item>Снизу</item><item>Слева</item><item>Справа</item>
@@ -32,7 +37,18 @@
     <string name="system_status_line_height">Толщина статусных линий</string>
     <string name="system_status_text_size">Размер надписей CPU / RAM / FUEL</string>
     <string name="system_status_text_weight">Толщина надписей</string>
-    <string name="system_status_hint">Сверху и снизу показываются значения с горизонтальными шкалами. Слева и справа — вертикальные полосы без надписей: CPU синяя, RAM золотая, FUEL зелёная; заполнение идёт снизу вверх. FUEL получает данные из GInputBridge: 0 датчика отображается как 4 л, 50 — как 54 л. Размер и толщина надписей применяются только сверху и снизу. Если данные недоступны, соответствующая шкала остаётся пустой.</string>
+    <string name="system_status_hint">Включённые графики делят доступную ширину поровну. Сверху и снизу показываются значения с горизонтальными шкалами. Слева и справа — вертикальные полосы без надписей: CPU синяя, RAM золотая, топливо зелёное; заполнение идёт снизу вверх. Размер и толщина надписей применяются только сверху и снизу.</string>
+    <string name="fuel_settings_title">Датчик топлива</string>
+    <string name="fuel_formula_summary">Литры = значение API × %1$s %2$s</string>
+    <string name="change_fuel_formula">Изменить формулу</string>
+    <string name="fuel_formula_dialog_title">Формула уровня топлива</string>
+    <string name="fuel_formula_dialog_hint">Результат ограничивается диапазоном бака 0–54 л. Допустимы дробные и отрицательные коэффициенты.</string>
+    <string name="fuel_multiplier">Множитель X</string>
+    <string name="fuel_offset">Смещение Y, литры</string>
+    <string name="fuel_formula_invalid">Введите корректное число</string>
+    <string name="fuel_multiplier_range">Допустимый диапазон: от −100 до 100</string>
+    <string name="fuel_offset_range">Допустимый диапазон: от −1000 до 1000</string>
+    <string name="fuel_tile_settings_hint">Отдельную живую плитку бака можно добавить и переставить в разделе «Приложения». Она работает независимо от панели графиков.</string>
     <string name="movement_title">4. Перемещение панели</string>
     <string name="show_drag_handle">Показывать ручку перетаскивания</string>
     <string name="drag_handle_position">Расположение ручки</string>
@@ -44,7 +60,7 @@
     <string name="auto_start">Автозапуск после загрузки ГУ</string>
     <string name="auto_start_permission_warning">Автозапуск сохранён, но без двух специальных разрешений он не сработает</string>
     <string name="auto_start_delay">Задержка автозапуска</string>
-    <string name="auto_start_delay_hint">Применяется только после загрузки ГУ; ручной запуск выполняется сразу.</string>
+    <string name="auto_start_delay_hint">Применяется только после загрузки ГУ; ручной запуск выполняется сразу. Минимальная задержка защищает другие виджеты от конкуренции за ресурсы во время запуска системы.</string>
     <string name="start_panel">Запустить панель</string>
     <string name="reset_panel_position">Сбросить позицию панели</string>
     <string name="position_reset">Позиция сброшена</string>
@@ -75,13 +91,15 @@
     <string name="scale">Масштаб</string>
     <string name="picker_back">← Назад</string>
     <string name="picker_title">Приложения и activity</string>
-    <string name="picker_hint">Отображаются только экспортируемые activity с MAIN/LAUNCHER — те, которые Android разрешает запускать как отдельные иконки. Стрелки меняют порядок в панели.</string>
+    <string name="picker_hint">Сразу после выбранных элементов находится встроенная живая плитка топлива, ниже — экспортируемые activity с MAIN/LAUNCHER. Стрелки меняют порядок элементов в панели.</string>
     <string name="picker_search">Поиск по названию, пакету или activity</string>
     <string name="picker_loading">Загрузка списка…</string>
     <string name="choose_image">Выбрать изображение</string>
     <string name="restore_system_icon">Вернуть системную иконку</string>
     <string name="cancel">Отмена</string>
     <string name="apply">Применить</string>
+    <string name="done">Готово</string>
+    <string name="close">Закрыть</string>
     <string name="icon">Иконка</string>
     <string name="custom_icon">Своя иконка</string>
     <string name="no_file_picker">В прошивке нет системного выбора файлов</string>
@@ -92,6 +110,25 @@
     <string name="remove_app">Убрать %1$s</string>
     <string name="drag_panel">Перетащить панель</string>
     <string name="launch_failed">Не удалось открыть %1$s</string>
+    <string name="fuel_tile_name">Топливо</string>
+    <string name="fuel_tile_picker_description">Встроенная живая плитка бака</string>
+    <string name="fuel_tile_component_label">Atlas App Widget · датчик GInputBridge</string>
+    <string name="fuel_free_short">СВОБ.</string>
+    <string name="fuel_filled_short">ЗАЛ.</string>
+    <string name="fuel_tile_content_description">%1$d л свободно, %2$d л залито</string>
+    <string name="fuel_data_unavailable">Данные топлива недоступны</string>
+    <string name="fuel_details_title">Данные топлива</string>
+    <string name="close_fuel_details">Закрыть данные топлива</string>
+    <string name="fuel_primary_detail">%1$d из %2$d л</string>
+    <string name="fuel_filled_detail">Залито: %1$s</string>
+    <string name="fuel_free_detail">Свободно: %1$s</string>
+    <string name="liters_and_percent">%1$d л · %2$d%%</string>
+    <string name="liters_value">%1$d л</string>
+    <string name="fuel_formula_detail">Расчёт: %1$s × %2$s %3$s = %4$s л</string>
+    <string name="fuel_formula_waiting">Формула: API × %1$s %2$s</string>
+    <string name="fuel_received_detail">Последнее значение: %1$s</string>
+    <string name="fuel_waiting_for_ginputbridge">Ожидание ответа GInputBridge</string>
+    <string name="value_unavailable">—</string>
     <string name="color_red">Красный</string>
     <string name="color_green">Зелёный</string>
     <string name="color_blue">Синий</string>

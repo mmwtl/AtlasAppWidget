@@ -42,8 +42,13 @@ public final class BootReceiver extends BroadcastReceiver {
             try {
                 prefs.putBoolean(Prefs.KEY_SERVICE_ENABLED, true);
                 if (Intent.ACTION_BOOT_COMPLETED.equals(action)) {
-                    int delaySeconds = prefs.getInt(Prefs.KEY_AUTO_START_DELAY_SECONDS, 0);
-                    if (delaySeconds > 0 && Build.VERSION.SDK_INT <= Build.VERSION_CODES.R) {
+                    int delaySeconds = effectiveAutoStartDelaySeconds(
+                            prefs.getInt(
+                                    Prefs.KEY_AUTO_START_DELAY_SECONDS,
+                                    Prefs.MIN_AUTO_START_DELAY_SECONDS
+                            )
+                    );
+                    if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.R) {
                         scheduleDelayedStart(context, prefs, delaySeconds);
                     } else {
                         OverlayService.startAfterBoot(context, delaySeconds);
@@ -61,6 +66,13 @@ public final class BootReceiver extends BroadcastReceiver {
         }
     }
 
+    static int effectiveAutoStartDelaySeconds(int configuredSeconds) {
+        return Math.max(
+                Prefs.MIN_AUTO_START_DELAY_SECONDS,
+                Math.min(Prefs.MAX_AUTO_START_DELAY_SECONDS, configuredSeconds)
+        );
+    }
+
     @SuppressLint("MissingPermission")
     private void scheduleDelayedStart(Context context, Prefs prefs, int delaySeconds) {
         int boundedDelaySeconds = Math.max(0,
@@ -76,10 +88,10 @@ public final class BootReceiver extends BroadcastReceiver {
         }
         prefs.putLong(Prefs.KEY_AUTO_START_PENDING_UNTIL_MS,
                 System.currentTimeMillis() + delayMs);
-        // This path is intentionally restricted to Android 11, where no exact-alarm
-        // special access exists. Newer releases start the FGS during the boot exemption
-        // and perform the short delay inside the service.
-        alarmManager.setExactAndAllowWhileIdle(
+        // Android 11 can defer the service itself. An inexact idle-capable alarm avoids
+        // competing with OEM media widgets during the busiest part of system startup.
+        // Newer releases start the FGS during the boot exemption and defer its work.
+        alarmManager.setAndAllowWhileIdle(
                 AlarmManager.ELAPSED_REALTIME_WAKEUP,
                 SystemClock.elapsedRealtime() + delayMs,
                 pendingStart

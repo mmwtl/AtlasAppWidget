@@ -27,6 +27,8 @@ final class PanelView extends LinearLayout {
         boolean onHandleTouch(View view, MotionEvent event);
 
         void onAppClicked(AppEntry entry);
+
+        void onFuelTileClicked();
     }
 
     private static final int[] PLACEHOLDER_COLORS = {0xFF7893A0};
@@ -36,6 +38,10 @@ final class PanelView extends LinearLayout {
     private final int panelHeight;
     private final int outlineInset;
     private final SystemStatusView systemStatusView;
+    private final boolean needsCpuUpdates;
+    private final boolean needsRamUpdates;
+    private final boolean needsFuelUpdates;
+    private FuelTileView fuelTileView;
     private EmptySpaceDragTouchListener emptySpaceDragTouchListener;
 
     PanelView(
@@ -56,6 +62,17 @@ final class PanelView extends LinearLayout {
         boolean systemStatusSide = config.showSystemStatus
                 && (config.systemStatusPosition == PanelConfig.STATUS_LEFT
                 || config.systemStatusPosition == PanelConfig.STATUS_RIGHT);
+        boolean containsFuelTile = false;
+        for (AppEntry entry : entries) {
+            if (entry.isFuel()) {
+                containsFuelTile = true;
+                break;
+            }
+        }
+        needsCpuUpdates = config.showSystemStatus && config.showCpuStatus;
+        needsRamUpdates = config.showSystemStatus && config.showRamStatus;
+        needsFuelUpdates = config.showSystemStatus && config.showFuelStatus
+                || containsFuelTile;
         setOrientation(systemStatusSide ? HORIZONTAL : VERTICAL);
         setGravity(Gravity.CENTER);
 
@@ -77,7 +94,8 @@ final class PanelView extends LinearLayout {
         );
         int systemStatusSideWidth = SystemStatusView.sideWidthPixels(
                 context,
-                config.systemStatusLineHeightDp
+                config.systemStatusLineHeightDp,
+                config.systemStatusMetricCount()
         );
         int systemStatusSize = systemStatusSide
                 ? systemStatusSideWidth : systemStatusHeight;
@@ -222,7 +240,10 @@ final class PanelView extends LinearLayout {
                         config.systemStatusTextWeight,
                         config.systemStatusLineHeightDp,
                         systemStatusSide ? layout.gridHeight : systemStatusHeight,
-                        systemStatusSide
+                        systemStatusSide,
+                        config.showCpuStatus,
+                        config.showRamStatus,
+                        config.showFuelStatus
                 )
                 : null;
         if (systemStatusView != null && config.systemStatusPosition == PanelConfig.STATUS_TOP) {
@@ -271,8 +292,13 @@ final class PanelView extends LinearLayout {
 
             AppEntry entry = index < entries.size() ? entries.get(index) : null;
             if (entry != null) {
-                addAppIcon(cell, prefs, config, entry, actualIconSize,
-                        actualIconSize, labelHeight, listener);
+                if (entry.isFuel()) {
+                    addFuelTile(cell, config, entry, actualIconSize,
+                            actualIconSize, labelHeight, listener, preview);
+                } else {
+                    addAppIcon(cell, prefs, config, entry, actualIconSize,
+                            actualIconSize, labelHeight, listener);
+                }
             } else if (preview && index < Math.min(4, slotCount)) {
                 addPlaceholder(cell, config, actualIconSize, actualIconSize, index);
             }
@@ -297,9 +323,31 @@ final class PanelView extends LinearLayout {
         return systemStatusView != null;
     }
 
-    void updateSystemStatus(SystemStatusSnapshot snapshot) {
+    boolean needsMetricUpdates() {
+        return needsCpuUpdates || needsRamUpdates || needsFuelUpdates;
+    }
+
+    boolean needsCpuUpdates() {
+        return needsCpuUpdates;
+    }
+
+    boolean needsRamUpdates() {
+        return needsRamUpdates;
+    }
+
+    boolean needsFuelUpdates() {
+        return needsFuelUpdates;
+    }
+
+    void updateSystemStatus(
+            SystemStatusSnapshot snapshot,
+            FuelLevelProvider.Reading fuelReading
+    ) {
         if (systemStatusView != null) {
             systemStatusView.update(snapshot);
+        }
+        if (fuelTileView != null) {
+            fuelTileView.update(fuelReading);
         }
     }
 
@@ -400,6 +448,63 @@ final class PanelView extends LinearLayout {
                 label.setOnClickListener(view -> listener.onAppClicked(entry));
             }
         }
+    }
+
+    private void addFuelTile(
+            FrameLayout cell,
+            PanelConfig config,
+            AppEntry entry,
+            int iconSize,
+            int iconAreaHeight,
+            int labelHeight,
+            Listener listener,
+            boolean preview
+    ) {
+        FrameLayout mask = iconMask(config, iconSize, Color.TRANSPARENT);
+        FrameLayout.LayoutParams maskParams = iconLayoutParams(
+                config, iconSize, iconAreaHeight);
+        cell.addView(mask, maskParams);
+
+        fuelTileView = new FuelTileView(getContext());
+        if (preview) {
+            fuelTileView.showPreview();
+        }
+        mask.addView(fuelTileView, new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT
+        ));
+        if (listener != null) {
+            fuelTileView.setClickable(true);
+            fuelTileView.setFocusable(true);
+            fuelTileView.setOnClickListener(view -> listener.onFuelTileClicked());
+        }
+
+        if (config.showAppLabels) {
+            TextView label = appLabel(entry.label, labelHeight);
+            cell.addView(label, label.getLayoutParams());
+            if (listener != null) {
+                label.setClickable(true);
+                label.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
+                label.setOnClickListener(view -> listener.onFuelTileClicked());
+            }
+        }
+    }
+
+    private TextView appLabel(String text, int labelHeight) {
+        TextView label = Ui.text(getContext(), text, 12, Ui.TEXT_SECONDARY);
+        label.setGravity(Gravity.CENTER);
+        label.setSingleLine(true);
+        label.setEllipsize(TextUtils.TruncateAt.END);
+        label.setIncludeFontPadding(false);
+        label.setShadowLayer(Ui.dp(getContext(), 2), 0,
+                Ui.dp(getContext(), 1), Color.BLACK);
+        FrameLayout.LayoutParams labelParams = new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                labelHeight,
+                Gravity.BOTTOM
+        );
+        label.setLayoutParams(labelParams);
+        return label;
     }
 
     private void addPlaceholder(

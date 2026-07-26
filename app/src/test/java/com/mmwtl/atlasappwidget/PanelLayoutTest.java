@@ -93,6 +93,15 @@ public final class PanelLayoutTest {
         assertEquals(42, withoutStatus.gridWidth - sideStatus.gridWidth);
     }
 
+    @Test
+    public void singleSideMetricUsesOnlyItsOwnLineAndOuterGap() {
+        PanelLayout withoutStatus = customLayout(false, false, false, false, 6);
+        PanelLayout sideStatus = customLayout(false, false, true, true, 6);
+
+        assertEquals(withoutStatus.panelHeight, sideStatus.panelHeight);
+        assertEquals(22, withoutStatus.gridWidth - sideStatus.gridWidth);
+    }
+
     private static PanelLayout layout(
             int width,
             int height,

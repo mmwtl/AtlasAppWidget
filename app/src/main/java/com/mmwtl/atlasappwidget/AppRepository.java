@@ -43,8 +43,13 @@ final class AppRepository {
         }
 
         ArrayList<AppEntry> result = new ArrayList<>(unique.values());
+        result.add(AppEntry.fuel(
+                context.getString(R.string.fuel_tile_name),
+                context.getString(R.string.fuel_tile_picker_description)
+        ));
         result.sort(Comparator
-                .comparing((AppEntry item) -> item.label.toLowerCase(Locale.getDefault()))
+                .comparingInt((AppEntry item) -> item.isFuel() ? 0 : 1)
+                .thenComparing(item -> item.label.toLowerCase(Locale.getDefault()))
                 .thenComparing(item -> item.activityLabel.toLowerCase(Locale.getDefault())));
         return result;
     }
@@ -66,6 +71,12 @@ final class AppRepository {
 
         PackageManager packageManager = context.getPackageManager();
         Map<String, AppEntry> byComponent = new LinkedHashMap<>();
+        if (selectedKeySet.contains(AppEntry.FUEL_COMPONENT_KEY)) {
+            byComponent.put(AppEntry.FUEL_COMPONENT_KEY, AppEntry.fuel(
+                    context.getString(R.string.fuel_tile_name),
+                    context.getString(R.string.fuel_tile_picker_description)
+            ));
+        }
         for (String packageName : selectedPackages) {
             Intent launcherIntent = new Intent(Intent.ACTION_MAIN)
                     .addCategory(Intent.CATEGORY_LAUNCHER)

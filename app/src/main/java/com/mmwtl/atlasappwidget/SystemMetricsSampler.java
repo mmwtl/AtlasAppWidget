@@ -22,11 +22,17 @@ final class SystemMetricsSampler {
         this.fuelLevelProvider = fuelLevelProvider;
     }
 
-    SystemStatusSnapshot sample() {
-        FuelLevelProvider.Reading fuel = fuelLevelProvider.reading();
+    SystemStatusSnapshot sample(
+            boolean sampleCpu,
+            boolean sampleRam,
+            boolean sampleFuel
+    ) {
+        FuelLevelProvider.Reading fuel = sampleFuel
+                ? fuelLevelProvider.reading()
+                : FuelLevelProvider.Reading.unavailable();
         return new SystemStatusSnapshot(
-                readCpuPercent(),
-                readRamPercent(),
+                sampleCpu ? readCpuPercent() : SystemStatusSnapshot.UNAVAILABLE,
+                sampleRam ? readRamPercent() : SystemStatusSnapshot.UNAVAILABLE,
                 fuel.liters,
                 fuel.percent
         );
