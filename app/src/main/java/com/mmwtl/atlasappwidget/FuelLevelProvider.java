@@ -6,6 +6,9 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.os.Build;
+import android.os.Handler;
+import android.os.Looper;
+import android.os.SystemClock;
 
 /** Receives the fuel level exposed by GInputBridge and converts it to tank liters. */
 final class FuelLevelProvider {
@@ -24,13 +27,37 @@ final class FuelLevelProvider {
     static final int TANK_CAPACITY_LITERS = 54;
     static final float DEFAULT_MULTIPLIER = 1f;
     static final float DEFAULT_OFFSET = 4f;
+    static final long SENSOR_REFRESH_INTERVAL_MS = 30_000L;
+    static final long SENSOR_LISTEN_REFRESH_INTERVAL_MS = 120_000L;
+    static final long READING_STALE_AFTER_MS = 120_000L;
 
     private final Context context;
     private final Prefs prefs;
+    private final Handler handler = new Handler(Looper.getMainLooper());
     private volatile float currentSensorValue = Float.NaN;
     private volatile long currentReceivedAtMillis;
+    private volatile long currentReceivedAtElapsedRealtime;
     private int lastLoggedLiters = SystemStatusSnapshot.UNAVAILABLE;
-    private boolean registered;
+    private long lastListenRequestElapsedRealtime;
+    private volatile boolean registered;
+
+    private final Runnable sensorRefresh = new Runnable() {
+        @Override
+        public void run() {
+            if (!registered) {
+                return;
+            }
+            sendSensorCommand(ACTION_GET_FLOAT_SENSOR);
+            long now = SystemClock.elapsedRealtime();
+            if (lastListenRequestElapsedRealtime <= 0L
+                    || now - lastListenRequestElapsedRealtime
+                    >= SENSOR_LISTEN_REFRESH_INTERVAL_MS) {
+                sendSensorCommand(ACTION_LISTEN_SENSOR_CHANGES);
+                lastListenRequestElapsedRealtime = now;
+            }
+            handler.postDelayed(this, SENSOR_REFRESH_INTERVAL_MS);
+        }
+    };
 
     private final BroadcastReceiver receiver = new BroadcastReceiver() {
         @Override
@@ -48,8 +75,9 @@ final class FuelLevelProvider {
                     intent.getStringExtra(EXTRA_VALUE)
             );
             if (parsed != null) {
-                currentSensorValue = parsed;
                 currentReceivedAtMillis = System.currentTimeMillis();
+                currentReceivedAtElapsedRealtime = SystemClock.elapsedRealtime();
+                currentSensorValue = parsed;
                 Reading reading = reading();
                 if (reading != null && reading.liters != lastLoggedLiters) {
                     lastLoggedLiters = reading.liters;
@@ -87,13 +115,20 @@ final class FuelLevelProvider {
         }
         sendSensorCommand(ACTION_GET_FLOAT_SENSOR);
         sendSensorCommand(ACTION_LISTEN_SENSOR_CHANGES);
+        lastListenRequestElapsedRealtime = SystemClock.elapsedRealtime();
+        handler.removeCallbacks(sensorRefresh);
+        handler.postDelayed(sensorRefresh, SENSOR_REFRESH_INTERVAL_MS);
     }
 
     void stop() {
-        if (!registered) {
+        boolean wasRegistered = registered;
+        registered = false;
+        handler.removeCallbacks(sensorRefresh);
+        lastListenRequestElapsedRealtime = 0L;
+        clearReading();
+        if (!wasRegistered) {
             return;
         }
-        registered = false;
         try {
             context.unregisterReceiver(receiver);
         } catch (IllegalArgumentException ignored) {
@@ -102,8 +137,14 @@ final class FuelLevelProvider {
     }
 
     Reading reading() {
+        return readingAt(SystemClock.elapsedRealtime());
+    }
+
+    private Reading readingAt(long nowElapsedRealtime) {
         float sensorValue = currentSensorValue;
-        if (!Float.isFinite(sensorValue)) {
+        long receivedAtElapsedRealtime = currentReceivedAtElapsedRealtime;
+        if (!Float.isFinite(sensorValue)
+                || !isReadingFresh(receivedAtElapsedRealtime, nowElapsedRealtime)) {
             return Reading.unavailable();
         }
         return fromSensorValue(
@@ -112,6 +153,13 @@ final class FuelLevelProvider {
                 prefs.getFloat(Prefs.KEY_FUEL_OFFSET, DEFAULT_OFFSET),
                 currentReceivedAtMillis
         );
+    }
+
+    private void clearReading() {
+        currentSensorValue = Float.NaN;
+        currentReceivedAtMillis = 0L;
+        currentReceivedAtElapsedRealtime = 0L;
+        lastLoggedLiters = SystemStatusSnapshot.UNAVAILABLE;
     }
 
     private void sendSensorCommand(String action) {
@@ -123,6 +171,12 @@ final class FuelLevelProvider {
         } catch (RuntimeException error) {
             AppLog.warn("Cannot request GInputBridge fuel sensor", error);
         }
+    }
+
+    static boolean isReadingFresh(long receivedAtElapsedRealtime, long nowElapsedRealtime) {
+        return receivedAtElapsedRealtime > 0L
+                && nowElapsedRealtime >= receivedAtElapsedRealtime
+                && nowElapsedRealtime - receivedAtElapsedRealtime <= READING_STALE_AFTER_MS;
     }
 
     static Float parseSensorValue(String rawId, String rawValue) {

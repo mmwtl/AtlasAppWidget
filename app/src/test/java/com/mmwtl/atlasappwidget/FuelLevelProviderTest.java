@@ -1,8 +1,10 @@
 package com.mmwtl.atlasappwidget;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertTrue;
 
 import org.junit.Test;
 
@@ -75,5 +77,28 @@ public final class FuelLevelProviderTest {
         assertNull(FuelLevelProvider.parseSensorValue("1050112", "not-a-number"));
         assertNull(FuelLevelProvider.fromSensorValue(Float.NaN));
         assertNull(FuelLevelProvider.fromSensorValue(10f, Float.NaN, 0f));
+    }
+
+    @Test
+    public void recentReadingRemainsFreshThroughTimeoutBoundary() {
+        long receivedAt = 10_000L;
+
+        assertTrue(FuelLevelProvider.isReadingFresh(receivedAt, receivedAt));
+        assertTrue(FuelLevelProvider.isReadingFresh(
+                receivedAt,
+                receivedAt + FuelLevelProvider.READING_STALE_AFTER_MS
+        ));
+    }
+
+    @Test
+    public void missingFutureAndExpiredReadingsAreNotFresh() {
+        long receivedAt = 10_000L;
+
+        assertFalse(FuelLevelProvider.isReadingFresh(0L, receivedAt));
+        assertFalse(FuelLevelProvider.isReadingFresh(receivedAt, receivedAt - 1L));
+        assertFalse(FuelLevelProvider.isReadingFresh(
+                receivedAt,
+                receivedAt + FuelLevelProvider.READING_STALE_AFTER_MS + 1L
+        ));
     }
 }
