@@ -42,6 +42,15 @@ public final class FuelLevelProviderTest {
     }
 
     @Test
+    public void responseAlsoAcceptsNumericExtras() {
+        assertEquals(
+                25.4f,
+                FuelLevelProvider.parseSensorValue(1_050_112, 25.4f),
+                0.001f
+        );
+    }
+
+    @Test
     public void customMultiplierAndOffsetAreAppliedBeforeClamping() {
         FuelLevelProvider.Reading reading =
                 FuelLevelProvider.fromSensorValue(20f, 0.5f, 2f);

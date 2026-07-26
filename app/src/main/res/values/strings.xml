@@ -127,7 +127,7 @@
     <string name="fuel_formula_detail">Расчёт: %1$s × %2$s %3$s = %4$s л</string>
     <string name="fuel_formula_waiting">Формула: API × %1$s %2$s</string>
     <string name="fuel_received_detail">Последнее значение: %1$s</string>
-    <string name="fuel_waiting_for_ginputbridge">Ожидание ответа GInputBridge</string>
+    <string name="fuel_waiting_for_ginputbridge">Нет ответа GInputBridge. Проверьте, что включён «Runtime внешнего API».</string>
     <string name="value_unavailable">—</string>
     <string name="color_red">Красный</string>
     <string name="color_green">Зелёный</string>

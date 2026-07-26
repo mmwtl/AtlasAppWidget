@@ -2,10 +2,12 @@ package com.mmwtl.atlasappwidget;
 
 import android.annotation.SuppressLint;
 import android.content.BroadcastReceiver;
+import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.os.Build;
+import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.SystemClock;
@@ -13,6 +15,8 @@ import android.os.SystemClock;
 /** Receives the fuel level exposed by GInputBridge and converts it to tank liters. */
 final class FuelLevelProvider {
     static final String BRIDGE_PACKAGE = "com.salat.gbinder";
+    static final String BRIDGE_RECEIVER_CLASS =
+            "com.salat.gbinder.BackgroundTaskReceiver";
     static final String ACTION_GET_FLOAT_SENSOR =
             "com.salat.gbinder.GET_FLOAT_SENSOR";
     static final String ACTION_LISTEN_SENSOR_CHANGES =
@@ -30,6 +34,11 @@ final class FuelLevelProvider {
     static final long SENSOR_REFRESH_INTERVAL_MS = 30_000L;
     static final long SENSOR_LISTEN_REFRESH_INTERVAL_MS = 120_000L;
     static final long READING_STALE_AFTER_MS = 120_000L;
+    private static final long[] SENSOR_STARTUP_RETRY_INTERVALS_MS = {
+            2_000L,
+            5_000L,
+            10_000L
+    };
 
     private final Context context;
     private final Prefs prefs;
@@ -39,7 +48,29 @@ final class FuelLevelProvider {
     private volatile long currentReceivedAtElapsedRealtime;
     private int lastLoggedLiters = SystemStatusSnapshot.UNAVAILABLE;
     private long lastListenRequestElapsedRealtime;
+    private int startupRetryIndex;
     private volatile boolean registered;
+
+    private final Runnable startupRetry = new Runnable() {
+        @Override
+        public void run() {
+            if (!registered
+                    || isReadingFresh(
+                    currentReceivedAtElapsedRealtime,
+                    SystemClock.elapsedRealtime())) {
+                return;
+            }
+            sendSensorCommand(ACTION_GET_FLOAT_SENSOR);
+            sendSensorCommand(ACTION_LISTEN_SENSOR_CHANGES);
+            startupRetryIndex++;
+            if (startupRetryIndex < SENSOR_STARTUP_RETRY_INTERVALS_MS.length) {
+                handler.postDelayed(
+                        this,
+                        SENSOR_STARTUP_RETRY_INTERVALS_MS[startupRetryIndex]
+                );
+            }
+        }
+    };
 
     private final Runnable sensorRefresh = new Runnable() {
         @Override
@@ -71,10 +102,11 @@ final class FuelLevelProvider {
                 return;
             }
             Float parsed = parseSensorValue(
-                    intent.getStringExtra(EXTRA_ID),
-                    intent.getStringExtra(EXTRA_VALUE)
+                    extraValue(intent, EXTRA_ID),
+                    extraValue(intent, EXTRA_VALUE)
             );
             if (parsed != null) {
+                handler.removeCallbacks(startupRetry);
                 currentReceivedAtMillis = System.currentTimeMillis();
                 currentReceivedAtElapsedRealtime = SystemClock.elapsedRealtime();
                 currentSensorValue = parsed;
@@ -117,14 +149,23 @@ final class FuelLevelProvider {
         sendSensorCommand(ACTION_LISTEN_SENSOR_CHANGES);
         lastListenRequestElapsedRealtime = SystemClock.elapsedRealtime();
         handler.removeCallbacks(sensorRefresh);
+        handler.removeCallbacks(startupRetry);
+        startupRetryIndex = 0;
+        handler.postDelayed(
+                startupRetry,
+                SENSOR_STARTUP_RETRY_INTERVALS_MS[startupRetryIndex]
+        );
         handler.postDelayed(sensorRefresh, SENSOR_REFRESH_INTERVAL_MS);
+        AppLog.info("Fuel sensor commands sent to explicit GInputBridge receiver");
     }
 
     void stop() {
         boolean wasRegistered = registered;
         registered = false;
         handler.removeCallbacks(sensorRefresh);
+        handler.removeCallbacks(startupRetry);
         lastListenRequestElapsedRealtime = 0L;
+        startupRetryIndex = 0;
         clearReading();
         if (!wasRegistered) {
             return;
@@ -164,12 +205,24 @@ final class FuelLevelProvider {
 
     private void sendSensorCommand(String action) {
         Intent request = new Intent(action)
-                .setPackage(BRIDGE_PACKAGE)
+                .setComponent(new ComponentName(BRIDGE_PACKAGE, BRIDGE_RECEIVER_CLASS))
+                .addFlags(Intent.FLAG_INCLUDE_STOPPED_PACKAGES)
                 .putExtra(EXTRA_ID, SENSOR_TYPE_FUEL_LEVEL);
         try {
             context.sendBroadcast(request);
         } catch (RuntimeException error) {
             AppLog.warn("Cannot request GInputBridge fuel sensor", error);
+        }
+    }
+
+    @SuppressWarnings("deprecation")
+    private static Object extraValue(Intent intent, String name) {
+        try {
+            Bundle extras = intent.getExtras();
+            // GInputBridge documents strings, but older builds may use primitive extras.
+            return extras == null ? null : extras.get(name);
+        } catch (RuntimeException error) {
+            return null;
         }
     }
 
@@ -179,15 +232,15 @@ final class FuelLevelProvider {
                 && nowElapsedRealtime - receivedAtElapsedRealtime <= READING_STALE_AFTER_MS;
     }
 
-    static Float parseSensorValue(String rawId, String rawValue) {
+    static Float parseSensorValue(Object rawId, Object rawValue) {
         if (rawId == null || rawValue == null) {
             return null;
         }
         try {
-            if (Integer.parseInt(rawId.trim()) != SENSOR_TYPE_FUEL_LEVEL) {
+            if (Integer.parseInt(rawId.toString().trim()) != SENSOR_TYPE_FUEL_LEVEL) {
                 return null;
             }
-            float value = Float.parseFloat(rawValue.trim());
+            float value = Float.parseFloat(rawValue.toString().trim());
             return Float.isFinite(value) ? value : null;
         } catch (NumberFormatException error) {
             return null;
