@@ -12,7 +12,7 @@ import java.util.List;
 import java.util.Set;
 
 final class Prefs {
-    static final int MIN_AUTO_START_DELAY_SECONDS = 15;
+    static final int MIN_AUTO_START_DELAY_SECONDS = 5;
     static final int MAX_AUTO_START_DELAY_SECONDS = 300;
     static final String KEY_AUTO_START = "auto_start";
     static final String KEY_AUTO_START_DELAY_SECONDS = "auto_start_delay_seconds";
