@@ -26,7 +26,7 @@ final class FuelLevelProvider {
     static final int TANK_CAPACITY_LITERS = 54;
     static final float DEFAULT_MULTIPLIER = 0.466f;
     static final float DEFAULT_OFFSET = 4.4f;
-    static final long SENSOR_REFRESH_INTERVAL_MS = 1_000L;
+    static final long SENSOR_REFRESH_INTERVAL_MS = 60_000L;
     static final long READING_STALE_AFTER_MS = 120_000L;
 
     private final Context context;

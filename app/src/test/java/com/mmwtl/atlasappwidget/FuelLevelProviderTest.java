@@ -10,6 +10,11 @@ import org.junit.Test;
 
 public final class FuelLevelProviderTest {
     @Test
+    public void fuelPollingRunsOncePerMinuteAfterImmediateStartRequest() {
+        assertEquals(60_000L, FuelLevelProvider.SENSOR_REFRESH_INTERVAL_MS);
+    }
+
+    @Test
     public void emptySensorRangeKeepsFourLiterReserve() {
         FuelLevelProvider.Reading reading = FuelLevelProvider.fromSensorValue(0f);
 
