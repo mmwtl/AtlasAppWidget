@@ -112,14 +112,8 @@ final class FuelDetailsView extends LinearLayout {
             ));
             formula.setText(getContext().getString(
                     R.string.fuel_formula_waiting,
-                    formatNumber(prefs.getFloat(
-                            Prefs.KEY_FUEL_MULTIPLIER,
-                            FuelLevelProvider.DEFAULT_MULTIPLIER
-                    )),
-                    formatSignedOffset(prefs.getFloat(
-                            Prefs.KEY_FUEL_OFFSET,
-                            FuelLevelProvider.DEFAULT_OFFSET
-                    ))
+                    formatNumber(prefs.fuelMultiplier()),
+                    formatSignedOffset(prefs.fuelOffset())
             ));
             received.setText(R.string.fuel_waiting_for_ginputbridge);
             setContentDescription(getContext().getString(R.string.fuel_data_unavailable));

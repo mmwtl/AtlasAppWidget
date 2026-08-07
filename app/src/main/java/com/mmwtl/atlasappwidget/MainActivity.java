@@ -52,7 +52,11 @@ public final class MainActivity extends ScaledActivity
     private Switch fuelStatusSwitch;
     private Spinner systemStatusPositionSpinner;
     private LinearLayout systemStatusOptions;
+    private Button fuelFormulaDisclosureButton;
+    private LinearLayout fuelFormulaOptions;
     private TextView fuelFormulaSummary;
+    private Switch fuelCustomFormulaSwitch;
+    private Button fuelFormulaButton;
     private LinearLayout dragHandleOptions;
     private Switch backgroundStrokeSwitch;
     private FrameLayout previewContainer;
@@ -314,14 +318,6 @@ public final class MainActivity extends ScaledActivity
         LinearLayout fuelSettings = settingsGroup();
         systemStatus.addView(fuelSettings);
         fuelSettings.addView(Ui.heading(this, R.string.fuel_settings_title, 17));
-        fuelFormulaSummary = Ui.text(this, "", 14, Ui.TEXT_SECONDARY);
-        fuelFormulaSummary.setLineSpacing(0, 1.1f);
-        Ui.topMargin(fuelFormulaSummary, 7);
-        fuelSettings.addView(fuelFormulaSummary);
-        Button fuelFormulaButton = Ui.button(this, R.string.change_fuel_formula);
-        Ui.topMargin(fuelFormulaButton, 10);
-        fuelFormulaButton.setOnClickListener(view -> showFuelFormulaDialog());
-        fuelSettings.addView(fuelFormulaButton);
         TextView fuelTileHint = Ui.text(
                 this,
                 R.string.fuel_tile_settings_hint,
@@ -331,6 +327,43 @@ public final class MainActivity extends ScaledActivity
         fuelTileHint.setLineSpacing(0, 1.1f);
         Ui.topMargin(fuelTileHint, 8);
         fuelSettings.addView(fuelTileHint);
+
+        fuelFormulaDisclosureButton = Ui.button(
+                this,
+                R.string.show_fuel_formula_settings
+        );
+        Ui.topMargin(fuelFormulaDisclosureButton, 10);
+        fuelFormulaDisclosureButton.setOnClickListener(view ->
+                setFuelFormulaOptionsExpanded(
+                        fuelFormulaOptions.getVisibility() != View.VISIBLE
+                ));
+        fuelSettings.addView(fuelFormulaDisclosureButton);
+
+        fuelFormulaOptions = settingsGroup();
+        fuelFormulaOptions.setVisibility(View.GONE);
+        fuelSettings.addView(fuelFormulaOptions);
+        fuelFormulaSummary = Ui.text(this, "", 14, Ui.TEXT_SECONDARY);
+        fuelFormulaSummary.setLineSpacing(0, 1.1f);
+        Ui.topMargin(fuelFormulaSummary, 7);
+        fuelFormulaOptions.addView(fuelFormulaSummary);
+
+        fuelCustomFormulaSwitch = new Switch(this);
+        fuelCustomFormulaSwitch.setText(R.string.use_custom_fuel_formula);
+        fuelCustomFormulaSwitch.setTextColor(Ui.TEXT);
+        fuelCustomFormulaSwitch.setTextSize(14);
+        fuelCustomFormulaSwitch.setPadding(0, Ui.dp(this, 7), 0, Ui.dp(this, 2));
+        fuelCustomFormulaSwitch.setOnCheckedChangeListener((button, checked) -> {
+            if (!updatingSwitch) {
+                prefs.putBoolean(Prefs.KEY_USE_CUSTOM_FUEL_FORMULA, checked);
+            }
+            updateFuelFormulaControls(checked);
+        });
+        fuelFormulaOptions.addView(fuelCustomFormulaSwitch);
+
+        fuelFormulaButton = Ui.button(this, R.string.change_fuel_formula);
+        Ui.topMargin(fuelFormulaButton, 10);
+        fuelFormulaButton.setOnClickListener(view -> showFuelFormulaDialog());
+        fuelFormulaOptions.addView(fuelFormulaButton);
         content.addView(systemStatus);
 
         LinearLayout movement = Ui.card(this);
@@ -838,6 +871,11 @@ public final class MainActivity extends ScaledActivity
         cpuStatusSwitch.setChecked(prefs.getBoolean(Prefs.KEY_SHOW_CPU_STATUS, true));
         ramStatusSwitch.setChecked(prefs.getBoolean(Prefs.KEY_SHOW_RAM_STATUS, true));
         fuelStatusSwitch.setChecked(prefs.getBoolean(Prefs.KEY_SHOW_FUEL_STATUS, true));
+        boolean useCustomFuelFormula = prefs.getBoolean(
+                Prefs.KEY_USE_CUSTOM_FUEL_FORMULA,
+                false
+        );
+        fuelCustomFormulaSwitch.setChecked(useCustomFuelFormula);
         systemStatusPositionSpinner.setSelection(Math.max(
                 PanelConfig.STATUS_TOP,
                 Math.min(PanelConfig.STATUS_RIGHT,
@@ -849,6 +887,7 @@ public final class MainActivity extends ScaledActivity
         updatingSwitch = false;
         setSettingsGroupEnabled(systemStatusOptions, showSystemStatus);
         setSettingsGroupEnabled(dragHandleOptions, showDragHandle);
+        updateFuelFormulaControls(useCustomFuelFormula);
         refreshFuelFormulaSummary();
 
         List<String> selected = prefs.selectedComponents();
@@ -920,19 +959,33 @@ public final class MainActivity extends ScaledActivity
         if (fuelFormulaSummary == null) {
             return;
         }
-        float multiplier = prefs.getFloat(
-                Prefs.KEY_FUEL_MULTIPLIER,
-                FuelLevelProvider.DEFAULT_MULTIPLIER
-        );
-        float offset = prefs.getFloat(
-                Prefs.KEY_FUEL_OFFSET,
-                FuelLevelProvider.DEFAULT_OFFSET
-        );
+        boolean custom = prefs.getBoolean(Prefs.KEY_USE_CUSTOM_FUEL_FORMULA, false);
+        float multiplier = prefs.fuelMultiplier();
+        float offset = prefs.fuelOffset();
         fuelFormulaSummary.setText(getString(
-                R.string.fuel_formula_summary,
+                custom
+                        ? R.string.fuel_custom_formula_summary
+                        : R.string.fuel_default_formula_summary,
                 FuelDetailsView.formatNumber(multiplier),
                 FuelDetailsView.formatSignedOffset(offset)
         ));
+    }
+
+    private void updateFuelFormulaControls(boolean custom) {
+        if (fuelFormulaButton != null) {
+            fuelFormulaButton.setVisibility(custom ? View.VISIBLE : View.GONE);
+        }
+        refreshFuelFormulaSummary();
+    }
+
+    private void setFuelFormulaOptionsExpanded(boolean expanded) {
+        if (fuelFormulaOptions == null || fuelFormulaDisclosureButton == null) {
+            return;
+        }
+        fuelFormulaOptions.setVisibility(expanded ? View.VISIBLE : View.GONE);
+        fuelFormulaDisclosureButton.setText(expanded
+                ? R.string.hide_fuel_formula_settings
+                : R.string.show_fuel_formula_settings);
     }
 
     private void showFuelFormulaDialog() {

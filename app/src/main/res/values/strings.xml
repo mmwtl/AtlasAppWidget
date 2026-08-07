@@ -39,7 +39,11 @@
     <string name="system_status_text_weight">Толщина надписей</string>
     <string name="system_status_hint">Включённые графики делят доступную ширину поровну. Сверху и снизу показываются значения с горизонтальными шкалами. Слева и справа — вертикальные полосы без надписей: CPU синяя, RAM золотая, топливо зелёное; заполнение идёт снизу вверх. Размер и толщина надписей применяются только сверху и снизу.</string>
     <string name="fuel_settings_title">Датчик топлива</string>
-    <string name="fuel_formula_summary">Литры = значение API × %1$s %2$s</string>
+    <string name="fuel_default_formula_summary">Формула Atlas FX11: литры = значение API × %1$s %2$s</string>
+    <string name="fuel_custom_formula_summary">Своя формула: литры = значение API × %1$s %2$s</string>
+    <string name="show_fuel_formula_settings">Показать формулу расчёта</string>
+    <string name="hide_fuel_formula_settings">Скрыть формулу расчёта</string>
+    <string name="use_custom_fuel_formula">Использовать свою формулу</string>
     <string name="change_fuel_formula">Изменить формулу</string>
     <string name="fuel_formula_dialog_title">Формула уровня топлива</string>
     <string name="fuel_formula_dialog_hint">Результат ограничивается диапазоном бака 0–54 л. Допустимы дробные и отрицательные коэффициенты.</string>

@@ -32,6 +32,7 @@ final class Prefs {
     static final String KEY_SYSTEM_STATUS_TEXT_WEIGHT = "system_status_text_weight";
     static final String KEY_FUEL_MULTIPLIER = "fuel_multiplier";
     static final String KEY_FUEL_OFFSET = "fuel_offset";
+    static final String KEY_USE_CUSTOM_FUEL_FORMULA = "use_custom_fuel_formula";
     static final String KEY_WIDTH_PERCENT = "width_percent";
     static final String KEY_COLUMNS = "columns";
     static final String KEY_ROWS = "rows";
@@ -101,6 +102,20 @@ final class Prefs {
                 .putFloat(KEY_FUEL_MULTIPLIER, multiplier)
                 .putFloat(KEY_FUEL_OFFSET, offset)
                 .apply();
+    }
+
+    float fuelMultiplier() {
+        if (!getBoolean(KEY_USE_CUSTOM_FUEL_FORMULA, false)) {
+            return FuelLevelProvider.DEFAULT_MULTIPLIER;
+        }
+        return getFloat(KEY_FUEL_MULTIPLIER, FuelLevelProvider.DEFAULT_MULTIPLIER);
+    }
+
+    float fuelOffset() {
+        if (!getBoolean(KEY_USE_CUSTOM_FUEL_FORMULA, false)) {
+            return FuelLevelProvider.DEFAULT_OFFSET;
+        }
+        return getFloat(KEY_FUEL_OFFSET, FuelLevelProvider.DEFAULT_OFFSET);
     }
 
     void remove(String key) {

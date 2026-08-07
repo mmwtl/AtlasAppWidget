@@ -19,33 +19,34 @@ public final class FuelLevelProviderTest {
     }
 
     @Test
-    public void fullSensorRangeMapsToTankCapacity() {
-        FuelLevelProvider.Reading reading = FuelLevelProvider.fromSensorValue(50f);
+    public void fullFx11PercentageUsesCalibratedFormula() {
+        FuelLevelProvider.Reading reading = FuelLevelProvider.fromSensorValue(100f);
 
         assertNotNull(reading);
-        assertEquals(54, reading.liters);
-        assertEquals(100, reading.percent);
+        assertEquals(51, reading.liters);
+        assertEquals(94, reading.percent);
+        assertEquals(3, reading.freeLiters);
     }
 
     @Test
     public void responseUsesStringExtrasAndRoundsLiters() {
         Float sensorValue =
-                FuelLevelProvider.parseSensorValue("1050112", "25.4");
+                FuelLevelProvider.parseSensorValue("4211968", "25.4");
         assertNotNull(sensorValue);
         FuelLevelProvider.Reading reading =
                 FuelLevelProvider.fromSensorValue(sensorValue);
 
         assertNotNull(reading);
-        assertEquals(29, reading.liters);
-        assertEquals(54, reading.percent);
-        assertEquals(25, reading.freeLiters);
+        assertEquals(16, reading.liters);
+        assertEquals(30, reading.percent);
+        assertEquals(38, reading.freeLiters);
     }
 
     @Test
     public void responseAlsoAcceptsNumericExtras() {
         assertEquals(
                 25.4f,
-                FuelLevelProvider.parseSensorValue(1_050_112, 25.4f),
+                FuelLevelProvider.parseSensorValue(4_211_968, 25.4f),
                 0.001f
         );
     }
@@ -73,7 +74,7 @@ public final class FuelLevelProviderTest {
 
     @Test
     public void outOfRangeHighValueIsClampedToFullTank() {
-        FuelLevelProvider.Reading reading = FuelLevelProvider.fromSensorValue(80f);
+        FuelLevelProvider.Reading reading = FuelLevelProvider.fromSensorValue(200f);
 
         assertNotNull(reading);
         assertEquals(54, reading.liters);
@@ -83,7 +84,7 @@ public final class FuelLevelProviderTest {
     @Test
     public void rejectsWrongSensorAndInvalidValues() {
         assertNull(FuelLevelProvider.parseSensorValue("42", "20"));
-        assertNull(FuelLevelProvider.parseSensorValue("1050112", "not-a-number"));
+        assertNull(FuelLevelProvider.parseSensorValue("4211968", "not-a-number"));
         assertNull(FuelLevelProvider.fromSensorValue(Float.NaN));
         assertNull(FuelLevelProvider.fromSensorValue(10f, Float.NaN, 0f));
     }
