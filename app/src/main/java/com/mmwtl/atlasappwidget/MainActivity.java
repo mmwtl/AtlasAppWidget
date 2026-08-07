@@ -102,20 +102,22 @@ public final class MainActivity extends ScaledActivity
     }
 
     private View buildContent() {
+        LinearLayout root = new LinearLayout(this);
+        root.setOrientation(LinearLayout.VERTICAL);
+        root.setBackgroundColor(Ui.BACKGROUND);
+
         ScrollView scroll = new ScrollView(this);
         scroll.setFillViewport(true);
         scroll.setBackgroundColor(Ui.BACKGROUND);
 
         LinearLayout content = new LinearLayout(this);
         content.setOrientation(LinearLayout.VERTICAL);
-        content.setPadding(Ui.dp(this, 24), Ui.dp(this, 24), Ui.dp(this, 24), Ui.dp(this, 42));
+        content.setPadding(Ui.dp(this, 24), Ui.dp(this, 12), Ui.dp(this, 24), Ui.dp(this, 42));
         scroll.addView(content, new ScrollView.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.WRAP_CONTENT
         ));
 
-        TextView title = Ui.heading(this, R.string.app_name, 30);
-        content.addView(title);
         TextView subtitle = Ui.text(this,
                 R.string.main_subtitle,
                 15,
@@ -125,14 +127,7 @@ public final class MainActivity extends ScaledActivity
         Ui.topMargin(subtitle, 6);
         content.addView(subtitle);
 
-        LinearLayout.LayoutParams firstCard = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                ViewGroup.LayoutParams.WRAP_CONTENT
-        );
-        firstCard.topMargin = Ui.dp(this, 22);
-
         LinearLayout permissions = Ui.card(this);
-        permissions.setLayoutParams(firstCard);
         permissions.addView(Ui.heading(this, R.string.permissions_title, 20));
         TextView permissionHint = Ui.text(this,
                 R.string.permissions_hint,
@@ -166,8 +161,6 @@ public final class MainActivity extends ScaledActivity
         Ui.topMargin(notificationButton, 8);
         notificationButton.setOnClickListener(view -> requestNotificationPermission());
         permissions.addView(notificationButton);
-        content.addView(permissions);
-
         LinearLayout apps = Ui.card(this);
         apps.addView(Ui.heading(this, R.string.panel_apps_title, 20));
         selectedSummary = Ui.text(this, "", 14, Ui.TEXT_SECONDARY);
@@ -189,11 +182,10 @@ public final class MainActivity extends ScaledActivity
                 prefs.putBoolean(Prefs.KEY_SHOW_APP_LABELS, checked);
             }
         });
-        apps.addView(appLabelsSwitch);
-        content.addView(apps);
-
         LinearLayout systemStatus = Ui.card(this);
         systemStatus.addView(Ui.heading(this, R.string.system_status_title, 20));
+
+        systemStatus.addView(appLabelsSwitch);
 
         systemStatusSwitch = new Switch(this);
         systemStatusSwitch.setText(R.string.show_system_status);
@@ -315,9 +307,8 @@ public final class MainActivity extends ScaledActivity
         systemStatusHint.setLineSpacing(0, 1.1f);
         systemStatusOptions.addView(systemStatusHint);
 
-        LinearLayout fuelSettings = settingsGroup();
-        systemStatus.addView(fuelSettings);
-        fuelSettings.addView(Ui.heading(this, R.string.fuel_settings_title, 17));
+        LinearLayout fuelSettings = Ui.card(this);
+        fuelSettings.addView(Ui.heading(this, R.string.fuel_settings_title, 20));
         TextView fuelTileHint = Ui.text(
                 this,
                 R.string.fuel_tile_settings_hint,
@@ -364,8 +355,6 @@ public final class MainActivity extends ScaledActivity
         Ui.topMargin(fuelFormulaButton, 10);
         fuelFormulaButton.setOnClickListener(view -> showFuelFormulaDialog());
         fuelFormulaOptions.addView(fuelFormulaButton);
-        content.addView(systemStatus);
-
         LinearLayout movement = Ui.card(this);
         movement.addView(Ui.heading(this, R.string.movement_title, 20));
 
@@ -443,10 +432,30 @@ public final class MainActivity extends ScaledActivity
             Toast.makeText(this, R.string.position_reset, Toast.LENGTH_SHORT).show();
         });
         movement.addView(resetPosition);
-        content.addView(movement);
-
         LinearLayout service = Ui.card(this);
         service.addView(Ui.heading(this, R.string.service_title, 20));
+
+        serviceStatus = Ui.text(this, "", 14, Ui.TEXT_SECONDARY);
+        Ui.topMargin(serviceStatus, 12);
+        service.addView(serviceStatus);
+
+        LinearLayout serviceButtons = new LinearLayout(this);
+        serviceButtons.setOrientation(LinearLayout.HORIZONTAL);
+        serviceButtons.setGravity(Gravity.START);
+        Ui.topMargin(serviceButtons, 10);
+        Button startButton = Ui.button(this, R.string.start_panel);
+        startButton.setBackground(Ui.rounded(Ui.ACCENT, Ui.dp(this, 8)));
+        startButton.setOnClickListener(view -> startPanel());
+        serviceButtons.addView(startButton);
+        Button stopButton = Ui.button(this, R.string.stop);
+        LinearLayout.LayoutParams stopParams = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+        );
+        stopParams.leftMargin = Ui.dp(this, 10);
+        serviceButtons.addView(stopButton, stopParams);
+        stopButton.setOnClickListener(view -> stopPanel());
+        service.addView(serviceButtons);
 
         autoStartSwitch = new Switch(this);
         autoStartSwitch.setText(R.string.auto_start);
@@ -490,31 +499,7 @@ public final class MainActivity extends ScaledActivity
                 Ui.TEXT_SECONDARY
         );
         service.addView(autoStartDelayHint);
-
-        serviceStatus = Ui.text(this, "", 14, Ui.TEXT_SECONDARY);
-        Ui.topMargin(serviceStatus, 12);
-        service.addView(serviceStatus);
-
-        LinearLayout serviceButtons = new LinearLayout(this);
-        serviceButtons.setOrientation(LinearLayout.HORIZONTAL);
-        serviceButtons.setGravity(Gravity.START);
-        Ui.topMargin(serviceButtons, 10);
-        Button startButton = Ui.button(this, R.string.start_panel);
-        startButton.setBackground(Ui.rounded(Ui.ACCENT, Ui.dp(this, 8)));
-        startButton.setOnClickListener(view -> startPanel());
-        serviceButtons.addView(startButton);
-        Button stopButton = Ui.button(this, R.string.stop);
-        LinearLayout.LayoutParams stopParams = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.WRAP_CONTENT,
-                ViewGroup.LayoutParams.WRAP_CONTENT
-        );
-        stopParams.leftMargin = Ui.dp(this, 10);
-        serviceButtons.addView(stopButton, stopParams);
-        stopButton.setOnClickListener(view -> stopPanel());
-        service.addView(serviceButtons);
-        content.addView(service);
-
-        LinearLayout notes = Ui.card(this);
+        LinearLayout notes = settingsGroup();
         notes.addView(Ui.heading(this, R.string.head_unit_note_title, 18));
         TextView note = Ui.text(this,
                 R.string.head_unit_note,
@@ -524,32 +509,47 @@ public final class MainActivity extends ScaledActivity
         note.setLineSpacing(0, 1.15f);
         Ui.topMargin(note, 7);
         notes.addView(note);
-        content.addView(notes);
+        service.addView(notes);
 
-        LinearLayout preview = Ui.card(this);
-        preview.addView(Ui.heading(this, R.string.preview_title, 20));
-        TextView previewHint = Ui.text(this,
-                R.string.preview_hint,
+        LinearLayout stickyPreview = new LinearLayout(this);
+        stickyPreview.setOrientation(LinearLayout.VERTICAL);
+        stickyPreview.setClipChildren(false);
+        stickyPreview.setPadding(
+                Ui.dp(this, 24),
+                Ui.dp(this, 16),
+                Ui.dp(this, 24),
+                Ui.dp(this, 12)
+        );
+        stickyPreview.setBackgroundColor(Ui.BACKGROUND);
+
+        LinearLayout previewTitleRow = new LinearLayout(this);
+        previewTitleRow.setOrientation(LinearLayout.HORIZONTAL);
+        previewTitleRow.setGravity(Gravity.CENTER_VERTICAL);
+        TextView title = Ui.heading(this, R.string.app_name, 24);
+        previewTitleRow.addView(title, new LinearLayout.LayoutParams(
+                0,
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                1f
+        ));
+        TextView previewTitle = Ui.text(this,
+                R.string.preview_title,
                 13,
                 Ui.TEXT_SECONDARY
         );
-        Ui.topMargin(previewHint, 5);
-        preview.addView(previewHint);
+        previewTitleRow.addView(previewTitle);
+        stickyPreview.addView(previewTitleRow);
+
         previewContainer = new FrameLayout(this);
         previewContainer.setClipChildren(false);
         previewContainer.setClipToPadding(false);
-        previewContainer.setPadding(Ui.dp(this, 8), Ui.dp(this, 12),
-                Ui.dp(this, 8), Ui.dp(this, 12));
+        previewContainer.setPadding(Ui.dp(this, 8), Ui.dp(this, 10),
+                Ui.dp(this, 8), Ui.dp(this, 10));
         previewContainer.setBackground(Ui.rounded(Ui.SURFACE_RAISED, Ui.dp(this, 8)));
-        Ui.topMargin(previewContainer, 12);
-        preview.addView(previewContainer, new LinearLayout.LayoutParams(
+        Ui.topMargin(previewContainer, 8);
+        stickyPreview.addView(previewContainer, new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
-                Ui.dp(this, 130)
+                Ui.dp(this, 110)
         ));
-        content.addView(preview);
-
-        content.addView(buildGeometryCard());
-        content.addView(buildBackgroundCard());
 
         LinearLayout scale = Ui.card(this);
         scale.addView(Ui.heading(this, R.string.scale_title, 20));
@@ -562,9 +562,45 @@ public final class MainActivity extends ScaledActivity
         Ui.topMargin(scaleHint, 6);
         scale.addView(scaleHint);
         addScaleSlider(scale);
+
+        addSectionHeading(content, R.string.settings_section_system, true);
+        content.addView(permissions);
+        content.addView(service);
+
+        addSectionHeading(content, R.string.settings_section_content, false);
+        content.addView(apps);
+        content.addView(fuelSettings);
+        content.addView(movement);
+
+        addSectionHeading(content, R.string.settings_section_visual, false);
+        content.addView(systemStatus);
+        content.addView(buildGeometryCard());
+        content.addView(buildBackgroundCard());
         content.addView(scale);
 
-        return scroll;
+        root.addView(stickyPreview, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+        ));
+        root.addView(scroll, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                0,
+                1f
+        ));
+        return root;
+    }
+
+    private void addSectionHeading(LinearLayout content, int titleRes, boolean first) {
+        TextView heading = Ui.heading(this, titleRes, 16);
+        heading.setTextColor(Ui.ACCENT);
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+        );
+        params.topMargin = Ui.dp(this, first ? 20 : 14);
+        params.bottomMargin = Ui.dp(this, 10);
+        heading.setLayoutParams(params);
+        content.addView(heading);
     }
 
     private LinearLayout settingsGroup() {
@@ -1135,6 +1171,19 @@ public final class MainActivity extends ScaledActivity
                 null
         );
         previewContainer.removeAllViews();
+        int maxContainerHeight = Math.max(
+                Ui.dp(this, 96),
+                Math.round(getWindowManager().getCurrentWindowMetrics().getBounds().height() * 0.30f)
+        );
+        int verticalPadding = previewContainer.getPaddingTop()
+                + previewContainer.getPaddingBottom();
+        int maxPanelHeight = Math.max(1, maxContainerHeight - verticalPadding);
+        float previewScale = Math.min(
+                1f,
+                maxPanelHeight / (float) Math.max(1, panelPreview.panelHeight())
+        );
+        panelPreview.setScaleX(previewScale);
+        panelPreview.setScaleY(previewScale);
         FrameLayout.LayoutParams panelParams = new FrameLayout.LayoutParams(
                 panelPreview.panelWidth(),
                 panelPreview.panelHeight(),
@@ -1142,7 +1191,8 @@ public final class MainActivity extends ScaledActivity
         );
         previewContainer.addView(panelPreview, panelParams);
         ViewGroup.LayoutParams containerParams = previewContainer.getLayoutParams();
-        containerParams.height = panelPreview.panelHeight() + Ui.dp(this, 32);
+        containerParams.height = Math.round(panelPreview.panelHeight() * previewScale)
+                + verticalPadding;
         previewContainer.setLayoutParams(containerParams);
     }
 

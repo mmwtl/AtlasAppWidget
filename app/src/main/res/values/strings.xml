@@ -15,15 +15,15 @@
     <string name="selected_summary">Выбрано: %1$d. На панели помещается: %2$d.</string>
     <string name="selected_overflow_summary">Выбрано: %1$d. На панели помещается: %2$d. Лишние элементы скрыты; измените порядок или сетку.</string>
     <string name="main_subtitle">Плавающая панель launchable activity для Android 11. Вне панели экран остаётся полностью интерактивным.</string>
-    <string name="permissions_title">1. Системные разрешения</string>
+    <string name="permissions_title">Системные разрешения</string>
     <string name="permissions_hint">Оба специальных доступа обязательны: первый создаёт окно, второй определяет, открыт ли лаунчер.</string>
     <string name="allow_overlay">Разрешить поверх других окон</string>
     <string name="allow_usage">Разрешить доступ к статистике</string>
     <string name="allow_notifications">Разрешить уведомления</string>
-    <string name="panel_apps_title">2. Приложения</string>
+    <string name="panel_apps_title">Содержимое панели</string>
     <string name="choose_apps">Выбрать приложения, activity и иконки</string>
     <string name="show_app_labels">Показывать названия приложений</string>
-    <string name="system_status_title">3. Показатели системы</string>
+    <string name="system_status_title">Элементы и индикаторы</string>
     <string name="show_system_status">Показывать панель графиков</string>
     <string name="system_status_visible_metrics">Какие графики показывать</string>
     <string name="show_cpu_status">CPU</string>
@@ -38,7 +38,7 @@
     <string name="system_status_text_size">Размер надписей CPU / RAM / FUEL</string>
     <string name="system_status_text_weight">Толщина надписей</string>
     <string name="system_status_hint">Включённые графики делят доступную ширину поровну. Сверху и снизу показываются значения с горизонтальными шкалами. Слева и справа — вертикальные полосы без надписей: CPU синяя, RAM золотая, топливо зелёное; заполнение идёт снизу вверх. Размер и толщина надписей применяются только сверху и снизу.</string>
-    <string name="fuel_settings_title">Датчик топлива</string>
+    <string name="fuel_settings_title">Данные топлива</string>
     <string name="fuel_default_formula_summary">Формула Atlas FX11: литры = значение API × %1$s %2$s</string>
     <string name="fuel_custom_formula_summary">Своя формула: литры = значение API × %1$s %2$s</string>
     <string name="show_fuel_formula_settings">Показать формулу расчёта</string>
@@ -52,15 +52,15 @@
     <string name="fuel_formula_invalid">Введите корректное число</string>
     <string name="fuel_multiplier_range">Допустимый диапазон: от −100 до 100</string>
     <string name="fuel_offset_range">Допустимый диапазон: от −1000 до 1000</string>
-    <string name="fuel_tile_settings_hint">Отдельную живую плитку бака можно добавить и переставить в разделе «Приложения». Она работает независимо от панели графиков.</string>
-    <string name="movement_title">4. Перемещение панели</string>
+    <string name="fuel_tile_settings_hint">Отдельную живую плитку бака можно добавить и переставить в разделе «Содержимое панели». Она работает независимо от панели графиков.</string>
+    <string name="movement_title">Управление и положение</string>
     <string name="show_drag_handle">Показывать ручку перетаскивания</string>
     <string name="drag_handle_position">Расположение ручки</string>
     <string-array name="drag_handle_positions">
         <item>Слева</item><item>Справа</item><item>Сверху</item><item>Снизу</item>
     </string-array>
     <string name="drag_handle_hint">Если ручка скрыта, удерживайте пустое место панели 1 секунду, затем перетаскивайте.</string>
-    <string name="service_title">5. Запуск и сервис</string>
+    <string name="service_title">Запуск и сервис</string>
     <string name="auto_start">Автозапуск после загрузки ГУ</string>
     <string name="auto_start_permission_warning">Автозапуск сохранён, но без двух специальных разрешений он не сработает</string>
     <string name="auto_start_delay">Задержка автозапуска</string>
@@ -68,9 +68,8 @@
     <string name="start_panel">Запустить панель</string>
     <string name="reset_panel_position">Сбросить позицию панели</string>
     <string name="position_reset">Позиция сброшена</string>
-    <string name="preview_title">6. Предпросмотр</string>
-    <string name="preview_hint">Фактический размер задаётся в процентах ширины экрана ГУ. Ручка и показатели настраиваются в отдельных разделах выше.</string>
-    <string name="geometry_title">7. Геометрия</string>
+    <string name="preview_title">Предпросмотр панели</string>
+    <string name="geometry_title">Геометрия панели</string>
     <string name="panel_width">Ширина панели</string>
     <string name="columns">Столбцы</string>
     <string name="rows">Ряды</string>
@@ -78,7 +77,7 @@
     <string name="icon_shape">Форма иконок</string>
     <string name="padding">Внутренний отступ</string>
     <string name="icon_gap">Интервал между иконками</string>
-    <string name="background_title">8. Оформление панели</string>
+    <string name="background_title">Оформление панели</string>
     <string name="panel_radius">Радиус панели</string>
     <string name="background_opacity">Прозрачность фона</string>
     <string name="change_background_color">Изменить цвет фона</string>
@@ -90,7 +89,10 @@
     <string name="stroke_opacity">Прозрачность обводки</string>
     <string name="head_unit_note_title">Важно для автомобильной ГУ</string>
     <string name="head_unit_note">Некоторые прошивки отдельно блокируют автозапуск и фоновые сервисы. Если после перезагрузки панель не стартует, разрешите автозапуск и работу без ограничений в менеджере питания самой ГУ. Android API не может выдать эти OEM-разрешения автоматически.</string>
-    <string name="scale_title">9. Масштаб приложения</string>
+    <string name="scale_title">Интерфейс приложения</string>
+    <string name="settings_section_system">СИСТЕМА</string>
+    <string name="settings_section_content">СОДЕРЖИМОЕ И ПОВЕДЕНИЕ</string>
+    <string name="settings_section_visual">ВНЕШНИЙ ВИД</string>
     <string name="scale_hint">Меняет размер экранов и элементов приложения без изменения системного масштаба ГУ. Геометрия overlay-панели настраивается отдельно выше.</string>
     <string name="scale">Масштаб</string>
     <string name="picker_back">← Назад</string>
