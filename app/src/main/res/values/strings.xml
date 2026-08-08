@@ -64,7 +64,7 @@
     <string name="auto_start">Автозапуск после загрузки ГУ</string>
     <string name="auto_start_permission_warning">Автозапуск сохранён, но без двух специальных разрешений он не сработает</string>
     <string name="auto_start_delay">Задержка автозапуска</string>
-    <string name="auto_start_delay_hint">Применяется только после загрузки ГУ; ручной запуск выполняется сразу. Минимальная задержка защищает другие виджеты от конкуренции за ресурсы во время запуска системы.</string>
+    <string name="auto_start_delay_hint">Применяется только после загрузки ГУ; ручной запуск выполняется сразу. Если другим виджетам не хватает ресурсов при запуске системы, увеличьте задержку.</string>
     <string name="start_panel">Запустить панель</string>
     <string name="reset_panel_position">Сбросить позицию панели</string>
     <string name="position_reset">Позиция сброшена</string>

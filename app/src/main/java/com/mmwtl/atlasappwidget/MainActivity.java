@@ -487,10 +487,11 @@ public final class MainActivity extends ScaledActivity
                 Prefs.MIN_AUTO_START_DELAY_SECONDS,
                 Prefs.MAX_AUTO_START_DELAY_SECONDS,
                 Math.max(Prefs.MIN_AUTO_START_DELAY_SECONDS,
-                        prefs.getInt(
-                                Prefs.KEY_AUTO_START_DELAY_SECONDS,
-                                Prefs.MIN_AUTO_START_DELAY_SECONDS
-                        )),
+                        Math.min(Prefs.MAX_AUTO_START_DELAY_SECONDS,
+                                prefs.getInt(
+                                        Prefs.KEY_AUTO_START_DELAY_SECONDS,
+                                        Prefs.MIN_AUTO_START_DELAY_SECONDS
+                                ))),
                 this::formatAutoStartDelay,
                 value -> prefs.putInt(Prefs.KEY_AUTO_START_DELAY_SECONDS, value));
         TextView autoStartDelayHint = Ui.text(this,
