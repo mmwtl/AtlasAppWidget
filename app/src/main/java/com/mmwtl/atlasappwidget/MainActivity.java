@@ -467,13 +467,6 @@ public final class MainActivity extends ScaledActivity
                 return;
             }
             prefs.putBoolean(Prefs.KEY_AUTO_START, checked);
-            if (!checked && prefs.getLong(Prefs.KEY_AUTO_START_PENDING_UNTIL_MS, 0)
-                    > System.currentTimeMillis()) {
-                BootReceiver.cancelDelayedStart(this);
-                prefs.remove(Prefs.KEY_AUTO_START_PENDING_UNTIL_MS);
-                prefs.putBoolean(Prefs.KEY_SERVICE_ENABLED, false);
-                stopService(new Intent(this, OverlayService.class));
-            }
             if (checked && (!Settings.canDrawOverlays(this)
                     || !ForegroundAppDetector.hasUsageAccess(this))) {
                 Toast.makeText(this,
@@ -482,24 +475,6 @@ public final class MainActivity extends ScaledActivity
             }
         });
         service.addView(autoStartSwitch);
-
-        addSlider(service, getString(R.string.auto_start_delay),
-                Prefs.MIN_AUTO_START_DELAY_SECONDS,
-                Prefs.MAX_AUTO_START_DELAY_SECONDS,
-                Math.max(Prefs.MIN_AUTO_START_DELAY_SECONDS,
-                        Math.min(Prefs.MAX_AUTO_START_DELAY_SECONDS,
-                                prefs.getInt(
-                                        Prefs.KEY_AUTO_START_DELAY_SECONDS,
-                                        Prefs.MIN_AUTO_START_DELAY_SECONDS
-                                ))),
-                this::formatAutoStartDelay,
-                value -> prefs.putInt(Prefs.KEY_AUTO_START_DELAY_SECONDS, value));
-        TextView autoStartDelayHint = Ui.text(this,
-                R.string.auto_start_delay_hint,
-                13,
-                Ui.TEXT_SECONDARY
-        );
-        service.addView(autoStartDelayHint);
         LinearLayout notes = settingsGroup();
         notes.addView(Ui.heading(this, R.string.head_unit_note_title, 18));
         TextView note = Ui.text(this,
@@ -850,20 +825,6 @@ public final class MainActivity extends ScaledActivity
         return getString(label, weight);
     }
 
-    private String formatAutoStartDelay(int seconds) {
-        if (seconds == 0) {
-            return getString(R.string.delay_none);
-        }
-        if (seconds < 60) {
-            return getString(R.string.delay_seconds, seconds);
-        }
-        int minutes = seconds / 60;
-        int remainder = seconds % 60;
-        return remainder == 0
-                ? getString(R.string.delay_minutes, minutes)
-                : getString(R.string.delay_minutes_seconds, minutes, remainder);
-    }
-
     private void refreshStatus() {
         boolean overlayAllowed = Settings.canDrawOverlays(this);
         boolean usageAllowed = ForegroundAppDetector.hasUsageAccess(this);
@@ -886,18 +847,13 @@ public final class MainActivity extends ScaledActivity
 
         boolean serviceEnabled = prefs.getBoolean(Prefs.KEY_SERVICE_ENABLED, false);
         boolean serviceRunning = OverlayService.isRunning();
-        boolean autoStartPending = serviceEnabled
-                && prefs.getLong(Prefs.KEY_AUTO_START_PENDING_UNTIL_MS, 0)
-                > System.currentTimeMillis();
         setStatus(serviceStatus,
-                autoStartPending
-                        ? getString(R.string.status_boot_delay)
-                        : serviceEnabled && serviceRunning
+                serviceEnabled && serviceRunning
                         ? getString(R.string.status_service_running)
                         : serviceEnabled
                         ? getString(R.string.status_service_waiting)
                         : getString(R.string.status_service_stopped),
-                serviceEnabled && (serviceRunning || autoStartPending));
+                serviceEnabled && serviceRunning);
         updatingSwitch = true;
         autoStartSwitch.setChecked(prefs.getBoolean(Prefs.KEY_AUTO_START, false));
         boolean showDragHandle = prefs.getBoolean(Prefs.KEY_SHOW_DRAG_HANDLE, true);
@@ -1219,8 +1175,6 @@ public final class MainActivity extends ScaledActivity
             requestNotificationPermission();
         }
         try {
-            BootReceiver.cancelDelayedStart(this);
-            prefs.remove(Prefs.KEY_AUTO_START_PENDING_UNTIL_MS);
             prefs.putBoolean(Prefs.KEY_SERVICE_ENABLED, true);
             OverlayService.start(this);
             Toast.makeText(this, R.string.panel_started, Toast.LENGTH_SHORT).show();
@@ -1233,9 +1187,7 @@ public final class MainActivity extends ScaledActivity
     }
 
     private void stopPanel() {
-        BootReceiver.cancelDelayedStart(this);
         prefs.putBoolean(Prefs.KEY_SERVICE_ENABLED, false);
-        prefs.remove(Prefs.KEY_AUTO_START_PENDING_UNTIL_MS);
         stopService(new Intent(this, OverlayService.class));
         Toast.makeText(this, R.string.panel_stopped, Toast.LENGTH_SHORT).show();
     }

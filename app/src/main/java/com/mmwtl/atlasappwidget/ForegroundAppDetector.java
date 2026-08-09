@@ -11,6 +11,8 @@ import android.content.pm.PackageManager;
 import android.content.pm.ResolveInfo;
 import android.os.Process;
 import android.os.PowerManager;
+import android.os.SystemClock;
+import android.os.UserManager;
 
 import java.util.HashSet;
 import java.util.List;
@@ -21,6 +23,7 @@ final class ForegroundAppDetector {
     private final UsageStatsManager usageStatsManager;
     private final PowerManager powerManager;
     private final KeyguardManager keyguardManager;
+    private final UserManager userManager;
     private final Set<String> homePackages = new HashSet<>();
     private final ForegroundEventTracker eventTracker = new ForegroundEventTracker();
     private long lastHomeRefreshTime;
@@ -31,7 +34,7 @@ final class ForegroundAppDetector {
         usageStatsManager = (UsageStatsManager) context.getSystemService(Context.USAGE_STATS_SERVICE);
         powerManager = (PowerManager) context.getSystemService(Context.POWER_SERVICE);
         keyguardManager = (KeyguardManager) context.getSystemService(Context.KEYGUARD_SERVICE);
-        refreshHomePackages();
+        userManager = (UserManager) context.getSystemService(Context.USER_SERVICE);
     }
 
     static boolean hasUsageAccess(Context context) {
@@ -48,8 +51,7 @@ final class ForegroundAppDetector {
     }
 
     boolean isHomeForeground() {
-        if (powerManager == null || !powerManager.isInteractive()
-                || keyguardManager != null && keyguardManager.isKeyguardLocked()) {
+        if (!isDeviceReady()) {
             return false;
         }
         long now = System.currentTimeMillis();
@@ -60,14 +62,21 @@ final class ForegroundAppDetector {
         return foreground != null && homePackages.contains(foreground);
     }
 
+    boolean isDeviceReady() {
+        return powerManager != null
+                && powerManager.isInteractive()
+                && (keyguardManager == null || !keyguardManager.isKeyguardLocked())
+                && (userManager == null || userManager.isUserUnlocked());
+    }
+
     String currentForegroundPackage() {
         if (usageStatsManager == null || !hasUsageAccess(context)) {
             return null;
         }
         long now = System.currentTimeMillis();
-        long begin = lastQueryTime == 0
-                ? now - 12L * 60L * 60L * 1000L
-                : Math.max(now - 60_000L, lastQueryTime - 2_000L);
+        boolean initialQuery = lastQueryTime == 0;
+        long queryStarted = SystemClock.elapsedRealtime();
+        long begin = ForegroundPollPolicy.queryBegin(now, lastQueryTime);
         UsageEvents events;
         try {
             events = usageStatsManager.queryEvents(begin, now);
@@ -106,10 +115,14 @@ final class ForegroundAppDetector {
                 }
             }
         }
+        long queryElapsed = SystemClock.elapsedRealtime() - queryStarted;
+        if (initialQuery || queryElapsed >= 100L) {
+            AppLog.info("Foreground usage query completed in " + queryElapsed + " ms");
+        }
         return eventTracker.foregroundPackage();
     }
 
-    void refreshHomePackages() {
+    private void refreshHomePackages() {
         homePackages.clear();
         Intent intent = new Intent(Intent.ACTION_MAIN);
         intent.addCategory(Intent.CATEGORY_HOME);

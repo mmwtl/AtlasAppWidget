@@ -1,20 +1,12 @@
 package com.mmwtl.atlasappwidget;
 
-import android.annotation.SuppressLint;
-import android.app.AlarmManager;
-import android.app.PendingIntent;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
-import android.os.Build;
-import android.os.SystemClock;
+import android.os.UserManager;
 import android.provider.Settings;
 
 public final class BootReceiver extends BroadcastReceiver {
-    static final String ACTION_DELAYED_BOOT_START =
-            "com.mmwtl.atlasappwidget.action.DELAYED_BOOT_START";
-    private static final int DELAYED_START_REQUEST_CODE = 2108;
-
     @Override
     public void onReceive(Context context, Intent intent) {
         if (intent == null) {
@@ -22,105 +14,44 @@ public final class BootReceiver extends BroadcastReceiver {
         }
         Prefs prefs = new Prefs(context);
         String action = intent.getAction();
-        boolean shouldStart;
-        if (Intent.ACTION_BOOT_COMPLETED.equals(action)) {
-            shouldStart = prefs.getBoolean(Prefs.KEY_AUTO_START, false);
-            if (!shouldStart) {
-                prefs.putBoolean(Prefs.KEY_SERVICE_ENABLED, false);
-                prefs.remove(Prefs.KEY_AUTO_START_PENDING_UNTIL_MS);
-            }
-        } else if (Intent.ACTION_MY_PACKAGE_REPLACED.equals(action)) {
-            shouldStart = prefs.getBoolean(Prefs.KEY_SERVICE_ENABLED, false)
-                    || prefs.getBoolean(Prefs.KEY_AUTO_START, false);
-        } else {
-            return;
-        }
-
-        if (shouldStart
-                && Settings.canDrawOverlays(context)
-                && ForegroundAppDetector.hasUsageAccess(context)) {
-            try {
-                prefs.putBoolean(Prefs.KEY_SERVICE_ENABLED, true);
-                if (Intent.ACTION_BOOT_COMPLETED.equals(action)) {
-                    int delaySeconds = effectiveAutoStartDelaySeconds(
-                            prefs.getInt(
-                                    Prefs.KEY_AUTO_START_DELAY_SECONDS,
-                                    Prefs.MIN_AUTO_START_DELAY_SECONDS
-                            )
-                    );
-                    if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.R) {
-                        scheduleDelayedStart(context, prefs, delaySeconds);
-                    } else {
-                        OverlayService.startAfterBoot(context, delaySeconds);
-                    }
-                } else {
-                    cancelDelayedStart(context);
-                    prefs.remove(Prefs.KEY_AUTO_START_PENDING_UNTIL_MS);
-                    OverlayService.start(context);
+        if (BootStartPolicy.isStartupAction(action)) {
+            if (!prefs.getBoolean(Prefs.KEY_AUTO_START, false)) {
+                if (isUserUnlocked(context)) {
+                    prefs.putBoolean(Prefs.KEY_SERVICE_ENABLED, false);
                 }
-            } catch (RuntimeException error) {
-                AppLog.warn("Boot start failed for action " + action, error);
-                prefs.putBoolean(Prefs.KEY_SERVICE_ENABLED, false);
-                prefs.remove(Prefs.KEY_AUTO_START_PENDING_UNTIL_MS);
+                return;
+            }
+            prefs.putBoolean(Prefs.KEY_SERVICE_ENABLED, true);
+            AppLog.info("Startup signal " + action + "; starting overlay service");
+            startIfAllowed(context, prefs);
+        } else if (Intent.ACTION_MY_PACKAGE_REPLACED.equals(action)) {
+            boolean shouldRestart = prefs.getBoolean(Prefs.KEY_SERVICE_ENABLED, false)
+                    || prefs.getBoolean(Prefs.KEY_AUTO_START, false);
+            if (shouldRestart) {
+                startIfAllowed(context, prefs);
             }
         }
     }
 
-    static int effectiveAutoStartDelaySeconds(int configuredSeconds) {
-        return Math.max(
-                Prefs.MIN_AUTO_START_DELAY_SECONDS,
-                Math.min(Prefs.MAX_AUTO_START_DELAY_SECONDS, configuredSeconds)
-        );
-    }
-
-    @SuppressLint("MissingPermission")
-    private void scheduleDelayedStart(Context context, Prefs prefs, int delaySeconds) {
-        int boundedDelaySeconds = Math.max(0,
-                Math.min(Prefs.MAX_AUTO_START_DELAY_SECONDS, delaySeconds));
-        long delayMs = boundedDelaySeconds * 1_000L;
-        PendingIntent pendingStart = delayedStartPendingIntent(
-                context,
-                PendingIntent.FLAG_UPDATE_CURRENT
-        );
-        AlarmManager alarmManager = (AlarmManager) context.getSystemService(Context.ALARM_SERVICE);
-        if (alarmManager == null) {
-            throw new IllegalStateException("AlarmManager is unavailable");
-        }
-        prefs.putLong(Prefs.KEY_AUTO_START_PENDING_UNTIL_MS,
-                System.currentTimeMillis() + delayMs);
-        // Android 11 can defer the service itself. An inexact idle-capable alarm avoids
-        // competing with OEM media widgets during the busiest part of system startup.
-        // Newer releases start the FGS during the boot exemption and defer its work.
-        alarmManager.setAndAllowWhileIdle(
-                AlarmManager.ELAPSED_REALTIME_WAKEUP,
-                SystemClock.elapsedRealtime() + delayMs,
-                pendingStart
-        );
-    }
-
-    static void cancelDelayedStart(Context context) {
-        PendingIntent pendingStart = delayedStartPendingIntent(
-                context,
-                PendingIntent.FLAG_NO_CREATE
-        );
-        if (pendingStart == null) {
+    static void startIfAllowed(Context context, Prefs prefs) {
+        if (!Settings.canDrawOverlays(context)) {
+            AppLog.info("Boot start skipped: overlay permission is missing");
             return;
         }
-        AlarmManager alarmManager = (AlarmManager) context.getSystemService(Context.ALARM_SERVICE);
-        if (alarmManager != null) {
-            alarmManager.cancel(pendingStart);
+        if (!ForegroundAppDetector.hasUsageAccess(context)) {
+            AppLog.info("Boot start skipped: usage access is missing");
+            return;
         }
-        pendingStart.cancel();
+        try {
+            OverlayService.start(context);
+        } catch (RuntimeException error) {
+            prefs.putBoolean(Prefs.KEY_SERVICE_ENABLED, false);
+            AppLog.warn("Boot start failed", error);
+        }
     }
 
-    private static PendingIntent delayedStartPendingIntent(Context context, int flags) {
-        Intent delayedStart = new Intent(context, DelayedBootReceiver.class)
-                .setAction(ACTION_DELAYED_BOOT_START);
-        return PendingIntent.getBroadcast(
-                context,
-                DELAYED_START_REQUEST_CODE,
-                delayedStart,
-                flags | PendingIntent.FLAG_IMMUTABLE
-        );
+    private static boolean isUserUnlocked(Context context) {
+        UserManager users = context.getSystemService(UserManager.class);
+        return users == null || users.isUserUnlocked();
     }
 }

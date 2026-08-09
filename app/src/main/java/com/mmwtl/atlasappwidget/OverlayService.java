@@ -6,7 +6,10 @@ import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.app.Service;
 import android.content.ActivityNotFoundException;
+import android.content.BroadcastReceiver;
+import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.content.SharedPreferences;
 import android.content.pm.ServiceInfo;
 import android.graphics.PixelFormat;
@@ -34,25 +37,24 @@ import java.util.concurrent.RejectedExecutionException;
 public final class OverlayService extends Service
         implements SharedPreferences.OnSharedPreferenceChangeListener, PanelView.Listener {
     static final String ACTION_START = "com.mmwtl.atlasappwidget.action.START";
-    static final String ACTION_START_AFTER_BOOT =
-            "com.mmwtl.atlasappwidget.action.START_AFTER_BOOT";
     static final String ACTION_STOP = "com.mmwtl.atlasappwidget.action.STOP";
 
-    private static final String EXTRA_BOOT_DELAY_MS = "boot_delay_ms";
     private static final String CHANNEL_ID = "atlas_app_widget_service";
     private static final int NOTIFICATION_ID = 2107;
-    private static final int POLL_VISIBLE_MS = 1_000;
-    private static final int POLL_HIDDEN_MS = 1_500;
     private static final int POLL_ERROR_MS = 2_000;
     private static final int SYSTEM_STATUS_REFRESH_MS = 2_000;
     private static final int NOTIFICATION_VISIBLE = 1;
     private static final int NOTIFICATION_HIDDEN = 2;
     private static final int NOTIFICATION_PERMISSION_ERROR = 3;
-    private static final int NOTIFICATION_BOOT_DELAY = 4;
     private static final int NOTIFICATION_NO_APPS = 5;
     private static volatile boolean running;
 
     private final Handler handler = new Handler(Looper.getMainLooper());
+    private final ExecutorService foregroundExecutor = Executors.newSingleThreadExecutor(runnable -> {
+        Thread thread = new Thread(runnable, "atlas-home-detector");
+        thread.setDaemon(true);
+        return thread;
+    });
     private final ExecutorService systemStatusExecutor = Executors.newSingleThreadExecutor();
     private Prefs prefs;
     private WindowManager windowManager;
@@ -65,55 +67,92 @@ public final class OverlayService extends Service
     private int currentNotificationState;
     private long suppressPanelUntil;
     private long nextSystemStatusRefresh;
+    private long createdAt;
+    private long fastProbeUntil;
     private boolean metricsActive;
+    private boolean foregroundQueryInFlight;
+    private boolean visibilityCheckPending;
+    private boolean deviceWasReady;
+    private boolean visibilityReceiverRegistered;
+    private boolean destroyed;
 
     private float dragStartRawX;
     private float dragStartRawY;
     private int dragStartWindowX;
     private int dragStartWindowY;
 
+    private final BroadcastReceiver visibilityWakeReceiver = new BroadcastReceiver() {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            String action = intent == null ? null : intent.getAction();
+            if (Intent.ACTION_SCREEN_OFF.equals(action)) {
+                deviceWasReady = false;
+                hidePanel();
+                scheduleForegroundPoll(ForegroundPollPolicy.HIDDEN_DELAY_MS);
+                return;
+            }
+            AppLog.info("Immediate HOME check requested by " + action);
+            requestImmediateVisibilityCheck();
+        }
+    };
+
     private final Runnable foregroundPoll = new Runnable() {
         @Override
         public void run() {
-            if (!metricsActive) {
-                metricsActive = true;
-                syncFuelProvider();
+            if (destroyed) {
+                return;
             }
             if (!prefs.getBoolean(Prefs.KEY_SERVICE_ENABLED, false)) {
                 stopSelf();
                 return;
             }
-            int nextPollDelay;
             if (!Settings.canDrawOverlays(OverlayService.this)
                     || !ForegroundAppDetector.hasUsageAccess(OverlayService.this)) {
                 hidePanel();
                 updateNotification(NOTIFICATION_PERMISSION_ERROR);
-                nextPollDelay = POLL_ERROR_MS;
-            } else if (SystemClock.elapsedRealtime() < suppressPanelUntil) {
-                hidePanel();
-                updateNotification(NOTIFICATION_HIDDEN);
-                nextPollDelay = POLL_VISIBLE_MS;
-            } else if (foregroundDetector().isHomeForeground()) {
-                boolean hasApps = showPanel();
-                if (hasApps) {
-                    refreshSystemStatusIfNeeded();
-                }
-                updateNotification(hasApps ? NOTIFICATION_VISIBLE : NOTIFICATION_NO_APPS);
-                nextPollDelay = hasApps ? POLL_VISIBLE_MS : POLL_ERROR_MS;
-            } else {
-                hidePanel();
-                updateNotification(NOTIFICATION_HIDDEN);
-                nextPollDelay = POLL_HIDDEN_MS;
+                scheduleForegroundPoll(POLL_ERROR_MS);
+                return;
             }
-            handler.postDelayed(this, nextPollDelay);
+            long now = SystemClock.elapsedRealtime();
+            if (now < suppressPanelUntil) {
+                hidePanel();
+                updateNotification(NOTIFICATION_HIDDEN);
+                scheduleForegroundPoll(ForegroundPollPolicy.VISIBLE_DELAY_MS);
+                return;
+            }
+            ForegroundAppDetector detector = foregroundDetector();
+            boolean deviceReady = detector.isDeviceReady();
+            if (deviceReady && !deviceWasReady) {
+                fastProbeUntil = now + ForegroundPollPolicy.FAST_PROBE_DURATION_MS;
+            }
+            deviceWasReady = deviceReady;
+            if (!deviceReady) {
+                hidePanel();
+                updateNotification(NOTIFICATION_HIDDEN);
+                scheduleForegroundPoll(ForegroundPollPolicy.nextDelay(
+                        false, false, now, fastProbeUntil));
+                return;
+            }
+            if (foregroundQueryInFlight) {
+                visibilityCheckPending = true;
+                return;
+            }
+            foregroundQueryInFlight = true;
+            try {
+                foregroundExecutor.execute(() -> {
+                    boolean homeForeground = false;
+                    try {
+                        homeForeground = detector.isHomeForeground();
+                    } catch (RuntimeException error) {
+                        AppLog.warn("HOME visibility query failed", error);
+                    }
+                    boolean result = homeForeground;
+                    handler.post(() -> applyForegroundResult(result));
+                });
+            } catch (RejectedExecutionException ignored) {
+                foregroundQueryInFlight = false;
+            }
         }
-    };
-
-    private final Runnable bootDelayComplete = () -> {
-        prefs.remove(Prefs.KEY_AUTO_START_PENDING_UNTIL_MS);
-        metricsActive = true;
-        syncFuelProvider();
-        foregroundPoll.run();
     };
 
     static void start(android.content.Context context) {
@@ -121,19 +160,12 @@ public final class OverlayService extends Service
         context.startForegroundService(intent);
     }
 
-    static void startAfterBoot(android.content.Context context, int delaySeconds) {
-        long delayMs = Math.max(0,
-                Math.min(Prefs.MAX_AUTO_START_DELAY_SECONDS, delaySeconds)) * 1_000L;
-        Intent intent = new Intent(context, OverlayService.class)
-                .setAction(ACTION_START_AFTER_BOOT)
-                .putExtra(EXTRA_BOOT_DELAY_MS, delayMs);
-        context.startForegroundService(intent);
-    }
-
     @Override
     public void onCreate() {
         super.onCreate();
+        createdAt = SystemClock.elapsedRealtime();
         prefs = new Prefs(this);
+        windowManager = getSystemService(WindowManager.class);
         fuelLevelProvider = new FuelLevelProvider(this, prefs);
         systemMetricsSampler = new SystemMetricsSampler(this, fuelLevelProvider);
         prefs.raw().registerOnSharedPreferenceChangeListener(this);
@@ -150,6 +182,8 @@ public final class OverlayService extends Service
         }
         currentNotificationState = NOTIFICATION_HIDDEN;
         running = true;
+        fastProbeUntil = createdAt + ForegroundPollPolicy.FAST_PROBE_DURATION_MS;
+        registerVisibilityWakeReceiver();
         AppLog.info("Overlay service created");
     }
 
@@ -158,44 +192,21 @@ public final class OverlayService extends Service
         String action = intent == null ? null : intent.getAction();
         if (ACTION_STOP.equals(action)) {
             prefs.putBoolean(Prefs.KEY_SERVICE_ENABLED, false);
-            prefs.remove(Prefs.KEY_AUTO_START_PENDING_UNTIL_MS);
             stopSelf();
             return START_NOT_STICKY;
         }
         prefs.putBoolean(Prefs.KEY_SERVICE_ENABLED, true);
-        handler.removeCallbacks(foregroundPoll);
-        handler.removeCallbacks(bootDelayComplete);
-        long delayMs = 0;
-        if (ACTION_START_AFTER_BOOT.equals(action)) {
-            delayMs = Math.max(0, intent.getLongExtra(EXTRA_BOOT_DELAY_MS, 0));
-            if (delayMs > 0) {
-                prefs.putLong(Prefs.KEY_AUTO_START_PENDING_UNTIL_MS,
-                        System.currentTimeMillis() + delayMs);
-            }
-        } else if (intent == null) {
-            delayMs = Math.max(0,
-                    prefs.getLong(Prefs.KEY_AUTO_START_PENDING_UNTIL_MS, 0)
-                            - System.currentTimeMillis());
-        } else {
-            prefs.remove(Prefs.KEY_AUTO_START_PENDING_UNTIL_MS);
-        }
-        if (delayMs > 0) {
-            metricsActive = false;
-            fuelLevelProvider.stop();
-            hidePanel();
-            updateNotification(NOTIFICATION_BOOT_DELAY);
-            handler.postDelayed(bootDelayComplete, delayMs);
-        } else {
-            prefs.remove(Prefs.KEY_AUTO_START_PENDING_UNTIL_MS);
-            handler.post(foregroundPoll);
-        }
+        requestImmediateVisibilityCheck();
         return START_STICKY;
     }
 
     @Override
     public void onDestroy() {
+        destroyed = true;
         handler.removeCallbacksAndMessages(null);
+        unregisterVisibilityWakeReceiver();
         hidePanel();
+        foregroundExecutor.shutdownNow();
         systemStatusExecutor.shutdownNow();
         if (fuelLevelProvider != null) {
             fuelLevelProvider.stop();
@@ -207,6 +218,91 @@ public final class OverlayService extends Service
         running = false;
         AppLog.info("Overlay service destroyed");
         super.onDestroy();
+    }
+
+    private void applyForegroundResult(boolean homeForeground) {
+        if (destroyed) {
+            return;
+        }
+        foregroundQueryInFlight = false;
+        if (visibilityCheckPending) {
+            visibilityCheckPending = false;
+            handler.post(foregroundPoll);
+            return;
+        }
+        if (!prefs.getBoolean(Prefs.KEY_SERVICE_ENABLED, false)) {
+            stopSelf();
+            return;
+        }
+        boolean deviceReady = foregroundDetector().isDeviceReady();
+        boolean panelAllowed = SystemClock.elapsedRealtime() >= suppressPanelUntil;
+        boolean hasApps = false;
+        if (homeForeground && deviceReady && panelAllowed) {
+            hasApps = showPanel();
+            if (hasApps) {
+                if (!metricsActive) {
+                    metricsActive = true;
+                    syncFuelProvider();
+                }
+                refreshSystemStatusIfNeeded();
+            }
+            updateNotification(hasApps ? NOTIFICATION_VISIBLE : NOTIFICATION_NO_APPS);
+        } else {
+            hidePanel();
+            updateNotification(NOTIFICATION_HIDDEN);
+        }
+        long now = SystemClock.elapsedRealtime();
+        long nextDelay = homeForeground && deviceReady && panelAllowed && !hasApps
+                ? POLL_ERROR_MS
+                : ForegroundPollPolicy.nextDelay(
+                        homeForeground && panelAllowed, deviceReady, now, fastProbeUntil);
+        scheduleForegroundPoll(nextDelay);
+    }
+
+    private void requestImmediateVisibilityCheck() {
+        fastProbeUntil = SystemClock.elapsedRealtime()
+                + ForegroundPollPolicy.FAST_PROBE_DURATION_MS;
+        handler.removeCallbacks(foregroundPoll);
+        if (foregroundQueryInFlight) {
+            visibilityCheckPending = true;
+        } else {
+            handler.post(foregroundPoll);
+        }
+    }
+
+    private void scheduleForegroundPoll(long delayMs) {
+        if (destroyed) {
+            return;
+        }
+        handler.removeCallbacks(foregroundPoll);
+        handler.postDelayed(foregroundPoll, delayMs);
+    }
+
+    @SuppressWarnings("deprecation")
+    private void registerVisibilityWakeReceiver() {
+        IntentFilter filter = new IntentFilter();
+        filter.addAction(Intent.ACTION_SCREEN_ON);
+        filter.addAction(Intent.ACTION_SCREEN_OFF);
+        filter.addAction(Intent.ACTION_USER_PRESENT);
+        filter.addAction(Intent.ACTION_USER_UNLOCKED);
+        if (Build.VERSION.SDK_INT >= 33) {
+            registerReceiver(visibilityWakeReceiver, filter, Context.RECEIVER_NOT_EXPORTED);
+        } else {
+            registerReceiver(visibilityWakeReceiver, filter);
+        }
+        visibilityReceiverRegistered = true;
+    }
+
+    private void unregisterVisibilityWakeReceiver() {
+        if (!visibilityReceiverRegistered) {
+            return;
+        }
+        try {
+            unregisterReceiver(visibilityWakeReceiver);
+        } catch (IllegalArgumentException ignored) {
+            // The process may already have discarded receiver registration.
+        }
+        visibilityReceiverRegistered = false;
     }
 
     @Override
@@ -222,9 +318,7 @@ public final class OverlayService extends Service
     public void onSharedPreferenceChanged(SharedPreferences sharedPreferences, String key) {
         if (Prefs.KEY_POSITION_X.equals(key) || Prefs.KEY_POSITION_Y.equals(key)
                 || Prefs.KEY_SERVICE_ENABLED.equals(key)
-                || Prefs.KEY_AUTO_START.equals(key)
-                || Prefs.KEY_AUTO_START_DELAY_SECONDS.equals(key)
-                || Prefs.KEY_AUTO_START_PENDING_UNTIL_MS.equals(key)) {
+                || Prefs.KEY_AUTO_START.equals(key)) {
             return;
         }
         handler.post(() -> {
@@ -292,6 +386,9 @@ public final class OverlayService extends Service
             panel = candidate;
             panelParams = params;
             nextSystemStatusRefresh = 0;
+            AppLog.info("Overlay panel attached t+"
+                    + (SystemClock.elapsedRealtime() - createdAt)
+                    + " ms after service creation");
             return true;
         } catch (SecurityException | WindowManager.BadTokenException error) {
             panel = null;
@@ -514,8 +611,6 @@ public final class OverlayService extends Service
         String description;
         if (state == NOTIFICATION_VISIBLE) {
             description = getString(R.string.notification_visible);
-        } else if (state == NOTIFICATION_BOOT_DELAY) {
-            description = getString(R.string.notification_boot_delay);
         } else if (state == NOTIFICATION_PERMISSION_ERROR) {
             description = getString(R.string.notification_permission_error);
         } else if (state == NOTIFICATION_NO_APPS) {

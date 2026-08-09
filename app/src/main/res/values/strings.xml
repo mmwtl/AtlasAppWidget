@@ -5,7 +5,6 @@
     <string name="notification_title">Atlas App Widget работает</string>
     <string name="notification_visible">Панель показывается только поверх лаунчера</string>
     <string name="notification_hidden">Панель скрыта: открыто другое приложение</string>
-    <string name="notification_boot_delay">Ожидание задержки автозапуска</string>
     <string name="notification_permission_error">Проверьте разрешения наложения и статистики использования</string>
     <string name="notification_no_apps">Панель скрыта: выберите хотя бы одно приложение</string>
     <string name="stop">Остановить</string>
@@ -63,8 +62,6 @@
     <string name="service_title">Запуск и сервис</string>
     <string name="auto_start">Автозапуск после загрузки ГУ</string>
     <string name="auto_start_permission_warning">Автозапуск сохранён, но без двух специальных разрешений он не сработает</string>
-    <string name="auto_start_delay">Задержка автозапуска</string>
-    <string name="auto_start_delay_hint">Применяется только после загрузки ГУ; ручной запуск выполняется сразу. Если другим виджетам не хватает ресурсов при запуске системы, увеличьте задержку.</string>
     <string name="start_panel">Запустить панель</string>
     <string name="reset_panel_position">Сбросить позицию панели</string>
     <string name="position_reset">Позиция сброшена</string>
@@ -150,17 +147,12 @@
     <string name="shape_circle">круг</string>
     <string name="radius_rectangle">прямоугольник</string>
     <string name="radius_full">полностью</string>
-    <string name="delay_none">без задержки</string>
-    <string name="delay_seconds">%1$d сек</string>
-    <string name="delay_minutes">%1$d мин</string>
-    <string name="delay_minutes_seconds">%1$d мин %2$d сек</string>
     <string name="status_overlay_allowed">✓ Наложение разрешено</string>
     <string name="status_overlay_denied">! Наложение не разрешено</string>
     <string name="status_usage_allowed">✓ Статистика использования доступна</string>
     <string name="status_usage_denied">! Нет доступа к foreground-приложению</string>
     <string name="status_notifications_allowed">✓ Уведомления разрешены</string>
     <string name="status_notifications_denied">! Уведомления отключены (панель всё равно может работать)</string>
-    <string name="status_boot_delay">● Идёт задержка автозапуска; панель ещё не создана</string>
     <string name="status_service_running">● Панель запущена; вне лаунчера она скрыта</string>
     <string name="status_service_waiting">◌ Панель ожидает запуска или перезапуска системой</string>
     <string name="status_service_stopped">○ Панель остановлена</string>
