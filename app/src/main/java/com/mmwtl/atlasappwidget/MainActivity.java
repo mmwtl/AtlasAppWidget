@@ -10,6 +10,8 @@ import android.graphics.Color;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.provider.Settings;
 import android.text.InputType;
 import android.view.Gravity;
@@ -28,6 +30,8 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import java.util.List;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 public final class MainActivity extends ScaledActivity
         implements SharedPreferences.OnSharedPreferenceChangeListener {
@@ -36,7 +40,11 @@ public final class MainActivity extends ScaledActivity
     }
 
     private static final int REQUEST_NOTIFICATIONS = 301;
+    private static final int REQUEST_EXPORT_SETTINGS = 302;
+    private static final int REQUEST_IMPORT_SETTINGS = 303;
 
+    private final Handler main = new Handler(Looper.getMainLooper());
+    private final ExecutorService ioExecutor = Executors.newSingleThreadExecutor();
     private Prefs prefs;
     private TextView overlayStatus;
     private TextView usageStatus;
@@ -62,7 +70,10 @@ public final class MainActivity extends ScaledActivity
     private FrameLayout previewContainer;
     private Button backgroundColorButton;
     private Button backgroundStrokeColorButton;
+    private Button exportSettingsButton;
+    private Button importSettingsButton;
     private boolean updatingSwitch;
+    private volatile boolean applyingSettings;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -84,11 +95,30 @@ public final class MainActivity extends ScaledActivity
     @Override
     protected void onDestroy() {
         prefs.raw().unregisterOnSharedPreferenceChangeListener(this);
+        main.removeCallbacksAndMessages(null);
+        ioExecutor.shutdownNow();
         super.onDestroy();
     }
 
     @Override
+    @SuppressWarnings("deprecation")
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if (resultCode != RESULT_OK || data == null || data.getData() == null) {
+            return;
+        }
+        if (requestCode == REQUEST_EXPORT_SETTINGS) {
+            exportSettings(data.getData());
+        } else if (requestCode == REQUEST_IMPORT_SETTINGS) {
+            readSettingsForImport(data.getData());
+        }
+    }
+
+    @Override
     public void onSharedPreferenceChanged(SharedPreferences sharedPreferences, String key) {
+        if (applyingSettings) {
+            return;
+        }
         runOnUiThread(() -> {
             if (Prefs.KEY_APP_UI_SCALE_TENTHS.equals(key)) {
                 recreate();
@@ -539,9 +569,29 @@ public final class MainActivity extends ScaledActivity
         scale.addView(scaleHint);
         addScaleSlider(scale);
 
+        LinearLayout settingsBackup = Ui.card(this);
+        settingsBackup.addView(Ui.heading(this, R.string.settings_backup_title, 20));
+        TextView settingsBackupHint = Ui.text(this,
+                R.string.settings_backup_hint,
+                13,
+                Ui.TEXT_SECONDARY
+        );
+        settingsBackupHint.setLineSpacing(0, 1.1f);
+        Ui.topMargin(settingsBackupHint, 8);
+        settingsBackup.addView(settingsBackupHint);
+        exportSettingsButton = Ui.button(this, R.string.export_settings);
+        Ui.topMargin(exportSettingsButton, 12);
+        exportSettingsButton.setOnClickListener(view -> chooseSettingsExport());
+        settingsBackup.addView(exportSettingsButton);
+        importSettingsButton = Ui.button(this, R.string.import_settings);
+        Ui.topMargin(importSettingsButton, 10);
+        importSettingsButton.setOnClickListener(view -> chooseSettingsImport());
+        settingsBackup.addView(importSettingsButton);
+
         addSectionHeading(content, R.string.settings_section_system, true);
         content.addView(permissions);
         content.addView(service);
+        content.addView(settingsBackup);
 
         addSectionHeading(content, R.string.settings_section_content, false);
         content.addView(apps);
@@ -904,6 +954,131 @@ public final class MainActivity extends ScaledActivity
                 getString(R.string.stroke_color),
                 prefs.getInt(Prefs.KEY_BACKGROUND_STROKE_COLOR, Ui.ACCENT)
         );
+    }
+
+    @SuppressWarnings("deprecation")
+    private void chooseSettingsExport() {
+        Intent picker = new Intent(Intent.ACTION_CREATE_DOCUMENT)
+                .addCategory(Intent.CATEGORY_OPENABLE)
+                .setType("application/json")
+                .putExtra(Intent.EXTRA_TITLE, SettingsBackup.FILE_NAME);
+        launchFilePicker(picker, REQUEST_EXPORT_SETTINGS);
+    }
+
+    @SuppressWarnings("deprecation")
+    private void chooseSettingsImport() {
+        Intent picker = new Intent(Intent.ACTION_OPEN_DOCUMENT)
+                .addCategory(Intent.CATEGORY_OPENABLE)
+                .setType("application/json");
+        picker.putExtra(Intent.EXTRA_MIME_TYPES,
+                new String[]{"application/json", "text/json", "text/plain",
+                        "application/octet-stream"});
+        launchFilePicker(picker, REQUEST_IMPORT_SETTINGS);
+    }
+
+    @SuppressWarnings("deprecation")
+    private void launchFilePicker(Intent picker, int requestCode) {
+        try {
+            startActivityForResult(picker, requestCode);
+        } catch (ActivityNotFoundException error) {
+            Toast.makeText(this, R.string.no_file_picker, Toast.LENGTH_LONG).show();
+        }
+    }
+
+    private void exportSettings(Uri uri) {
+        setSettingsTransferEnabled(false);
+        android.content.Context appContext = getApplicationContext();
+        ioExecutor.execute(() -> {
+            try {
+                SettingsBackup.write(appContext, prefs, uri);
+                main.post(() -> {
+                    if (isDestroyed()) return;
+                    setSettingsTransferEnabled(true);
+                    Toast.makeText(this, R.string.settings_exported,
+                            Toast.LENGTH_LONG).show();
+                });
+            } catch (Exception error) {
+                AppLog.warn("Cannot export settings", error);
+                showSettingsTransferError(R.string.settings_export_failed, error);
+            }
+        });
+    }
+
+    private void readSettingsForImport(Uri uri) {
+        setSettingsTransferEnabled(false);
+        android.content.Context appContext = getApplicationContext();
+        ioExecutor.execute(() -> {
+            try {
+                SettingsBackup.Data imported = SettingsBackup.read(appContext, uri);
+                main.post(() -> {
+                    if (isDestroyed()) return;
+                    setSettingsTransferEnabled(true);
+                    confirmSettingsImport(imported);
+                });
+            } catch (Exception error) {
+                AppLog.warn("Cannot read settings backup", error);
+                showSettingsTransferError(R.string.settings_import_read_failed, error);
+            }
+        });
+    }
+
+    private void confirmSettingsImport(SettingsBackup.Data imported) {
+        new AlertDialog.Builder(this)
+                .setTitle(R.string.settings_import_confirm_title)
+                .setMessage(R.string.settings_import_confirm_message)
+                .setNegativeButton(R.string.cancel, null)
+                .setPositiveButton(R.string.import_settings_confirm,
+                        (dialog, which) -> applySettings(imported))
+                .show();
+    }
+
+    private void applySettings(SettingsBackup.Data imported) {
+        setSettingsTransferEnabled(false);
+        applyingSettings = true;
+        ioExecutor.execute(() -> {
+            boolean saved;
+            try {
+                saved = prefs.replacePortableSettings(imported);
+            } catch (RuntimeException error) {
+                AppLog.warn("Cannot apply imported settings", error);
+                main.post(() -> {
+                    applyingSettings = false;
+                    if (isDestroyed()) return;
+                    setSettingsTransferEnabled(true);
+                    Toast.makeText(this, R.string.settings_import_save_failed,
+                            Toast.LENGTH_LONG).show();
+                });
+                return;
+            }
+            main.post(() -> {
+                applyingSettings = false;
+                if (isDestroyed()) return;
+                setSettingsTransferEnabled(true);
+                if (!saved) {
+                    Toast.makeText(this, R.string.settings_import_save_failed,
+                            Toast.LENGTH_LONG).show();
+                    return;
+                }
+                Toast.makeText(this, R.string.settings_imported,
+                        Toast.LENGTH_LONG).show();
+                recreate();
+            });
+        });
+    }
+
+    private void showSettingsTransferError(int fallbackResource, Exception error) {
+        String detail = error.getMessage() == null || error.getMessage().isBlank()
+                ? getString(fallbackResource) : error.getMessage();
+        main.post(() -> {
+            if (isDestroyed()) return;
+            setSettingsTransferEnabled(true);
+            Toast.makeText(this, detail, Toast.LENGTH_LONG).show();
+        });
+    }
+
+    private void setSettingsTransferEnabled(boolean enabled) {
+        if (exportSettingsButton != null) exportSettingsButton.setEnabled(enabled);
+        if (importSettingsButton != null) importSettingsButton.setEnabled(enabled);
     }
 
     private Switch addMetricSwitch(

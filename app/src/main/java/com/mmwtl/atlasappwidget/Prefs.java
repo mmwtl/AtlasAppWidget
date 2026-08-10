@@ -51,6 +51,7 @@ final class Prefs {
     static final String KEY_POSITION_Y = "position_y";
     static final String KEY_SELECTED_COMPONENTS = "selected_components_json";
     private static final String KEY_CUSTOM_ICONS = "custom_icons_json";
+    private static final String KEY_PORTABLE_SETTINGS_REVISION = "portable_settings_revision";
 
     static final int POSITION_UNSET = Integer.MIN_VALUE;
 
@@ -201,11 +202,63 @@ final class Prefs {
     }
 
     private void writeSelected(List<String> selected) {
+        values.edit().putString(KEY_SELECTED_COMPONENTS, selectedJson(selected)).apply();
+    }
+
+    boolean replacePortableSettings(SettingsBackup.Data data) {
+        SharedPreferences.Editor editor = values.edit()
+                .putBoolean(KEY_AUTO_START, data.autoStart)
+                .putInt(KEY_APP_UI_SCALE_TENTHS, data.appUiScaleTenths)
+                .putBoolean(KEY_SHOW_DRAG_HANDLE, data.movement.showDragHandle)
+                .putInt(KEY_DRAG_HANDLE_POSITION, data.movement.dragHandlePosition)
+                .putBoolean(KEY_SHOW_APP_LABELS, data.content.showAppLabels)
+                .putBoolean(KEY_SHOW_SYSTEM_STATUS, data.systemStatus.enabled)
+                .putBoolean(KEY_SHOW_CPU_STATUS, data.systemStatus.showCpu)
+                .putBoolean(KEY_SHOW_RAM_STATUS, data.systemStatus.showRam)
+                .putBoolean(KEY_SHOW_FUEL_STATUS, data.systemStatus.showFuel)
+                .putInt(KEY_SYSTEM_STATUS_POSITION, data.systemStatus.position)
+                .putInt(KEY_SYSTEM_STATUS_LINE_HEIGHT_DP, data.systemStatus.lineHeightDp)
+                .putInt(KEY_SYSTEM_STATUS_TEXT_SIZE_SP, data.systemStatus.textSizeSp)
+                .putInt(KEY_SYSTEM_STATUS_TEXT_WEIGHT, data.systemStatus.textWeight)
+                .putBoolean(KEY_USE_CUSTOM_FUEL_FORMULA, data.fuel.useCustomFormula)
+                .putFloat(KEY_FUEL_MULTIPLIER, data.fuel.multiplier)
+                .putFloat(KEY_FUEL_OFFSET, data.fuel.offset)
+                .putInt(KEY_WIDTH_PERCENT, data.geometry.widthPercent)
+                .putInt(KEY_COLUMNS, data.geometry.columns)
+                .putInt(KEY_ROWS, data.geometry.rows)
+                .putInt(KEY_ICON_SIZE_DP, data.geometry.iconSizeDp)
+                .putInt(KEY_ICON_CORNER_PERCENT, data.geometry.iconCornerPercent)
+                .putInt(KEY_PADDING_DP, data.geometry.paddingDp)
+                .putInt(KEY_GAP_DP, data.geometry.gapDp)
+                .putInt(KEY_BACKGROUND_COLOR, data.appearance.backgroundColor)
+                .putInt(KEY_BACKGROUND_ALPHA, data.appearance.backgroundAlpha)
+                .putBoolean(KEY_BACKGROUND_STROKE_ENABLED,
+                        data.appearance.backgroundStrokeEnabled)
+                .putInt(KEY_BACKGROUND_STROKE_WIDTH_DP,
+                        data.appearance.backgroundStrokeWidthDp)
+                .putInt(KEY_BACKGROUND_STROKE_ALPHA,
+                        data.appearance.backgroundStrokeAlpha)
+                .putInt(KEY_BACKGROUND_STROKE_COLOR,
+                        data.appearance.backgroundStrokeColor)
+                .putInt(KEY_PANEL_RADIUS_DP, data.appearance.panelRadiusDp)
+                .putString(KEY_SELECTED_COMPONENTS, selectedJson(data.selectedComponents))
+                .putInt(KEY_PORTABLE_SETTINGS_REVISION,
+                        values.getInt(KEY_PORTABLE_SETTINGS_REVISION, 0) + 1);
+        if (data.positionX == null) {
+            editor.remove(KEY_POSITION_X).remove(KEY_POSITION_Y);
+        } else {
+            editor.putInt(KEY_POSITION_X, data.positionX)
+                    .putInt(KEY_POSITION_Y, data.positionY);
+        }
+        return editor.commit();
+    }
+
+    private static String selectedJson(List<String> selected) {
         JSONArray array = new JSONArray();
         for (String component : selected) {
             array.put(component);
         }
-        values.edit().putString(KEY_SELECTED_COMPONENTS, array.toString()).apply();
+        return array.toString();
     }
 
     synchronized String customIcon(String component) {

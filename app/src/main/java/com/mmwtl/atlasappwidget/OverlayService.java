@@ -64,6 +64,13 @@ public final class OverlayService extends Service
     private PanelView panel;
     private WindowManager.LayoutParams panelParams;
     private FuelDetailsView fuelDetailsView;
+    private final Runnable applyPreferenceChanges = () -> {
+        syncFuelProvider();
+        if (panel != null) {
+            hidePanel();
+            showPanel();
+        }
+    };
     private int currentNotificationState;
     private long suppressPanelUntil;
     private long nextSystemStatusRefresh;
@@ -321,13 +328,8 @@ public final class OverlayService extends Service
                 || Prefs.KEY_AUTO_START.equals(key)) {
             return;
         }
-        handler.post(() -> {
-            syncFuelProvider();
-            if (panel != null) {
-                hidePanel();
-                showPanel();
-            }
-        });
+        handler.removeCallbacks(applyPreferenceChanges);
+        handler.post(applyPreferenceChanges);
     }
 
     private boolean showPanel() {
