@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="app/src/main/res/drawable-nodpi/ic_launcher_foreground.png" width="160" alt="Иконка Atlas App Widget">
+  <img src="docs/images/app-icon.png" width="160" alt="Иконка Atlas App Widget">
 </p>
 
 <h1 align="center">Atlas App Widget</h1>
