@@ -12,22 +12,23 @@ import android.graphics.drawable.Drawable;
 
 import java.util.Locale;
 
-/** Compact live tank visualization shared by the picker and overlay tile. */
+/** Static fuel-card artwork with live free/filled liter values. */
 final class FuelTileDrawable extends Drawable {
-    private static final int EMPTY_COLOR = 0xFF202020;
-    private static final int FILL_COLOR = 0xFF8BA37A;
-    private static final int OUTLINE_COLOR = 0xFF7893A0;
+    private static final int BACKGROUND_COLOR = 0xFF171717;
+    private static final int FUEL_COLOR = 0xFF7893A0;
+    private static final int DIVIDER_COLOR = 0xFFD4D4D4;
+    private static final int DOT_COLOR = 0xFF333333;
     private static final int LIGHT_TEXT = 0xFFF5F5F5;
+    private static final int SECONDARY_TEXT = 0xFFD4D4D4;
     private static final int DARK_TEXT = 0xFF171717;
+    private static final float FIXED_FUEL_TOP = 0.48f;
 
     private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
-    private final Path clipPath = new Path();
-    private final Path fillPath = new Path();
+    private final Path path = new Path();
     private final String freeLabel;
     private final String filledLabel;
     private int liters = SystemStatusSnapshot.UNAVAILABLE;
     private int freeLiters = SystemStatusSnapshot.UNAVAILABLE;
-    private int percent;
     private int alpha = 255;
 
     FuelTileDrawable(String freeLabel, String filledLabel) {
@@ -39,19 +40,16 @@ final class FuelTileDrawable extends Drawable {
         if (reading == null || !reading.isAvailable()) {
             liters = SystemStatusSnapshot.UNAVAILABLE;
             freeLiters = SystemStatusSnapshot.UNAVAILABLE;
-            percent = 0;
         } else {
             liters = reading.liters;
             freeLiters = reading.freeLiters;
-            percent = reading.percent;
         }
         invalidateSelf();
     }
 
     void showPreview() {
-        liters = 29;
+        liters = 42;
         freeLiters = FuelLevelProvider.TANK_CAPACITY_LITERS - liters;
-        percent = Math.round(liters * 100f / FuelLevelProvider.TANK_CAPACITY_LITERS);
         invalidateSelf();
     }
 
@@ -64,95 +62,136 @@ final class FuelTileDrawable extends Drawable {
         float width = bounds.width();
         float height = bounds.height();
         float minimum = Math.min(width, height);
-        float radius = minimum * 0.14f;
-        RectF area = new RectF(bounds);
+        float fuelTop = bounds.top + height * FIXED_FUEL_TOP;
 
+        // The parent icon mask owns the outer shape. Filling the complete bounds avoids a
+        // second, conflicting corner radius when the user changes the common icon shape.
         paint.setStyle(Paint.Style.FILL);
-        paint.setColor(withAlpha(EMPTY_COLOR));
-        canvas.drawRoundRect(area, radius, radius, paint);
+        paint.setColor(withAlpha(BACKGROUND_COLOR));
+        canvas.drawRect(bounds.left, bounds.top, bounds.right, fuelTop, paint);
+        paint.setColor(withAlpha(FUEL_COLOR));
+        canvas.drawRect(bounds.left, fuelTop, bounds.right, bounds.bottom, paint);
 
-        clipPath.reset();
-        clipPath.addRoundRect(area, radius, radius, Path.Direction.CW);
-        canvas.save();
-        canvas.clipPath(clipPath);
-        float levelY = bounds.bottom - height
-                * Math.max(0, Math.min(100, percent)) / 100f;
-        if (percent > 0) {
-            float wave = Math.max(1f, minimum * 0.025f);
-            fillPath.reset();
-            fillPath.moveTo(bounds.left, levelY);
-            fillPath.cubicTo(
-                    bounds.left + width * 0.16f, levelY - wave,
-                    bounds.left + width * 0.34f, levelY + wave,
-                    bounds.left + width * 0.50f, levelY
-            );
-            fillPath.cubicTo(
-                    bounds.left + width * 0.66f, levelY - wave,
-                    bounds.left + width * 0.84f, levelY + wave,
-                    bounds.right, levelY
-            );
-            fillPath.lineTo(bounds.right, bounds.bottom);
-            fillPath.lineTo(bounds.left, bounds.bottom);
-            fillPath.close();
-            paint.setColor(withAlpha(FILL_COLOR));
-            canvas.drawPath(fillPath, paint);
-        }
-        canvas.restore();
+        paint.setColor(withAlpha(DIVIDER_COLOR));
+        canvas.drawRect(bounds.left, fuelTop,
+                bounds.right, fuelTop + Math.max(1f, minimum * 0.008f), paint);
 
-        paint.setStyle(Paint.Style.STROKE);
-        paint.setStrokeWidth(Math.max(1f, minimum * 0.045f));
-        paint.setColor(withAlpha(OUTLINE_COLOR));
-        canvas.drawRoundRect(area, radius, radius, paint);
+        drawDotField(canvas, bounds, minimum);
 
-        if (liters == SystemStatusSnapshot.UNAVAILABLE) {
-            drawCenteredText(canvas, "—", bounds.centerX(),
-                    bounds.centerY(), minimum * 0.30f, LIGHT_TEXT, true);
-            return;
-        }
-        drawCenteredText(canvas,
-                String.format(Locale.getDefault(), "%d л", freeLiters),
-                bounds.centerX(), bounds.top + height * 0.29f,
-                minimum * 0.22f,
-                textColorAt(bounds.top + height * 0.29f, levelY),
-                true);
-        drawCenteredText(canvas, freeLabel,
-                bounds.centerX(), bounds.top + height * 0.42f,
-                minimum * 0.085f,
-                textColorAt(bounds.top + height * 0.42f, levelY),
-                false);
-        drawCenteredText(canvas,
-                String.format(Locale.getDefault(), "%d л", liters),
-                bounds.centerX(), bounds.top + height * 0.72f,
-                minimum * 0.22f,
-                textColorAt(bounds.top + height * 0.72f, levelY),
-                true);
-        drawCenteredText(canvas, filledLabel,
-                bounds.centerX(), bounds.top + height * 0.85f,
-                minimum * 0.085f,
-                textColorAt(bounds.top + height * 0.85f, levelY),
-                false);
+        String free = freeLiters == SystemStatusSnapshot.UNAVAILABLE
+                ? "—" : String.format(Locale.getDefault(), "%d", freeLiters);
+        String filled = liters == SystemStatusSnapshot.UNAVAILABLE
+                ? "—" : String.format(Locale.getDefault(), "%d", liters);
+        float left = bounds.left + width * 0.095f;
+        drawValue(canvas, free, left, bounds.top + height * 0.245f,
+                minimum * 0.225f, LIGHT_TEXT);
+        drawLabel(canvas, freeLabel, left, bounds.top + height * 0.385f,
+                minimum * 0.092f, SECONDARY_TEXT);
+        drawValue(canvas, filled, left, bounds.top + height * 0.700f,
+                minimum * 0.235f, DARK_TEXT);
+        drawLabel(canvas, filledLabel, left, bounds.top + height * 0.855f,
+                minimum * 0.096f, DARK_TEXT);
+        drawFuelPump(canvas, bounds, minimum);
     }
 
-    private void drawCenteredText(
+    private void drawDotField(Canvas canvas, Rect bounds, float minimum) {
+        paint.setStyle(Paint.Style.FILL);
+        int columns = 6;
+        int rows = 6;
+        float startX = bounds.left + bounds.width() * 0.57f;
+        float startY = bounds.top + bounds.height() * 0.12f;
+        float stepX = bounds.width() * 0.065f;
+        float stepY = bounds.height() * 0.047f;
+        float radius = Math.max(0.7f, minimum * 0.0105f);
+        for (int row = 0; row < rows; row++) {
+            for (int column = 0; column < columns; column++) {
+                int fade = Math.max(20, 150 - row * 23 + column * 4);
+                paint.setColor(withCombinedAlpha(DOT_COLOR, fade));
+                canvas.drawCircle(startX + column * stepX,
+                        startY + row * stepY, radius, paint);
+            }
+        }
+    }
+
+    private void drawValue(
             Canvas canvas,
-            String text,
-            float centerX,
-            float baselineCenterY,
+            String value,
+            float left,
+            float centerY,
             float textSize,
-            int color,
-            boolean bold
+            int color
     ) {
         paint.setStyle(Paint.Style.FILL);
         paint.setColor(withAlpha(color));
-        paint.setTextAlign(Paint.Align.CENTER);
+        paint.setTextAlign(Paint.Align.LEFT);
         paint.setTextSize(Math.max(1f, textSize));
-        paint.setTypeface(Typeface.create(
-                Typeface.DEFAULT,
-                bold ? Typeface.BOLD : Typeface.NORMAL
-        ));
+        paint.setTypeface(Typeface.create(Typeface.DEFAULT, Typeface.BOLD));
         Paint.FontMetrics metrics = paint.getFontMetrics();
-        float baseline = baselineCenterY - (metrics.ascent + metrics.descent) / 2f;
-        canvas.drawText(text, centerX, baseline, paint);
+        float baseline = centerY - (metrics.ascent + metrics.descent) / 2f;
+        canvas.drawText(value, left, baseline, paint);
+
+        float numberWidth = paint.measureText(value);
+        paint.setTextSize(Math.max(1f, textSize * 0.72f));
+        paint.setTypeface(Typeface.create(Typeface.DEFAULT, Typeface.NORMAL));
+        canvas.drawText("L", left + numberWidth + textSize * 0.15f, baseline, paint);
+    }
+
+    private void drawLabel(
+            Canvas canvas,
+            String text,
+            float left,
+            float centerY,
+            float textSize,
+            int color
+    ) {
+        paint.setStyle(Paint.Style.FILL);
+        paint.setColor(withAlpha(color));
+        paint.setTextAlign(Paint.Align.LEFT);
+        paint.setTextSize(Math.max(1f, textSize));
+        paint.setTypeface(Typeface.create("sans-serif-condensed", Typeface.BOLD));
+        Paint.FontMetrics metrics = paint.getFontMetrics();
+        float baseline = centerY - (metrics.ascent + metrics.descent) / 2f;
+        canvas.drawText(text, left, baseline, paint);
+    }
+
+    private void drawFuelPump(Canvas canvas, Rect bounds, float minimum) {
+        float left = bounds.left + bounds.width() * 0.785f;
+        float top = bounds.top + bounds.height() * 0.755f;
+        float bodyWidth = bounds.width() * 0.085f;
+        float bodyHeight = bounds.height() * 0.145f;
+        float stroke = Math.max(1f, minimum * 0.014f);
+
+        paint.setStyle(Paint.Style.STROKE);
+        paint.setStrokeWidth(stroke);
+        paint.setStrokeCap(Paint.Cap.ROUND);
+        paint.setStrokeJoin(Paint.Join.ROUND);
+        paint.setColor(withAlpha(DARK_TEXT));
+        RectF body = new RectF(left, top, left + bodyWidth, top + bodyHeight);
+        canvas.drawRoundRect(body, stroke * 1.3f, stroke * 1.3f, paint);
+
+        RectF display = new RectF(
+                left + bodyWidth * 0.17f,
+                top + bodyHeight * 0.13f,
+                left + bodyWidth * 0.83f,
+                top + bodyHeight * 0.48f
+        );
+        canvas.drawRoundRect(display, stroke * 0.45f, stroke * 0.45f, paint);
+        canvas.drawLine(left - stroke * 1.3f, body.bottom,
+                body.right + stroke * 1.3f, body.bottom, paint);
+
+        path.reset();
+        path.moveTo(body.right, top + bodyHeight * 0.31f);
+        path.lineTo(body.right + bodyWidth * 0.27f, top + bodyHeight * 0.42f);
+        path.lineTo(body.right + bodyWidth * 0.27f, top + bodyHeight * 0.69f);
+        path.cubicTo(
+                body.right + bodyWidth * 0.27f, top + bodyHeight * 0.90f,
+                body.right + bodyWidth * 0.62f, top + bodyHeight * 0.91f,
+                body.right + bodyWidth * 0.62f, top + bodyHeight * 0.70f
+        );
+        path.lineTo(body.right + bodyWidth * 0.62f, top + bodyHeight * 0.48f);
+        canvas.drawPath(path, paint);
+
+        paint.setStrokeCap(Paint.Cap.BUTT);
     }
 
     @Override
@@ -187,7 +226,7 @@ final class FuelTileDrawable extends Drawable {
         return (color & 0x00FFFFFF) | (alpha << 24);
     }
 
-    private static int textColorAt(float centerY, float levelY) {
-        return centerY >= levelY ? DARK_TEXT : LIGHT_TEXT;
+    private int withCombinedAlpha(int color, int localAlpha) {
+        return (color & 0x00FFFFFF) | (alpha * localAlpha / 255 << 24);
     }
 }

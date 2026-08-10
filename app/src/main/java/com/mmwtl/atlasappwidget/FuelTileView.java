@@ -41,8 +41,8 @@ final class FuelTileView extends View {
         setContentDescription(String.format(
                 Locale.getDefault(),
                 getContext().getString(R.string.fuel_tile_content_description),
-                25,
-                29
+                FuelLevelProvider.TANK_CAPACITY_LITERS - 42,
+                42
         ));
         invalidate();
     }

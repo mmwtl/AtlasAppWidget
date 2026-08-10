@@ -116,8 +116,8 @@
     <string name="fuel_tile_name">Топливо</string>
     <string name="fuel_tile_picker_description">Встроенная живая плитка бака</string>
     <string name="fuel_tile_component_label">Atlas App Widget · датчик GInputBridge</string>
-    <string name="fuel_free_short">СВОБ.</string>
-    <string name="fuel_filled_short">ЗАЛ.</string>
+    <string name="fuel_free_short">СВОБОДНО</string>
+    <string name="fuel_filled_short">ТОПЛИВО</string>
     <string name="fuel_tile_content_description">%1$d л свободно, %2$d л залито</string>
     <string name="fuel_data_unavailable">Данные топлива недоступны</string>
     <string name="fuel_details_title">Данные топлива</string>
