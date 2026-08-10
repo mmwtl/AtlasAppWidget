@@ -4,10 +4,6 @@
 ориентации. Это не `AppWidget`: панель реализована отдельным foreground service и
 окном `TYPE_APPLICATION_OVERLAY`.
 
-Package name: `com.mmwtl.atlasappwidget`. Это новый Android application ID по
-отношению к прежнему `mmwtl.atlasappwidget`, поэтому такая миграция устанавливается
-как отдельное приложение и не может автоматически забрать приватные настройки
-старого пакета.
 
 ## Что реализовано
 
