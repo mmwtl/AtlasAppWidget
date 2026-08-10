@@ -98,6 +98,7 @@
     <string name="import_settings">Импортировать настройки из JSON</string>
     <string name="import_settings_confirm">Импортировать</string>
     <string name="settings_exported">Настройки экспортированы</string>
+    <string name="settings_exported_to_downloads">Настройки экспортированы: Download/%1$s</string>
     <string name="settings_imported">Настройки импортированы</string>
     <string name="settings_export_failed">Не удалось экспортировать настройки</string>
     <string name="settings_import_read_failed">Не удалось прочитать настройки</string>

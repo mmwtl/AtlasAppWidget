@@ -962,7 +962,9 @@ public final class MainActivity extends ScaledActivity
                 .addCategory(Intent.CATEGORY_OPENABLE)
                 .setType("application/json")
                 .putExtra(Intent.EXTRA_TITLE, SettingsBackup.FILE_NAME);
-        launchFilePicker(picker, REQUEST_EXPORT_SETTINGS);
+        if (!launchFilePicker(picker, REQUEST_EXPORT_SETTINGS)) {
+            exportSettingsToDownloads();
+        }
     }
 
     @SuppressWarnings("deprecation")
@@ -973,16 +975,47 @@ public final class MainActivity extends ScaledActivity
         picker.putExtra(Intent.EXTRA_MIME_TYPES,
                 new String[]{"application/json", "text/json", "text/plain",
                         "application/octet-stream"});
-        launchFilePicker(picker, REQUEST_IMPORT_SETTINGS);
+        if (!launchFilePicker(picker, REQUEST_IMPORT_SETTINGS)) {
+            Intent fallback = new Intent(Intent.ACTION_GET_CONTENT)
+                    .addCategory(Intent.CATEGORY_OPENABLE)
+                    .setType("application/json");
+            fallback.putExtra(Intent.EXTRA_MIME_TYPES,
+                    new String[]{"application/json", "text/json", "text/plain",
+                            "application/octet-stream"});
+            if (!launchFilePicker(fallback, REQUEST_IMPORT_SETTINGS)) {
+                Toast.makeText(this, R.string.no_file_picker, Toast.LENGTH_LONG).show();
+            }
+        }
     }
 
     @SuppressWarnings("deprecation")
-    private void launchFilePicker(Intent picker, int requestCode) {
+    private boolean launchFilePicker(Intent picker, int requestCode) {
         try {
             startActivityForResult(picker, requestCode);
+            return true;
         } catch (ActivityNotFoundException error) {
-            Toast.makeText(this, R.string.no_file_picker, Toast.LENGTH_LONG).show();
+            return false;
         }
+    }
+
+    private void exportSettingsToDownloads() {
+        setSettingsTransferEnabled(false);
+        android.content.Context appContext = getApplicationContext();
+        ioExecutor.execute(() -> {
+            try {
+                String fileName = SettingsBackup.writeToDownloads(appContext, prefs);
+                main.post(() -> {
+                    if (isDestroyed()) return;
+                    setSettingsTransferEnabled(true);
+                    Toast.makeText(this,
+                            getString(R.string.settings_exported_to_downloads, fileName),
+                            Toast.LENGTH_LONG).show();
+                });
+            } catch (Exception error) {
+                AppLog.warn("Cannot export settings to Downloads", error);
+                showSettingsTransferError(R.string.settings_export_failed, error);
+            }
+        });
     }
 
     private void exportSettings(Uri uri) {
