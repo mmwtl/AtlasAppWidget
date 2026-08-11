@@ -16,45 +16,46 @@ Atlas App Widget размещает поверх домашнего экрана
 
 ## Интерфейс
 
-Снимки сделаны с текущей release-сборки на эмуляторе Android 11 с разрешением 1440×1920. Кадр
-overlay обрезан без масштабирования, чтобы панель и графики CPU, RAM и FUEL были видны крупнее.
-Выбранные ярлыки и показания топлива относятся к демонстрационному состоянию AVD: сторонние
-приложения не входят в Atlas App Widget, а штатная работа приложения не подменяет реальные данные
-автомобиля.
+Панель занимает только выбранную область домашнего экрана: ярлыки остаются доступны поверх HOME,
+не перекрывая управление остальными элементами лаунчера.
+
+<p align="center">
+  <a href="docs/images/home-overview.webp">
+    <img src="docs/images/home-overview.webp" width="720" alt="Atlas App Widget на домашнем экране автомобильной ГУ">
+  </a>
+</p>
+
+<p align="center"><strong>Панель крупным планом</strong></p>
+
+<p align="center">
+  <a href="docs/images/overlay-home.webp">
+    <img src="docs/images/overlay-home.webp" width="720" alt="Ярлыки и плитка топлива Atlas App Widget">
+  </a>
+</p>
+
+Настройки показывают результат в живом предпросмотре. Отдельно регулируются содержимое панели,
+системные индикаторы, геометрия и оформление.
 
 <table>
   <tr>
-    <th>Панель поверх HOME · увеличенный фрагмент</th>
-    <th>Выбор и порядок элементов</th>
-  </tr>
-  <tr>
-    <td>
-      <a href="docs/images/overlay-home.webp">
-        <img src="docs/images/overlay-home.webp" alt="Демонстрационная панель Atlas App Widget поверх HOME">
-      </a>
-    </td>
-    <td>
-      <a href="docs/images/app-picker.webp">
-        <img src="docs/images/app-picker.webp" alt="Демонстрационный выбор приложений, activity и плитки топлива">
-      </a>
-    </td>
-  </tr>
-</table>
-
-<table>
-  <tr>
-    <th>Основные настройки</th>
-    <th>Геометрия и оформление</th>
+    <th>Запуск и содержимое</th>
+    <th>Индикаторы и геометрия</th>
+    <th>Оформление панели</th>
   </tr>
   <tr>
     <td>
       <a href="docs/images/settings-overview.webp">
-        <img src="docs/images/settings-overview.webp" alt="Основные настройки Atlas App Widget">
+        <img src="docs/images/settings-overview.webp" alt="Запуск, импорт настроек и содержимое Atlas App Widget">
+      </a>
+    </td>
+    <td>
+      <a href="docs/images/settings-indicators.webp">
+        <img src="docs/images/settings-indicators.webp" alt="Настройки индикаторов и геометрии Atlas App Widget">
       </a>
     </td>
     <td>
       <a href="docs/images/settings-appearance.webp">
-        <img src="docs/images/settings-appearance.webp" alt="Настройки геометрии и оформления Atlas App Widget">
+        <img src="docs/images/settings-appearance.webp" alt="Настройки оформления Atlas App Widget">
       </a>
     </td>
   </tr>
