@@ -27,9 +27,9 @@ final class FuelDetailsView extends LinearLayout {
         super(context);
         this.prefs = prefs;
         setOrientation(VERTICAL);
-        setPadding(Ui.dp(context, 22), Ui.dp(context, 20),
-                Ui.dp(context, 22), Ui.dp(context, 18));
-        GradientDrawable background = Ui.rounded(0xFA262626, Ui.dp(context, 14));
+        setPadding(Ui.dp(context, 30), Ui.dp(context, 28),
+                Ui.dp(context, 30), Ui.dp(context, 26));
+        GradientDrawable background = Ui.rounded(0xFA262626, Ui.dp(context, 18));
         background.setStroke(Ui.dp(context, 2), Ui.ACCENT);
         setBackground(background);
         setElevation(Ui.dp(context, 12));
@@ -37,13 +37,16 @@ final class FuelDetailsView extends LinearLayout {
         LinearLayout header = new LinearLayout(context);
         header.setOrientation(HORIZONTAL);
         header.setGravity(Gravity.CENTER_VERTICAL);
-        TextView title = Ui.heading(context, R.string.fuel_details_title, 21);
+        TextView title = Ui.heading(context, R.string.fuel_details_title, 28);
         header.addView(title, new LayoutParams(
                 0,
                 ViewGroup.LayoutParams.WRAP_CONTENT,
                 1f
         ));
         Button close = Ui.button(context, R.string.close);
+        close.setTextSize(18);
+        close.setPadding(Ui.dp(context, 20), Ui.dp(context, 14),
+                Ui.dp(context, 20), Ui.dp(context, 14));
         close.setContentDescription(context.getString(R.string.close_fuel_details));
         close.setOnClickListener(view -> onClose.run());
         header.addView(close);
@@ -56,13 +59,13 @@ final class FuelDetailsView extends LinearLayout {
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.WRAP_CONTENT
         );
-        summaryParams.topMargin = Ui.dp(context, 16);
+        summaryParams.topMargin = Ui.dp(context, 22);
         addView(summary, summaryParams);
 
         tank = new FuelTileView(context);
-        int tankSize = Ui.dp(context, 116);
+        int tankSize = Ui.dp(context, 168);
         LayoutParams tankParams = new LayoutParams(tankSize, tankSize);
-        tankParams.rightMargin = Ui.dp(context, 20);
+        tankParams.rightMargin = Ui.dp(context, 28);
         summary.addView(tank, tankParams);
 
         LinearLayout values = new LinearLayout(context);
@@ -73,28 +76,28 @@ final class FuelDetailsView extends LinearLayout {
                 ViewGroup.LayoutParams.WRAP_CONTENT,
                 1f
         ));
-        primary = Ui.heading(context, "", 24);
+        primary = Ui.heading(context, "", 36);
         values.addView(primary);
-        filled = detailLine();
+        filled = detailLine(22);
         values.addView(filled);
-        free = detailLine();
+        free = detailLine(22);
         values.addView(free);
 
-        formula = detailLine();
+        formula = detailLine(19);
         formula.setLineSpacing(0, 1.1f);
         LayoutParams formulaParams = new LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.WRAP_CONTENT
         );
-        formulaParams.topMargin = Ui.dp(context, 16);
+        formulaParams.topMargin = Ui.dp(context, 22);
         addView(formula, formulaParams);
 
-        received = detailLine();
+        received = detailLine(19);
         LayoutParams receivedParams = new LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.WRAP_CONTENT
         );
-        receivedParams.topMargin = Ui.dp(context, 7);
+        receivedParams.topMargin = Ui.dp(context, 10);
         addView(received, receivedParams);
     }
 
@@ -156,8 +159,8 @@ final class FuelDetailsView extends LinearLayout {
         ));
     }
 
-    private TextView detailLine() {
-        TextView line = Ui.text(getContext(), "", 15, Ui.TEXT_SECONDARY);
+    private TextView detailLine(float textSizeSp) {
+        TextView line = Ui.text(getContext(), "", textSizeSp, Ui.TEXT_SECONDARY);
         line.setTextIsSelectable(false);
         return line;
     }

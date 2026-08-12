@@ -532,8 +532,8 @@ public final class OverlayService extends Service
         details.update(fuelLevelProvider.reading());
         Rect bounds = availableBounds();
         int width = Math.max(1, Math.min(
-                Ui.dp(this, 440),
-                bounds.width() - Ui.dp(this, 32)
+                Ui.dp(this, 600),
+                Math.round(bounds.width() * 0.9f)
         ));
         WindowManager.LayoutParams params = new WindowManager.LayoutParams(
                 width,
