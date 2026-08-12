@@ -1,49 +1,87 @@
 package com.mmwtl.atlasappwidget;
 
-import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 import org.junit.Test;
 
+import java.util.Set;
+
 public final class ForegroundEventTrackerTest {
-    @Test
-    public void resumeThenPauseClearsForegroundPackage() {
-        ForegroundEventTracker tracker = new ForegroundEventTracker();
-        tracker.onResumed(100, "launcher");
-        tracker.onStopped(110, "launcher");
+    private static final Set<String> HOME_PACKAGES = Set.of("launcher");
 
-        assertNull(tracker.foregroundPackage());
+    @Test
+    public void pausedHomeRemainsVisibleBehindFocusedFreeformActivity() {
+        ForegroundEventTracker tracker = new ForegroundEventTracker();
+        tracker.onResumed(100, "launcher", "HomeActivity");
+        tracker.onPaused(110, "launcher", "HomeActivity");
+        tracker.onResumed(120, "maps", "MapActivity");
+
+        assertTrue(tracker.isAnyPackageVisible(HOME_PACKAGES));
+    }
+
+    @Test
+    public void stoppedHomeIsHiddenByFullscreenActivity() {
+        ForegroundEventTracker tracker = new ForegroundEventTracker();
+        tracker.onResumed(100, "launcher", "HomeActivity");
+        tracker.onPaused(110, "launcher", "HomeActivity");
+        tracker.onStopped(120, "launcher", "HomeActivity");
+        tracker.onResumed(130, "maps", "MapActivity");
+
+        assertFalse(tracker.isAnyPackageVisible(HOME_PACKAGES));
+    }
+
+    @Test
+    public void stoppingOneHomeActivityDoesNotHideAnotherVisibleHomeActivity() {
+        ForegroundEventTracker tracker = new ForegroundEventTracker();
+        tracker.onResumed(100, "launcher", "HomeActivity");
+        tracker.onResumed(110, "launcher", "AssistantActivity");
+        tracker.onStopped(120, "launcher", "AssistantActivity");
+
+        assertTrue(tracker.isAnyPackageVisible(HOME_PACKAGES));
+    }
+
+    @Test
+    public void staleOverlappingEventCannotRestoreStoppedActivity() {
+        ForegroundEventTracker tracker = new ForegroundEventTracker();
+        tracker.onResumed(100, "launcher", "HomeActivity");
+        tracker.onStopped(200, "launcher", "HomeActivity");
+        tracker.onResumed(150, "launcher", "HomeActivity");
+
+        assertFalse(tracker.isAnyPackageVisible(HOME_PACKAGES));
+    }
+
+    @Test
+    public void packageStopWithoutClassHidesAllActivitiesFromThatPackage() {
+        ForegroundEventTracker tracker = new ForegroundEventTracker();
+        tracker.onResumed(100, "launcher", "HomeActivity");
+        tracker.onResumed(110, "launcher", "AssistantActivity");
+        tracker.onStopped(120, "launcher", null);
+
+        assertFalse(tracker.isAnyPackageVisible(HOME_PACKAGES));
+    }
+
+    @Test
+    public void startupEventClearsActivitiesLeftOpenBeforeRestart() {
+        ForegroundEventTracker tracker = new ForegroundEventTracker();
+        tracker.onResumed(100, "launcher", "HomeActivity");
+        tracker.onReset(200);
+        tracker.onResumed(150, "launcher", "HomeActivity");
+
+        assertFalse(tracker.isAnyPackageVisible(HOME_PACKAGES));
         assertTrue(tracker.hasObservedEvent());
-    }
-
-    @Test
-    public void staleEventCannotReplaceNewerForegroundPackage() {
-        ForegroundEventTracker tracker = new ForegroundEventTracker();
-        tracker.onResumed(200, "maps");
-        tracker.onResumed(150, "launcher");
-
-        assertEquals("maps", tracker.foregroundPackage());
-    }
-
-    @Test
-    public void pauseForDifferentPackageDoesNotClearForeground() {
-        ForegroundEventTracker tracker = new ForegroundEventTracker();
-        tracker.onResumed(100, "launcher");
-        tracker.onStopped(110, "other");
-
-        assertEquals("launcher", tracker.foregroundPackage());
     }
 
     @Test
     public void fallbackSeedStopsAfterRealEventsArrive() {
         ForegroundEventTracker tracker = new ForegroundEventTracker();
         tracker.seed(100, "launcher");
+        assertTrue(tracker.isAnyPackageVisible(HOME_PACKAGES));
         assertFalse(tracker.hasObservedEvent());
-        tracker.onResumed(200, "maps");
+
+        tracker.onResumed(200, "maps", "MapActivity");
         tracker.seed(300, "launcher");
 
-        assertEquals("maps", tracker.foregroundPackage());
+        assertFalse(tracker.isAnyPackageVisible(HOME_PACKAGES));
     }
 }

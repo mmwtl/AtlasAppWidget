@@ -147,13 +147,13 @@ public final class OverlayService extends Service
             foregroundQueryInFlight = true;
             try {
                 foregroundExecutor.execute(() -> {
-                    boolean homeForeground = false;
+                    boolean homeVisible = false;
                     try {
-                        homeForeground = detector.isHomeForeground();
+                        homeVisible = detector.isHomeVisible();
                     } catch (RuntimeException error) {
                         AppLog.warn("HOME visibility query failed", error);
                     }
-                    boolean result = homeForeground;
+                    boolean result = homeVisible;
                     handler.post(() -> applyForegroundResult(result));
                 });
             } catch (RejectedExecutionException ignored) {
@@ -227,7 +227,7 @@ public final class OverlayService extends Service
         super.onDestroy();
     }
 
-    private void applyForegroundResult(boolean homeForeground) {
+    private void applyForegroundResult(boolean homeVisible) {
         if (destroyed) {
             return;
         }
@@ -244,7 +244,7 @@ public final class OverlayService extends Service
         boolean deviceReady = foregroundDetector().isDeviceReady();
         boolean panelAllowed = SystemClock.elapsedRealtime() >= suppressPanelUntil;
         boolean hasApps = false;
-        if (homeForeground && deviceReady && panelAllowed) {
+        if (homeVisible && deviceReady && panelAllowed) {
             hasApps = showPanel();
             if (hasApps) {
                 if (!metricsActive) {
@@ -259,10 +259,10 @@ public final class OverlayService extends Service
             updateNotification(NOTIFICATION_HIDDEN);
         }
         long now = SystemClock.elapsedRealtime();
-        long nextDelay = homeForeground && deviceReady && panelAllowed && !hasApps
+        long nextDelay = homeVisible && deviceReady && panelAllowed && !hasApps
                 ? POLL_ERROR_MS
                 : ForegroundPollPolicy.nextDelay(
-                        homeForeground && panelAllowed, deviceReady, now, fastProbeUntil);
+                        homeVisible && panelAllowed, deviceReady, now, fastProbeUntil);
         scheduleForegroundPoll(nextDelay);
     }
 
