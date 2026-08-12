@@ -6,6 +6,7 @@
     <string name="notification_visible">Панель показывается только поверх лаунчера</string>
     <string name="notification_hidden">Панель скрыта: открыто другое приложение</string>
     <string name="notification_permission_error">Проверьте разрешения наложения и статистики использования</string>
+    <string name="no_overlay_settings">Системный экран разрешения наложения недоступен</string>
     <string name="notification_no_apps">Панель скрыта: выберите хотя бы одно приложение</string>
     <string name="stop">Остановить</string>
     <string name="picker_summary">Показано: %1$d из %2$d. Выбрано: %3$d.</string>

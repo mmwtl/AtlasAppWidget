@@ -1405,18 +1405,37 @@ public final class MainActivity extends ScaledActivity
                 Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
                 Uri.parse("package:" + getPackageName())
         );
-        try {
-            startActivity(perApp);
-        } catch (ActivityNotFoundException ignored) {
-            startActivity(new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION));
-        }
+        openSettingsWithFallback(
+                perApp,
+                new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION),
+                R.string.no_overlay_settings
+        );
     }
 
     private void openUsageSettings() {
+        Intent perApp = new Intent(
+                Settings.ACTION_USAGE_ACCESS_SETTINGS,
+                Uri.parse("package:" + getPackageName())
+        );
+        openSettingsWithFallback(
+                perApp,
+                new Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS),
+                R.string.no_usage_settings
+        );
+    }
+
+    private void openSettingsWithFallback(Intent preferred, Intent fallback, int errorMessage) {
         try {
-            startActivity(new Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS));
-        } catch (ActivityNotFoundException ignored) {
-            Toast.makeText(this, R.string.no_usage_settings, Toast.LENGTH_LONG).show();
+            startActivity(preferred);
+            return;
+        } catch (ActivityNotFoundException | SecurityException error) {
+            AppLog.warn("Preferred system settings screen is unavailable", error);
+        }
+        try {
+            startActivity(fallback);
+        } catch (ActivityNotFoundException | SecurityException error) {
+            AppLog.warn("Fallback system settings screen is unavailable", error);
+            Toast.makeText(this, errorMessage, Toast.LENGTH_LONG).show();
         }
     }
 
