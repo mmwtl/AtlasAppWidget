@@ -26,13 +26,21 @@ migration request.
 
 - Keep `appVersionCode` and `appVersionName` at the top of `app/build.gradle` as the single version
   source.
-- For every completed application, resource, or build-system improvement, increment
-  `appVersionCode`. Increment the semantic patch component of `appVersionName` unless the user
-  requests a different release number.
+- `main` is the only release branch. For every completed application, resource, or build-system
+  improvement, increment the base `appVersionCode` and the semantic patch component of the base
+  `appVersionName` only when building from `main`, unless the user requests a different release
+  number.
+- Builds from other branches must leave the base `appVersionCode` and base `appVersionName`
+  unchanged. For those builds, derive `effectiveVersionName` by appending a sanitized branch name
+  to the unchanged base version name, for example `1.0.26-seek`. Sanitize branch names by replacing
+  runs of characters outside `[A-Za-z0-9._-]` with `-` and trimming leading or trailing `-`.
+- Never add the branch name or its suffix to `versionCode`.
 - A single user-requested batch is one version increment even when it contains several related
   files or commits.
-- Preserve the archive base name `<versionName>[<versionCode>]AtlasAppWidget`; do not allow Gradle
-  to fall back to the module-derived `app-*.apk` name.
+- Use the effective version for the visible version and, whenever the project generates an APK or
+  archive, its name: `<effectiveVersionName>[<versionCode>]AtlasMediaWidget`. This keeps the branch
+  suffix in non-main artifact names; do not allow Gradle to fall back to the module-derived
+  `app-*.apk` name.
 
 ## Build and verification
 
