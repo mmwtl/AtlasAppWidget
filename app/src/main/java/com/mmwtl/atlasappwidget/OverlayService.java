@@ -690,6 +690,7 @@ public final class OverlayService extends Service
     @Override
     public void onAppClicked(AppEntry entry) {
         panelSuppression.suppress(SystemClock.elapsedRealtime(), 1_500L);
+        dismissFuelDetails();
         Intent launch = new Intent(Intent.ACTION_MAIN)
                 .addCategory(Intent.CATEGORY_LAUNCHER)
                 .setComponent(entry.componentName)
