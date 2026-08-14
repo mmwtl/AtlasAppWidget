@@ -735,16 +735,28 @@ public final class OverlayService extends Service
     }
 
     private void dismissFuelDetails() {
-        if (fuelDetailsView == null || windowManager == null) {
+        FuelDetailsView details = fuelDetailsView;
+        if (details == null) {
             fuelDetailsView = null;
             return;
         }
-        try {
-            windowManager.removeViewImmediate(fuelDetailsView);
-        } catch (IllegalArgumentException ignored) {
-            // The popup may already be detached while HOME is changing.
-        }
+
+        // Hide first so a WindowManager removal race cannot leave the detail content visible for
+        // another frame. Clear the service reference before removing the window so metric updates
+        // queued on the handler cannot mutate a view that is being dismissed.
         fuelDetailsView = null;
+        details.setVisibility(View.GONE);
+        if (windowManager == null || !details.isAttachedToWindow()) {
+            return;
+        }
+        try {
+            windowManager.removeViewImmediate(details);
+        } catch (IllegalArgumentException | IllegalStateException error) {
+            // The popup may already be detached, or the window manager may be in a removal
+            // traversal while HOME is changing. It is already hidden, so do not reattach it.
+            AppLog.warnRateLimited(
+                    "fuel-details-dismiss", "Cannot remove fuel details overlay", error);
+        }
     }
 
     private void syncFuelProvider() {

@@ -22,6 +22,7 @@ final class FuelDetailsView extends LinearLayout {
     private final TextView free;
     private final TextView formula;
     private final TextView received;
+    private boolean closeRequested;
 
     FuelDetailsView(Context context, Prefs prefs, Runnable onClose) {
         super(context);
@@ -48,7 +49,13 @@ final class FuelDetailsView extends LinearLayout {
         close.setPadding(Ui.dp(context, 20), Ui.dp(context, 14),
                 Ui.dp(context, 20), Ui.dp(context, 14));
         close.setContentDescription(context.getString(R.string.close_fuel_details));
-        close.setOnClickListener(view -> onClose.run());
+        close.setOnClickListener(view -> {
+            if (closeRequested) {
+                return;
+            }
+            closeRequested = true;
+            onClose.run();
+        });
         header.addView(close);
         addView(header);
 
