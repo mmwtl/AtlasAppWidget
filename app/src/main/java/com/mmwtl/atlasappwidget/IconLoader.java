@@ -95,6 +95,10 @@ final class IconLoader {
                     ? ImageDecoder.createSource(context.getContentResolver(), Uri.parse(uri))
                     : ImageDecoder.createSource(internal);
             Bitmap bitmap = ImageDecoder.decodeBitmap(source, (decoder, info, sourceInfo) -> {
+                // Icons are also rendered by TYPE_APPLICATION_OVERLAY windows and OEM
+                // renderers may fall back to a software canvas. A software bitmap remains
+                // valid on both hardware and software canvases.
+                decoder.setAllocator(ImageDecoder.ALLOCATOR_SOFTWARE);
                 int width = Math.max(1, info.getSize().getWidth());
                 int height = Math.max(1, info.getSize().getHeight());
                 float scale = Math.min(1f, (float) targetPixels / Math.max(width, height));

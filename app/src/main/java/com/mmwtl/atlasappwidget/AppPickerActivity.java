@@ -22,9 +22,9 @@ import android.widget.ProgressBar;
 import android.widget.TextView;
 import android.widget.Toast;
 
-import java.util.ArrayList;
 import java.io.IOException;
-import java.util.Collections;
+import java.lang.ref.WeakReference;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -33,6 +33,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.RejectedExecutionException;
 
 public final class AppPickerActivity extends ScaledActivity {
     private static final int REQUEST_ICON = 401;
@@ -46,7 +47,23 @@ public final class AppPickerActivity extends ScaledActivity {
     private TextView resultSummary;
     private AppAdapter adapter;
     private String pendingIconComponent;
-    private final Set<String> iconLoads = Collections.synchronizedSet(new HashSet<>());
+    /**
+     * In-flight icon requests fan out to every currently bound view for the same key. A
+     * ListView holder can be rebound while a request is running, so deduplicating by key alone
+     * is not enough: every new holder still has to subscribe to the existing request.
+     *
+     * This map is accessed only on the main thread. Worker completion is posted back to the main
+     * thread before it removes entries or updates views.
+     */
+    private final Map<String, List<IconSubscriber>> iconRequests = new HashMap<>();
+
+    private static final class IconSubscriber {
+        final WeakReference<ImageView> view;
+
+        IconSubscriber(ImageView view) {
+            this.view = new WeakReference<>(view);
+        }
+    }
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -63,6 +80,7 @@ public final class AppPickerActivity extends ScaledActivity {
 
     @Override
     protected void onDestroy() {
+        iconRequests.clear();
         loader.shutdownNow();
         importer.shutdown();
         super.onDestroy();
@@ -423,39 +441,71 @@ public final class AppPickerActivity extends ScaledActivity {
             holder.icon.setTag(loadKey);
             holder.icon.setImageDrawable(getPackageManager().getDefaultActivityIcon());
             holder.icon.setScaleType(ImageView.ScaleType.FIT_CENTER);
-            if (!iconLoads.add(loadKey)) {
-                return;
+            requestIcon(holder.icon, loadKey, entry, targetPixels);
+        }
+
+        private void requestIcon(
+                ImageView view,
+                String loadKey,
+                AppEntry entry,
+                int targetPixels
+        ) {
+            List<IconSubscriber> subscribers = iconRequests.get(loadKey);
+            if (subscribers == null) {
+                subscribers = new ArrayList<>();
+                iconRequests.put(loadKey, subscribers);
+                startIconLoad(loadKey, entry, targetPixels);
             }
-            loader.execute(() -> {
-                IconLoader.Result icon;
-                try {
-                    icon = IconLoader.load(
-                            getApplicationContext(),
-                            prefs,
-                            entry,
-                            targetPixels
-                    );
-                } catch (RuntimeException error) {
-                    AppLog.warnRateLimited(
-                            "picker-icon-" + entry.componentKey,
-                            "App-picker icon load failed",
-                            error
-                    );
-                    iconLoads.remove(loadKey);
+            for (IconSubscriber subscriber : subscribers) {
+                if (subscriber.view.get() == view) {
                     return;
                 }
-                iconLoads.remove(loadKey);
-                runOnUiThread(() -> {
-                    if (isFinishing() || isDestroyed()
-                            || !loadKey.equals(holder.icon.getTag())) {
-                        return;
+            }
+            subscribers.add(new IconSubscriber(view));
+        }
+
+        private void startIconLoad(String loadKey, AppEntry entry, int targetPixels) {
+            try {
+                loader.execute(() -> {
+                    IconLoader.Result icon = null;
+                    try {
+                        icon = IconLoader.load(
+                                getApplicationContext(),
+                                prefs,
+                                entry,
+                                targetPixels
+                        );
+                    } catch (RuntimeException error) {
+                        AppLog.warnRateLimited(
+                                "picker-icon-" + entry.componentKey,
+                                "App-picker icon load failed",
+                                error
+                        );
                     }
-                    holder.icon.setImageDrawable(icon.drawable);
-                    holder.icon.setScaleType(icon.custom
-                            ? ImageView.ScaleType.CENTER_CROP
-                            : ImageView.ScaleType.FIT_CENTER);
+                    IconLoader.Result result = icon;
+                    runOnUiThread(() -> finishIconLoad(loadKey, result));
                 });
-            });
+            } catch (RejectedExecutionException ignored) {
+                // Activity teardown can race with a final adapter bind.
+                iconRequests.remove(loadKey);
+            }
+        }
+
+        private void finishIconLoad(String loadKey, IconLoader.Result icon) {
+            List<IconSubscriber> subscribers = iconRequests.remove(loadKey);
+            if (subscribers == null || icon == null || isFinishing() || isDestroyed()) {
+                return;
+            }
+            for (IconSubscriber subscriber : subscribers) {
+                ImageView view = subscriber.view.get();
+                if (view == null || !loadKey.equals(view.getTag())) {
+                    continue;
+                }
+                view.setImageDrawable(icon.drawable);
+                view.setScaleType(icon.custom
+                        ? ImageView.ScaleType.CENTER_CROP
+                        : ImageView.ScaleType.FIT_CENTER);
+            }
         }
 
         private RowHolder createRow() {

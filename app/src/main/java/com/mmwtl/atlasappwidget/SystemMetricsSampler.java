@@ -11,10 +11,13 @@ import java.io.IOException;
 /** Best-effort unprivileged CPU and RAM metrics. */
 final class SystemMetricsSampler {
     private static final File PROC_STAT = new File("/proc/stat");
+    private static final int CPU_FAILURES_BEFORE_DISABLE = 3;
 
     private final ActivityManager activityManager;
     private final FuelLevelProvider fuelLevelProvider;
     private CpuTicks previousCpuTicks;
+    private int cpuReadFailures;
+    private boolean cpuSamplingDisabled;
 
     SystemMetricsSampler(Context context, FuelLevelProvider fuelLevelProvider) {
         activityManager = context.getApplicationContext()
@@ -43,18 +46,30 @@ final class SystemMetricsSampler {
     }
 
     private int readCpuPercent() {
+        if (cpuSamplingDisabled) {
+            return SystemStatusSnapshot.UNAVAILABLE;
+        }
         CpuTicks current;
         try (BufferedReader reader = new BufferedReader(new FileReader(PROC_STAT))) {
             current = parseCpuTicks(reader.readLine());
         } catch (IOException | SecurityException error) {
-            return SystemStatusSnapshot.UNAVAILABLE;
+            return cpuReadFailure();
         }
         if (current == null) {
-            return SystemStatusSnapshot.UNAVAILABLE;
+            return cpuReadFailure();
         }
+        cpuReadFailures = 0;
         int result = cpuPercent(previousCpuTicks, current);
         previousCpuTicks = current;
         return result;
+    }
+
+    private int cpuReadFailure() {
+        previousCpuTicks = null;
+        if (++cpuReadFailures >= CPU_FAILURES_BEFORE_DISABLE) {
+            cpuSamplingDisabled = true;
+        }
+        return SystemStatusSnapshot.UNAVAILABLE;
     }
 
     private int readRamPercent() {

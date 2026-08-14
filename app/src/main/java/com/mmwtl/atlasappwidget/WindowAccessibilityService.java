@@ -57,6 +57,7 @@ public final class WindowAccessibilityService extends AccessibilityService {
         super.onDestroy();
     }
 
+    @SuppressWarnings("deprecation")
     private void refreshWindows() {
         List<WindowObservation> observations = new ArrayList<>();
         boolean eventWindowPresent = false;
@@ -80,6 +81,12 @@ public final class WindowAccessibilityService extends AccessibilityService {
                             "Cannot inspect accessibility window root",
                             error
                     );
+                } finally {
+                    if (root != null) {
+                        // AccessibilityNodeInfo is pooled through API 32. The call is a
+                        // no-op on newer releases, where pooling was removed.
+                        root.recycle();
+                    }
                 }
                 if (packageName.equals(lastEventPackage)
                         && (window.isActive() || window.isFocused())
