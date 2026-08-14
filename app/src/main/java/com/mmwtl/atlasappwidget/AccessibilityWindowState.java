@@ -3,6 +3,7 @@ package com.mmwtl.atlasappwidget;
 import android.accessibilityservice.AccessibilityServiceInfo;
 import android.content.ComponentName;
 import android.content.Context;
+import android.os.SystemClock;
 import android.view.accessibility.AccessibilityManager;
 
 import java.util.Collections;
@@ -31,7 +32,8 @@ final class AccessibilityWindowState {
                 displayWidth,
                 displayHeight,
                 value(eventPackage),
-                value(eventClass)
+                value(eventClass),
+                SystemClock.elapsedRealtime()
         );
     }
 
@@ -74,6 +76,7 @@ final class AccessibilityWindowState {
         final int displayHeight;
         final String eventPackage;
         final String eventClass;
+        final long updatedAtElapsedRealtime;
 
         Snapshot(
                 boolean available,
@@ -81,7 +84,8 @@ final class AccessibilityWindowState {
                 int displayWidth,
                 int displayHeight,
                 String eventPackage,
-                String eventClass
+                String eventClass,
+                long updatedAtElapsedRealtime
         ) {
             this.available = available;
             this.windows = windows;
@@ -89,10 +93,11 @@ final class AccessibilityWindowState {
             this.displayHeight = displayHeight;
             this.eventPackage = eventPackage;
             this.eventClass = eventClass;
+            this.updatedAtElapsedRealtime = updatedAtElapsedRealtime;
         }
 
         static Snapshot unavailable() {
-            return new Snapshot(false, Collections.emptyList(), 0, 0, "", "");
+            return new Snapshot(false, Collections.emptyList(), 0, 0, "", "", 0L);
         }
     }
 }

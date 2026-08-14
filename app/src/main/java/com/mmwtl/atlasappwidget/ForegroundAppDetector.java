@@ -19,6 +19,8 @@ import java.util.List;
 import java.util.Set;
 
 final class ForegroundAppDetector {
+    private static final long FAST_ACCESSIBILITY_SNAPSHOT_MAX_AGE_MS = 2_000L;
+
     private final Context context;
     private final UsageStatsManager usageStatsManager;
     private final PowerManager powerManager;
@@ -62,17 +64,7 @@ final class ForegroundAppDetector {
         boolean usageStateAvailable = refreshActivityVisibility();
         AccessibilityWindowState.Snapshot windowState = AccessibilityWindowState.current();
         if (windowState.available) {
-            WindowVisibilityPolicy.Decision decision = WindowVisibilityPolicy.evaluate(
-                    windowState.windows,
-                    windowState.displayWidth,
-                    windowState.displayHeight,
-                    homePackages,
-                    homeComponents,
-                    eventTracker.mostRecentVisibleActivity(),
-                    windowState.eventPackage,
-                    windowState.eventClass,
-                    context.getPackageName()
-            );
+            WindowVisibilityPolicy.Decision decision = evaluateAccessibilitySnapshot(windowState);
             if (decision != WindowVisibilityPolicy.Decision.UNKNOWN) {
                 return decision == WindowVisibilityPolicy.Decision.HOME_VISIBLE;
             }
@@ -80,11 +72,54 @@ final class ForegroundAppDetector {
         return usageStateAvailable && eventTracker.isAnyPackageVisible(homePackages);
     }
 
+    /**
+     * Resolves HOME from the most recent accessibility snapshot without touching UsageStats.
+     * A null result means that the snapshot is unavailable, stale, or ambiguous and the caller
+     * must use the normal UsageStats-backed path.
+     */
+    Boolean isHomeVisibleFromAccessibility() {
+        if (!isDeviceReady()) {
+            return Boolean.FALSE;
+        }
+        AccessibilityWindowState.Snapshot windowState = AccessibilityWindowState.current();
+        long snapshotAge = SystemClock.elapsedRealtime() - windowState.updatedAtElapsedRealtime;
+        if (!windowState.available
+                || windowState.updatedAtElapsedRealtime <= 0L
+                || snapshotAge > FAST_ACCESSIBILITY_SNAPSHOT_MAX_AGE_MS) {
+            return null;
+        }
+        long now = System.currentTimeMillis();
+        if (homePackages.isEmpty() || now - lastHomeRefreshTime > 30_000L) {
+            refreshHomePackages();
+        }
+        WindowVisibilityPolicy.Decision decision = evaluateAccessibilitySnapshot(windowState);
+        if (decision == WindowVisibilityPolicy.Decision.UNKNOWN) {
+            return null;
+        }
+        return decision == WindowVisibilityPolicy.Decision.HOME_VISIBLE;
+    }
+
     boolean isDeviceReady() {
         return powerManager != null
                 && powerManager.isInteractive()
                 && (keyguardManager == null || !keyguardManager.isKeyguardLocked())
                 && (userManager == null || userManager.isUserUnlocked());
+    }
+
+    private WindowVisibilityPolicy.Decision evaluateAccessibilitySnapshot(
+            AccessibilityWindowState.Snapshot windowState
+    ) {
+        return WindowVisibilityPolicy.evaluate(
+                windowState.windows,
+                windowState.displayWidth,
+                windowState.displayHeight,
+                homePackages,
+                homeComponents,
+                eventTracker.mostRecentVisibleActivity(),
+                windowState.eventPackage,
+                windowState.eventClass,
+                context.getPackageName()
+        );
     }
 
     private boolean refreshActivityVisibility() {

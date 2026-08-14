@@ -64,24 +64,33 @@ public final class OverlayService extends Service
     private SystemMetricsSampler systemMetricsSampler;
     private PanelView panel;
     private WindowManager.LayoutParams panelParams;
+    private int panelBoundsWidth;
+    private int panelBoundsHeight;
+    private List<AppEntry> selectedEntriesCache;
     private FuelDetailsView fuelDetailsView;
+    private final PanelSuppressionPolicy panelSuppression = new PanelSuppressionPolicy();
+    private Boolean lastAppliedHomeVisible;
     private final Runnable applyPreferenceChanges = () -> {
         syncFuelProvider();
-        if (panel != null) {
-            hidePanel();
+        boolean wasAttached = isPanelAttached();
+        selectedEntriesCache = null;
+        discardPanel();
+        if (wasAttached) {
             showPanel();
         }
     };
     private int currentNotificationState;
-    private long suppressPanelUntil;
     private long nextSystemStatusRefresh;
     private long createdAt;
     private long fastProbeUntil;
     private boolean metricsActive;
     private boolean foregroundQueryInFlight;
     private boolean visibilityCheckPending;
+    private boolean visibilityCheckPendingFast;
     private boolean deviceWasReady;
     private boolean visibilityReceiverRegistered;
+    private boolean packageReceiverRegistered;
+    private boolean localeReceiverRegistered;
     private boolean destroyed;
 
     private float dragStartRawX;
@@ -104,65 +113,32 @@ public final class OverlayService extends Service
         }
     };
 
-    private final Runnable foregroundPoll = new Runnable() {
+    private final BroadcastReceiver packageChangeReceiver = new BroadcastReceiver() {
         @Override
-        public void run() {
-            if (destroyed) {
-                return;
-            }
-            if (!prefs.getBoolean(Prefs.KEY_SERVICE_ENABLED, false)) {
-                stopSelf();
-                return;
-            }
-            if (!Settings.canDrawOverlays(OverlayService.this)
-                    || !ForegroundAppDetector.hasUsageAccess(OverlayService.this)
-                    || !AccessibilityWindowState.isEnabled(OverlayService.this)) {
-                hidePanel();
-                updateNotification(NOTIFICATION_PERMISSION_ERROR);
-                scheduleForegroundPoll(POLL_ERROR_MS);
-                return;
-            }
-            long now = SystemClock.elapsedRealtime();
-            if (now < suppressPanelUntil) {
-                hidePanel();
-                updateNotification(NOTIFICATION_HIDDEN);
-                scheduleForegroundPoll(ForegroundPollPolicy.VISIBLE_DELAY_MS);
-                return;
-            }
-            ForegroundAppDetector detector = foregroundDetector();
-            boolean deviceReady = detector.isDeviceReady();
-            if (deviceReady && !deviceWasReady) {
-                fastProbeUntil = now + ForegroundPollPolicy.FAST_PROBE_DURATION_MS;
-            }
-            deviceWasReady = deviceReady;
-            if (!deviceReady) {
-                hidePanel();
-                updateNotification(NOTIFICATION_HIDDEN);
-                scheduleForegroundPoll(ForegroundPollPolicy.nextDelay(
-                        false, false, now, fastProbeUntil));
-                return;
-            }
-            if (foregroundQueryInFlight) {
-                visibilityCheckPending = true;
-                return;
-            }
-            foregroundQueryInFlight = true;
-            try {
-                foregroundExecutor.execute(() -> {
-                    boolean homeVisible = false;
-                    try {
-                        homeVisible = detector.isHomeVisible();
-                    } catch (RuntimeException error) {
-                        AppLog.warn("HOME visibility query failed", error);
-                    }
-                    boolean result = homeVisible;
-                    handler.post(() -> applyForegroundResult(result));
-                });
-            } catch (RejectedExecutionException ignored) {
-                foregroundQueryInFlight = false;
+        public void onReceive(Context context, Intent intent) {
+            selectedEntriesCache = null;
+            boolean wasAttached = isPanelAttached();
+            discardPanel();
+            if (wasAttached) {
+                requestImmediateVisibilityCheck();
             }
         }
     };
+
+    private final BroadcastReceiver localeChangeReceiver = new BroadcastReceiver() {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            selectedEntriesCache = null;
+            boolean wasAttached = isPanelAttached();
+            discardPanel();
+            if (wasAttached) {
+                showPanel();
+            }
+        }
+    };
+
+    private final Runnable foregroundPoll = () -> runForegroundPoll(false);
+    private final Runnable accessibilityFastPoll = () -> runForegroundPoll(true);
 
     static void start(android.content.Context context) {
         Intent intent = new Intent(context, OverlayService.class).setAction(ACTION_START);
@@ -194,6 +170,8 @@ public final class OverlayService extends Service
         instance = this;
         fastProbeUntil = createdAt + ForegroundPollPolicy.FAST_PROBE_DURATION_MS;
         registerVisibilityWakeReceiver();
+        registerPackageChangeReceiver();
+        registerLocaleChangeReceiver();
         AppLog.info("Overlay service created");
     }
 
@@ -215,6 +193,8 @@ public final class OverlayService extends Service
         destroyed = true;
         handler.removeCallbacksAndMessages(null);
         unregisterVisibilityWakeReceiver();
+        unregisterPackageChangeReceiver();
+        unregisterLocaleChangeReceiver();
         hidePanel();
         foregroundExecutor.shutdownNow();
         systemStatusExecutor.shutdownNow();
@@ -233,14 +213,84 @@ public final class OverlayService extends Service
         super.onDestroy();
     }
 
-    private void applyForegroundResult(boolean homeVisible) {
+    private void runForegroundPoll(boolean accessibilityFast) {
+        if (destroyed) {
+            return;
+        }
+        if (!prefs.getBoolean(Prefs.KEY_SERVICE_ENABLED, false)) {
+            stopSelf();
+            return;
+        }
+        if (!Settings.canDrawOverlays(OverlayService.this)
+                || !ForegroundAppDetector.hasUsageAccess(OverlayService.this)
+                || !AccessibilityWindowState.isEnabled(OverlayService.this)) {
+            hidePanel();
+            updateNotification(NOTIFICATION_PERMISSION_ERROR);
+            scheduleForegroundPoll(POLL_ERROR_MS);
+            return;
+        }
+        long now = SystemClock.elapsedRealtime();
+        ForegroundAppDetector detector = foregroundDetector();
+        boolean deviceReady = detector.isDeviceReady();
+        if (deviceReady && !deviceWasReady) {
+            fastProbeUntil = now + ForegroundPollPolicy.FAST_PROBE_DURATION_MS;
+        }
+        deviceWasReady = deviceReady;
+        if (!deviceReady) {
+            hidePanel();
+            updateNotification(NOTIFICATION_HIDDEN);
+            scheduleForegroundPoll(ForegroundPollPolicy.nextDelay(
+                    false, false, now, fastProbeUntil));
+            return;
+        }
+        if (foregroundQueryInFlight) {
+            if (!visibilityCheckPending) {
+                visibilityCheckPendingFast = accessibilityFast;
+            } else {
+                visibilityCheckPendingFast &= accessibilityFast;
+            }
+            visibilityCheckPending = true;
+            return;
+        }
+        foregroundQueryInFlight = true;
+        try {
+            foregroundExecutor.execute(() -> {
+                boolean homeVisible = false;
+                String source = accessibilityFast ? "accessibility" : "usage";
+                try {
+                    if (accessibilityFast) {
+                        Boolean fastResult = detector.isHomeVisibleFromAccessibility();
+                        if (fastResult != null) {
+                            homeVisible = fastResult;
+                        } else {
+                            homeVisible = detector.isHomeVisible();
+                            source = "usage-fallback";
+                        }
+                    } else {
+                        homeVisible = detector.isHomeVisible();
+                    }
+                } catch (RuntimeException error) {
+                    AppLog.warn("HOME visibility query failed", error);
+                }
+                boolean result = homeVisible;
+                String resultSource = source;
+                handler.post(() -> applyForegroundResult(result, resultSource));
+            });
+        } catch (RejectedExecutionException ignored) {
+            foregroundQueryInFlight = false;
+        }
+    }
+
+    private void applyForegroundResult(boolean homeVisible, String source) {
         if (destroyed) {
             return;
         }
         foregroundQueryInFlight = false;
         if (visibilityCheckPending) {
+            boolean fast = visibilityCheckPendingFast;
             visibilityCheckPending = false;
-            handler.post(foregroundPoll);
+            visibilityCheckPendingFast = false;
+            handler.post(fast ? accessibilityFastPoll : foregroundPoll);
             return;
         }
         if (!prefs.getBoolean(Prefs.KEY_SERVICE_ENABLED, false)) {
@@ -248,7 +298,18 @@ public final class OverlayService extends Service
             return;
         }
         boolean deviceReady = foregroundDetector().isDeviceReady();
-        boolean panelAllowed = SystemClock.elapsedRealtime() >= suppressPanelUntil;
+        long now = SystemClock.elapsedRealtime();
+        panelSuppression.onVisibility(homeVisible, now);
+        boolean panelAllowed = panelSuppression.isPanelAllowed(now);
+        if (lastAppliedHomeVisible == null || lastAppliedHomeVisible != homeVisible) {
+            AccessibilityWindowState.Snapshot snapshot = AccessibilityWindowState.current();
+            long snapshotAge = snapshot.updatedAtElapsedRealtime <= 0L
+                    ? -1L
+                    : Math.max(0L, now - snapshot.updatedAtElapsedRealtime);
+            AppLog.info("HOME visibility changed to " + homeVisible
+                    + " via " + source + " (snapshot age " + snapshotAge + " ms)");
+            lastAppliedHomeVisible = homeVisible;
+        }
         boolean hasApps = false;
         if (homeVisible && deviceReady && panelAllowed) {
             hasApps = showPanel();
@@ -264,22 +325,36 @@ public final class OverlayService extends Service
             hidePanel();
             updateNotification(NOTIFICATION_HIDDEN);
         }
-        long now = SystemClock.elapsedRealtime();
         long nextDelay = homeVisible && deviceReady && panelAllowed && !hasApps
                 ? POLL_ERROR_MS
                 : ForegroundPollPolicy.nextDelay(
                         homeVisible && panelAllowed, deviceReady, now, fastProbeUntil);
+        if (!panelAllowed && homeVisible) {
+            long remaining = Math.max(1L, panelSuppression.deadline() - now);
+            nextDelay = Math.min(nextDelay, Math.min(
+                    remaining, ForegroundPollPolicy.VISIBLE_DELAY_MS));
+        }
         scheduleForegroundPoll(nextDelay);
     }
 
     private void requestImmediateVisibilityCheck() {
+        requestImmediateVisibilityCheck(false);
+    }
+
+    private void requestImmediateVisibilityCheck(boolean accessibilityEvent) {
         fastProbeUntil = SystemClock.elapsedRealtime()
                 + ForegroundPollPolicy.FAST_PROBE_DURATION_MS;
         handler.removeCallbacks(foregroundPoll);
+        handler.removeCallbacks(accessibilityFastPoll);
         if (foregroundQueryInFlight) {
+            if (!visibilityCheckPending) {
+                visibilityCheckPendingFast = accessibilityEvent;
+            } else {
+                visibilityCheckPendingFast &= accessibilityEvent;
+            }
             visibilityCheckPending = true;
         } else {
-            handler.post(foregroundPoll);
+            handler.post(accessibilityEvent ? accessibilityFastPoll : foregroundPoll);
         }
     }
 
@@ -288,6 +363,7 @@ public final class OverlayService extends Service
             return;
         }
         handler.removeCallbacks(foregroundPoll);
+        handler.removeCallbacks(accessibilityFastPoll);
         handler.postDelayed(foregroundPoll, delayMs);
     }
 
@@ -318,6 +394,57 @@ public final class OverlayService extends Service
         visibilityReceiverRegistered = false;
     }
 
+    @SuppressWarnings("deprecation")
+    private void registerPackageChangeReceiver() {
+        IntentFilter filter = new IntentFilter();
+        filter.addAction(Intent.ACTION_PACKAGE_ADDED);
+        filter.addAction(Intent.ACTION_PACKAGE_CHANGED);
+        filter.addAction(Intent.ACTION_PACKAGE_REMOVED);
+        filter.addAction(Intent.ACTION_PACKAGE_REPLACED);
+        filter.addDataScheme("package");
+        if (Build.VERSION.SDK_INT >= 33) {
+            registerReceiver(packageChangeReceiver, filter, Context.RECEIVER_NOT_EXPORTED);
+        } else {
+            registerReceiver(packageChangeReceiver, filter);
+        }
+        packageReceiverRegistered = true;
+    }
+
+    private void unregisterPackageChangeReceiver() {
+        if (!packageReceiverRegistered) {
+            return;
+        }
+        try {
+            unregisterReceiver(packageChangeReceiver);
+        } catch (IllegalArgumentException ignored) {
+            // The process may already have discarded receiver registration.
+        }
+        packageReceiverRegistered = false;
+    }
+
+    @SuppressWarnings("deprecation")
+    private void registerLocaleChangeReceiver() {
+        IntentFilter filter = new IntentFilter(Intent.ACTION_LOCALE_CHANGED);
+        if (Build.VERSION.SDK_INT >= 33) {
+            registerReceiver(localeChangeReceiver, filter, Context.RECEIVER_NOT_EXPORTED);
+        } else {
+            registerReceiver(localeChangeReceiver, filter);
+        }
+        localeReceiverRegistered = true;
+    }
+
+    private void unregisterLocaleChangeReceiver() {
+        if (!localeReceiverRegistered) {
+            return;
+        }
+        try {
+            unregisterReceiver(localeChangeReceiver);
+        } catch (IllegalArgumentException ignored) {
+            // The process may already have discarded receiver registration.
+        }
+        localeReceiverRegistered = false;
+    }
+
     @Override
     public IBinder onBind(Intent intent) {
         return null;
@@ -330,7 +457,11 @@ public final class OverlayService extends Service
     static void onAccessibilityWindowsChanged() {
         OverlayService service = instance;
         if (service != null && !service.destroyed) {
-            service.handler.post(service::requestImmediateVisibilityCheck);
+            if (Looper.myLooper() == Looper.getMainLooper()) {
+                service.requestImmediateVisibilityCheck(true);
+            } else {
+                service.handler.post(() -> service.requestImmediateVisibilityCheck(true));
+            }
         }
     }
 
@@ -350,19 +481,36 @@ public final class OverlayService extends Service
             windowManager = (WindowManager) getSystemService(WINDOW_SERVICE);
         }
         if (panel != null) {
-            if (panel.isAttachedToWindow()) {
+            if (isPanelAttached()) {
                 return true;
             }
-            // Some head-unit shells can detach an overlay while switching tasks
-            // without going through our removal path. Do not keep a stale view
-            // reference, otherwise the panel never returns when HOME is resumed.
-            panel = null;
-            panelParams = null;
+            Rect bounds = availableBounds();
+            if (panelBoundsWidth == bounds.width() && panelBoundsHeight == bounds.height()
+                    && panelParams != null) {
+                clampPosition(panelParams, panel, bounds);
+                try {
+                    windowManager.addView(panel, panelParams);
+                    nextSystemStatusRefresh = 0;
+                    AppLog.info("Overlay panel reattached in "
+                            + (SystemClock.elapsedRealtime() - createdAt) + " ms");
+                    return true;
+                } catch (SecurityException | WindowManager.BadTokenException
+                         | IllegalArgumentException | IllegalStateException error) {
+                    AppLog.warn("Cannot reattach cached overlay window", error);
+                    discardPanel();
+                }
+            } else {
+                discardPanel();
+            }
         }
         Rect bounds = availableBounds();
-        List<AppEntry> entries = AppRepository.loadSelectedActivities(this, prefs);
+        List<AppEntry> entries = selectedEntriesCache;
+        if (entries == null) {
+            entries = List.copyOf(AppRepository.loadSelectedActivities(this, prefs));
+            selectedEntriesCache = entries;
+        }
         if (entries.isEmpty()) {
-            hidePanel();
+            discardPanel();
             return false;
         }
         PanelView candidate = new PanelView(
@@ -400,14 +548,19 @@ public final class OverlayService extends Service
             windowManager.addView(candidate, params);
             panel = candidate;
             panelParams = params;
+            panelBoundsWidth = bounds.width();
+            panelBoundsHeight = bounds.height();
             nextSystemStatusRefresh = 0;
             AppLog.info("Overlay panel attached t+"
                     + (SystemClock.elapsedRealtime() - createdAt)
                     + " ms after service creation");
             return true;
-        } catch (SecurityException | WindowManager.BadTokenException error) {
+        } catch (SecurityException | WindowManager.BadTokenException
+                 | IllegalArgumentException | IllegalStateException error) {
             panel = null;
             panelParams = null;
+            panelBoundsWidth = 0;
+            panelBoundsHeight = 0;
             updateNotification(NOTIFICATION_PERMISSION_ERROR);
             AppLog.warn("Cannot attach overlay window", error);
             return false;
@@ -424,14 +577,15 @@ public final class OverlayService extends Service
     private void hidePanel() {
         dismissFuelDetails();
         if (panel == null || windowManager == null) {
-            panel = null;
             panelParams = null;
             return;
         }
-        try {
-            windowManager.removeViewImmediate(panel);
-        } catch (IllegalArgumentException ignored) {
-            // The system may already have removed the overlay after permission revocation.
+        if (isPanelAttached()) {
+            try {
+                windowManager.removeViewImmediate(panel);
+            } catch (IllegalArgumentException ignored) {
+                // The system may already have removed the overlay after permission revocation.
+            }
         }
         if (systemMetricsSampler != null) {
             try {
@@ -441,8 +595,18 @@ public final class OverlayService extends Service
             }
         }
         nextSystemStatusRefresh = 0;
+    }
+
+    private boolean isPanelAttached() {
+        return panel != null && panel.isAttachedToWindow();
+    }
+
+    private void discardPanel() {
+        hidePanel();
         panel = null;
         panelParams = null;
+        panelBoundsWidth = 0;
+        panelBoundsHeight = 0;
     }
 
     private void refreshSystemStatusIfNeeded() {
@@ -520,7 +684,7 @@ public final class OverlayService extends Service
 
     @Override
     public void onAppClicked(AppEntry entry) {
-        suppressPanelUntil = SystemClock.elapsedRealtime() + 1_500L;
+        panelSuppression.suppress(SystemClock.elapsedRealtime(), 1_500L);
         hidePanel();
         Intent launch = new Intent(Intent.ACTION_MAIN)
                 .addCategory(Intent.CATEGORY_LAUNCHER)
