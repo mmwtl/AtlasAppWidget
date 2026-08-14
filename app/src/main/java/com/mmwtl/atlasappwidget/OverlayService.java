@@ -487,6 +487,7 @@ public final class OverlayService extends Service
         }
         if (panel != null) {
             if (isPanelAttached()) {
+                panel.setVisibility(View.VISIBLE);
                 return true;
             }
             Rect bounds = availableBounds();
@@ -494,6 +495,7 @@ public final class OverlayService extends Service
                     && panelParams != null) {
                 clampPosition(panelParams, panel, bounds);
                 try {
+                    panel.setVisibility(View.VISIBLE);
                     windowManager.addView(panel, panelParams);
                     nextSystemStatusRefresh = 0;
                     AppLog.info("Overlay panel reattached in "
@@ -581,15 +583,26 @@ public final class OverlayService extends Service
 
     private void hidePanel() {
         dismissFuelDetails();
-        if (panel == null || windowManager == null) {
+        PanelView target = panel;
+        if (target == null) {
             panelParams = null;
             return;
         }
-        if (isPanelAttached()) {
+        // isAttachedToWindow() is not a safe gate for removal. During a WindowManager traversal it
+        // can briefly be false while the root is still registered. If discardPanel() clears our
+        // only reference in that interval, the old window remains clickable and a second panel is
+        // added later. Hide synchronously, then always ask WindowManager to remove the known view.
+        target.setVisibility(View.GONE);
+        if (windowManager != null) {
             try {
-                windowManager.removeViewImmediate(panel);
+                windowManager.removeViewImmediate(target);
             } catch (IllegalArgumentException ignored) {
-                // The system may already have removed the overlay after permission revocation.
+                // The system already removed the window. It cannot remain as an orphan.
+            } catch (IllegalStateException error) {
+                // WindowManager may be completing an earlier removal. The view is already hidden
+                // and therefore cannot remain as a visible, interactive orphan.
+                AppLog.warnRateLimited(
+                        "overlay-remove", "Cannot remove overlay panel", error);
             }
         }
         if (systemMetricsSampler != null) {
