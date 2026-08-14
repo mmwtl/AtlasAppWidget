@@ -5,7 +5,7 @@
     <string name="notification_title">Atlas App Widget работает</string>
     <string name="notification_visible">Панель показывается только поверх лаунчера</string>
     <string name="notification_hidden">Панель скрыта: открыто другое приложение</string>
-    <string name="notification_permission_error">Проверьте разрешения наложения и статистики использования</string>
+    <string name="notification_permission_error">Проверьте разрешения наложения, статистики и контроля окон</string>
     <string name="no_overlay_settings">Системный экран разрешения наложения недоступен</string>
     <string name="notification_no_apps">Панель скрыта: выберите хотя бы одно приложение</string>
     <string name="stop">Остановить</string>
@@ -16,9 +16,12 @@
     <string name="selected_overflow_summary">Выбрано: %1$d. На панели помещается: %2$d. Лишние элементы скрыты; измените порядок или сетку.</string>
     <string name="main_subtitle">Плавающая панель launchable activity для Android 11. Вне панели экран остаётся полностью интерактивным.</string>
     <string name="permissions_title">Системные разрешения</string>
-    <string name="permissions_hint">Оба специальных доступа обязательны: первый создаёт окно, второй определяет, открыт ли лаунчер.</string>
+    <string name="permissions_hint">Нужны три специальных доступа: наложение создаёт панель, статистика даёт fallback foreground, а контроль окон отличает fullscreen от freeform.</string>
     <string name="allow_overlay">Разрешить поверх других окон</string>
     <string name="allow_usage">Разрешить доступ к статистике</string>
+    <string name="allow_accessibility">Разрешить контроль окон</string>
+    <string name="accessibility_service_label">Atlas App Widget: контроль окон</string>
+    <string name="accessibility_service_description">Определяет, виден ли домашний экран под полноэкранным или свободным окном. Не читает и не вводит текст.</string>
     <string name="allow_notifications">Разрешить уведомления</string>
     <string name="panel_apps_title">Содержимое панели</string>
     <string name="choose_apps">Выбрать приложения, activity и иконки</string>
@@ -62,7 +65,7 @@
     <string name="drag_handle_hint">Если ручка скрыта, удерживайте пустое место панели 1 секунду, затем перетаскивайте.</string>
     <string name="service_title">Запуск и сервис</string>
     <string name="auto_start">Автозапуск после загрузки ГУ</string>
-    <string name="auto_start_permission_warning">Автозапуск сохранён, но без двух специальных разрешений он не сработает</string>
+    <string name="auto_start_permission_warning">Автозапуск сохранён, но без трёх специальных разрешений он не сработает корректно</string>
     <string name="start_panel">Запустить панель</string>
     <string name="reset_panel_position">Сбросить позицию панели</string>
     <string name="position_reset">Позиция сброшена</string>
@@ -165,6 +168,8 @@
     <string name="status_overlay_denied">! Наложение не разрешено</string>
     <string name="status_usage_allowed">✓ Статистика использования доступна</string>
     <string name="status_usage_denied">! Нет доступа к foreground-приложению</string>
+    <string name="status_accessibility_allowed">✓ Контроль окон включён</string>
+    <string name="status_accessibility_denied">! Нет доступа к структуре окон</string>
     <string name="status_notifications_allowed">✓ Уведомления разрешены</string>
     <string name="status_notifications_denied">! Уведомления отключены (панель всё равно может работать)</string>
     <string name="status_service_running">● Панель запущена; вне лаунчера она скрыта</string>
@@ -173,9 +178,11 @@
     <string name="select_app_first">Сначала выберите хотя бы одно приложение</string>
     <string name="allow_overlay_first">Сначала разрешите наложение</string>
     <string name="allow_usage_first">Сначала разрешите статистику использования</string>
+    <string name="allow_accessibility_first">Сначала включите сервис контроля окон</string>
     <string name="panel_started">Панель запущена</string>
     <string name="service_start_failed">Система не разрешила запуск фонового сервиса</string>
     <string name="panel_stopped">Панель остановлена</string>
     <string name="no_usage_settings">В прошивке нет системного экрана Usage Access</string>
+    <string name="no_accessibility_settings">В прошивке нет системного экрана специальных возможностей</string>
     <string name="notification_permission_not_needed">На Android 11 отдельное разрешение не требуется</string>
 </resources>

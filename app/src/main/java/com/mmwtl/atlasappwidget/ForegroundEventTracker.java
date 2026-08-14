@@ -64,6 +64,24 @@ final class ForegroundEventTracker {
         return observedEvent;
     }
 
+    VisibleActivity mostRecentVisibleActivity() {
+        ActivityKey newestKey = null;
+        ActivityState newestState = null;
+        for (Map.Entry<ActivityKey, ActivityState> entry : activities.entrySet()) {
+            ActivityState state = entry.getValue();
+            if (!state.visible || (newestState != null && state.timestamp < newestState.timestamp)) {
+                continue;
+            }
+            newestKey = entry.getKey();
+            newestState = state;
+        }
+        return newestKey == null ? null : new VisibleActivity(
+                newestKey.packageName,
+                UNKNOWN_ACTIVITY.equals(newestKey.className) ? "" : newestKey.className,
+                newestState.timestamp
+        );
+    }
+
     private void update(
             long timestamp,
             String packageName,
@@ -129,6 +147,18 @@ final class ForegroundEventTracker {
         ActivityState(long timestamp, boolean visible) {
             this.timestamp = timestamp;
             this.visible = visible;
+        }
+    }
+
+    static final class VisibleActivity {
+        final String packageName;
+        final String className;
+        final long timestamp;
+
+        VisibleActivity(String packageName, String className, long timestamp) {
+            this.packageName = packageName;
+            this.className = className;
+            this.timestamp = timestamp;
         }
     }
 }

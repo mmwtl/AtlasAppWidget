@@ -4,11 +4,20 @@ plugins {
 
 def appVersionCode = 34
 def appVersionName = '1.1.15'
+def currentBranch = providers.exec {
+    workingDir rootDir
+    commandLine 'git', 'branch', '--show-current'
+}.standardOutput.asText.get().trim()
+def branchSuffix = currentBranch.replaceAll(/[^A-Za-z0-9._-]+/, '-')
+        .replaceAll(/^-+|-+$/, '')
+def effectiveVersionName = currentBranch && currentBranch != 'main' && branchSuffix
+        ? "${appVersionName}-${branchSuffix}"
+        : appVersionName
 def secureSigningScript = providers.gradleProperty('secure.signing').orNull
 def secureSigningFile = secureSigningScript == null ? null : rootProject.file(secureSigningScript)
 
 base {
-    archivesName.set("${appVersionName}[${appVersionCode}]AtlasAppWidget")
+    archivesName.set("${effectiveVersionName}[${appVersionCode}]AtlasAppWidget")
 }
 
 android {
@@ -20,7 +29,7 @@ android {
         minSdk = 30
         targetSdk = 36
         versionCode = appVersionCode
-        versionName = appVersionName
+        versionName = effectiveVersionName
     }
 
     buildTypes {

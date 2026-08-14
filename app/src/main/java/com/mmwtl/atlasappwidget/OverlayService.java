@@ -48,6 +48,7 @@ public final class OverlayService extends Service
     private static final int NOTIFICATION_PERMISSION_ERROR = 3;
     private static final int NOTIFICATION_NO_APPS = 5;
     private static volatile boolean running;
+    private static volatile OverlayService instance;
 
     private final Handler handler = new Handler(Looper.getMainLooper());
     private final ExecutorService foregroundExecutor = Executors.newSingleThreadExecutor(runnable -> {
@@ -114,7 +115,8 @@ public final class OverlayService extends Service
                 return;
             }
             if (!Settings.canDrawOverlays(OverlayService.this)
-                    || !ForegroundAppDetector.hasUsageAccess(OverlayService.this)) {
+                    || !ForegroundAppDetector.hasUsageAccess(OverlayService.this)
+                    || !AccessibilityWindowState.isEnabled(OverlayService.this)) {
                 hidePanel();
                 updateNotification(NOTIFICATION_PERMISSION_ERROR);
                 scheduleForegroundPoll(POLL_ERROR_MS);
@@ -189,6 +191,7 @@ public final class OverlayService extends Service
         }
         currentNotificationState = NOTIFICATION_HIDDEN;
         running = true;
+        instance = this;
         fastProbeUntil = createdAt + ForegroundPollPolicy.FAST_PROBE_DURATION_MS;
         registerVisibilityWakeReceiver();
         AppLog.info("Overlay service created");
@@ -223,6 +226,9 @@ public final class OverlayService extends Service
         }
         stopForeground(STOP_FOREGROUND_REMOVE);
         running = false;
+        if (instance == this) {
+            instance = null;
+        }
         AppLog.info("Overlay service destroyed");
         super.onDestroy();
     }
@@ -319,6 +325,13 @@ public final class OverlayService extends Service
 
     static boolean isRunning() {
         return running;
+    }
+
+    static void onAccessibilityWindowsChanged() {
+        OverlayService service = instance;
+        if (service != null && !service.destroyed) {
+            service.handler.post(service::requestImmediateVisibilityCheck);
+        }
     }
 
     @Override

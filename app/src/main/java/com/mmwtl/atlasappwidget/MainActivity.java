@@ -48,6 +48,7 @@ public final class MainActivity extends ScaledActivity
     private Prefs prefs;
     private TextView overlayStatus;
     private TextView usageStatus;
+    private TextView accessibilityStatus;
     private TextView notificationStatus;
     private TextView serviceStatus;
     private TextView selectedSummary;
@@ -183,6 +184,14 @@ public final class MainActivity extends ScaledActivity
         Ui.topMargin(usageButton, 8);
         usageButton.setOnClickListener(view -> openUsageSettings());
         permissions.addView(usageButton);
+
+        accessibilityStatus = Ui.text(this, "", 14, Ui.TEXT_SECONDARY);
+        Ui.topMargin(accessibilityStatus, 16);
+        permissions.addView(accessibilityStatus);
+        Button accessibilityButton = Ui.button(this, R.string.allow_accessibility);
+        Ui.topMargin(accessibilityButton, 8);
+        accessibilityButton.setOnClickListener(view -> openAccessibilitySettings());
+        permissions.addView(accessibilityButton);
 
         notificationStatus = Ui.text(this, "", 14, Ui.TEXT_SECONDARY);
         Ui.topMargin(notificationStatus, 16);
@@ -498,7 +507,8 @@ public final class MainActivity extends ScaledActivity
             }
             prefs.putBoolean(Prefs.KEY_AUTO_START, checked);
             if (checked && (!Settings.canDrawOverlays(this)
-                    || !ForegroundAppDetector.hasUsageAccess(this))) {
+                    || !ForegroundAppDetector.hasUsageAccess(this)
+                    || !AccessibilityWindowState.isEnabled(this))) {
                 Toast.makeText(this,
                         R.string.auto_start_permission_warning,
                         Toast.LENGTH_LONG).show();
@@ -878,6 +888,7 @@ public final class MainActivity extends ScaledActivity
     private void refreshStatus() {
         boolean overlayAllowed = Settings.canDrawOverlays(this);
         boolean usageAllowed = ForegroundAppDetector.hasUsageAccess(this);
+        boolean accessibilityAllowed = AccessibilityWindowState.isEnabled(this);
         setStatus(overlayStatus,
                 getString(overlayAllowed
                         ? R.string.status_overlay_allowed : R.string.status_overlay_denied),
@@ -886,6 +897,11 @@ public final class MainActivity extends ScaledActivity
                 getString(usageAllowed
                         ? R.string.status_usage_allowed : R.string.status_usage_denied),
                 usageAllowed);
+        setStatus(accessibilityStatus,
+                getString(accessibilityAllowed
+                        ? R.string.status_accessibility_allowed
+                        : R.string.status_accessibility_denied),
+                accessibilityAllowed);
 
         boolean notificationAllowed = Build.VERSION.SDK_INT < 33
                 || checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED;
@@ -1377,6 +1393,11 @@ public final class MainActivity extends ScaledActivity
             openUsageSettings();
             return;
         }
+        if (!AccessibilityWindowState.isEnabled(this)) {
+            Toast.makeText(this, R.string.allow_accessibility_first, Toast.LENGTH_SHORT).show();
+            openAccessibilitySettings();
+            return;
+        }
         if (Build.VERSION.SDK_INT >= 33
                 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)
                 != PackageManager.PERMISSION_GRANTED) {
@@ -1421,6 +1442,15 @@ public final class MainActivity extends ScaledActivity
                 perApp,
                 new Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS),
                 R.string.no_usage_settings
+        );
+    }
+
+    private void openAccessibilitySettings() {
+        Intent settings = new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS);
+        openSettingsWithFallback(
+                settings,
+                new Intent(Settings.ACTION_SETTINGS),
+                R.string.no_accessibility_settings
         );
     }
 

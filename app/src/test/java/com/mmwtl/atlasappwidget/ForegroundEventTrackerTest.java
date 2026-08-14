@@ -1,6 +1,7 @@
 package com.mmwtl.atlasappwidget;
 
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
 import org.junit.Test;
@@ -83,5 +84,18 @@ public final class ForegroundEventTrackerTest {
         tracker.seed(300, "launcher");
 
         assertFalse(tracker.isAnyPackageVisible(HOME_PACKAGES));
+    }
+
+    @Test
+    public void reportsMostRecentlyVisibleActivityForWindowDisambiguation() {
+        ForegroundEventTracker tracker = new ForegroundEventTracker();
+        tracker.onResumed(100, "launcher", "HomeActivity");
+        tracker.onPaused(110, "launcher", "HomeActivity");
+        tracker.onResumed(120, "settings", "SettingsActivity");
+
+        ForegroundEventTracker.VisibleActivity visible = tracker.mostRecentVisibleActivity();
+
+        assertEquals("settings", visible.packageName);
+        assertEquals("SettingsActivity", visible.className);
     }
 }

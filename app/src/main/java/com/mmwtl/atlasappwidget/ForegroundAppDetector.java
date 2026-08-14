@@ -25,6 +25,7 @@ final class ForegroundAppDetector {
     private final KeyguardManager keyguardManager;
     private final UserManager userManager;
     private final Set<String> homePackages = new HashSet<>();
+    private final Set<String> homeComponents = new HashSet<>();
     private final ForegroundEventTracker eventTracker = new ForegroundEventTracker();
     private long lastHomeRefreshTime;
     private long lastQueryTime;
@@ -58,7 +59,25 @@ final class ForegroundAppDetector {
         if (homePackages.isEmpty() || now - lastHomeRefreshTime > 30_000L) {
             refreshHomePackages();
         }
-        return refreshActivityVisibility() && eventTracker.isAnyPackageVisible(homePackages);
+        boolean usageStateAvailable = refreshActivityVisibility();
+        AccessibilityWindowState.Snapshot windowState = AccessibilityWindowState.current();
+        if (windowState.available) {
+            WindowVisibilityPolicy.Decision decision = WindowVisibilityPolicy.evaluate(
+                    windowState.windows,
+                    windowState.displayWidth,
+                    windowState.displayHeight,
+                    homePackages,
+                    homeComponents,
+                    eventTracker.mostRecentVisibleActivity(),
+                    windowState.eventPackage,
+                    windowState.eventClass,
+                    context.getPackageName()
+            );
+            if (decision != WindowVisibilityPolicy.Decision.UNKNOWN) {
+                return decision == WindowVisibilityPolicy.Decision.HOME_VISIBLE;
+            }
+        }
+        return usageStateAvailable && eventTracker.isAnyPackageVisible(homePackages);
     }
 
     boolean isDeviceReady() {
@@ -130,6 +149,7 @@ final class ForegroundAppDetector {
 
     private void refreshHomePackages() {
         homePackages.clear();
+        homeComponents.clear();
         Intent intent = new Intent(Intent.ACTION_MAIN);
         intent.addCategory(Intent.CATEGORY_HOME);
         PackageManager packageManager = context.getPackageManager();
@@ -146,6 +166,10 @@ final class ForegroundAppDetector {
         for (ResolveInfo home : homes) {
             if (home.activityInfo != null) {
                 homePackages.add(home.activityInfo.packageName);
+                homeComponents.add(WindowVisibilityPolicy.componentKey(
+                        home.activityInfo.packageName,
+                        home.activityInfo.name
+                ));
             }
         }
         lastHomeRefreshTime = System.currentTimeMillis();
