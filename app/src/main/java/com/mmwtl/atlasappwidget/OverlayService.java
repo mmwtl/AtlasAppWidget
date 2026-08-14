@@ -321,6 +321,11 @@ public final class OverlayService extends Service
                 refreshSystemStatusIfNeeded();
             }
             updateNotification(hasApps ? NOTIFICATION_VISIBLE : NOTIFICATION_NO_APPS);
+        } else if (homeVisible && deviceReady) {
+            // A launch suppression keeps a panel that is still visible on HOME in place. The
+            // panel is removed only after the detector confirms that HOME is no longer visible.
+            updateNotification(isPanelAttached()
+                    ? NOTIFICATION_VISIBLE : NOTIFICATION_HIDDEN);
         } else {
             hidePanel();
             updateNotification(NOTIFICATION_HIDDEN);
@@ -685,7 +690,6 @@ public final class OverlayService extends Service
     @Override
     public void onAppClicked(AppEntry entry) {
         panelSuppression.suppress(SystemClock.elapsedRealtime(), 1_500L);
-        hidePanel();
         Intent launch = new Intent(Intent.ACTION_MAIN)
                 .addCategory(Intent.CATEGORY_LAUNCHER)
                 .setComponent(entry.componentName)
