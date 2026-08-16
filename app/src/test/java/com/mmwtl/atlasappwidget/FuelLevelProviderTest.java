@@ -57,6 +57,23 @@ public final class FuelLevelProviderTest {
     }
 
     @Test
+    public void rangeResponseUsesFx11EnduranceMileageSensor() {
+        Float sensorValue = FuelLevelProvider.parseRangeSensorValue("1054720", "312.9");
+
+        assertNotNull(sensorValue);
+        assertEquals(312, FuelLevelProvider.rangeKmFromSensorValue(sensorValue));
+        assertNull(FuelLevelProvider.parseRangeSensorValue("4211968", "312.9"));
+    }
+
+    @Test
+    public void fx11TreatsRangeAtOrBelowOneAsUnavailable() {
+        assertEquals(SystemStatusSnapshot.UNAVAILABLE,
+                FuelLevelProvider.rangeKmFromSensorValue(1f));
+        assertEquals(SystemStatusSnapshot.UNAVAILABLE,
+                FuelLevelProvider.rangeKmFromSensorValue(Float.NaN));
+    }
+
+    @Test
     public void customMultiplierAndOffsetAreAppliedBeforeClamping() {
         FuelLevelProvider.Reading reading =
                 FuelLevelProvider.fromSensorValue(20f, 0.5f, 2f);

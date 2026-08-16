@@ -23,6 +23,7 @@ final class FuelLevelProvider {
     static final String EXTRA_ID = "id";
     static final String EXTRA_VALUE = "value";
     static final int SENSOR_TYPE_FUEL_PERCENTAGE = 4_211_968;
+    static final int SENSOR_TYPE_ENDURANCE_MILEAGE_FUEL = 1_054_720;
     static final int TANK_CAPACITY_LITERS = 54;
     static final float DEFAULT_MULTIPLIER = 0.466f;
     static final float DEFAULT_OFFSET = 4.4f;
@@ -35,6 +36,8 @@ final class FuelLevelProvider {
     private volatile float currentSensorValue = Float.NaN;
     private volatile long currentReceivedAtMillis;
     private volatile long currentReceivedAtElapsedRealtime;
+    private volatile float currentRangeSensorValue = Float.NaN;
+    private volatile long currentRangeReceivedAtElapsedRealtime;
     private int lastLoggedLiters = SystemStatusSnapshot.UNAVAILABLE;
     private volatile boolean registered;
 
@@ -44,7 +47,7 @@ final class FuelLevelProvider {
             if (!registered) {
                 return;
             }
-            sendSensorCommand(ACTION_GET_FLOAT_SENSOR);
+            requestFuelData();
             handler.postDelayed(this, SENSOR_REFRESH_INTERVAL_MS);
         }
     };
@@ -60,19 +63,24 @@ final class FuelLevelProvider {
                     && !ACTION_SENSOR_FLOAT_CHANGED.equals(action)) {
                 return;
             }
-            Float parsed = parseSensorValue(
-                    extraValue(intent, EXTRA_ID),
-                    extraValue(intent, EXTRA_VALUE)
-            );
-            if (parsed != null) {
+            Object rawId = extraValue(intent, EXTRA_ID);
+            Object rawValue = extraValue(intent, EXTRA_VALUE);
+            Float fuelValue = parseSensorValue(rawId, rawValue);
+            if (fuelValue != null) {
                 currentReceivedAtMillis = System.currentTimeMillis();
                 currentReceivedAtElapsedRealtime = SystemClock.elapsedRealtime();
-                currentSensorValue = parsed;
+                currentSensorValue = fuelValue;
                 Reading reading = reading();
                 if (reading != null && reading.liters != lastLoggedLiters) {
                     lastLoggedLiters = reading.liters;
                     AppLog.info("Fuel level received: " + reading.liters + " L");
                 }
+                return;
+            }
+            Float rangeValue = parseRangeSensorValue(rawId, rawValue);
+            if (rangeValue != null) {
+                currentRangeReceivedAtElapsedRealtime = SystemClock.elapsedRealtime();
+                currentRangeSensorValue = rangeValue;
             }
         }
     };
@@ -103,7 +111,7 @@ final class FuelLevelProvider {
             AppLog.warn("Cannot register GInputBridge fuel listener", error);
             return;
         }
-        sendSensorCommand(ACTION_GET_FLOAT_SENSOR);
+        requestFuelData();
         handler.removeCallbacks(sensorRefresh);
         handler.postDelayed(sensorRefresh, SENSOR_REFRESH_INTERVAL_MS);
         AppLog.info("FX11 fuel percentage polling started through GInputBridge");
@@ -139,7 +147,10 @@ final class FuelLevelProvider {
                 sensorValue,
                 prefs.fuelMultiplier(),
                 prefs.fuelOffset(),
-                currentReceivedAtMillis
+                currentReceivedAtMillis,
+                isReadingFresh(currentRangeReceivedAtElapsedRealtime, nowElapsedRealtime)
+                        ? rangeKmFromSensorValue(currentRangeSensorValue)
+                        : SystemStatusSnapshot.UNAVAILABLE
         );
     }
 
@@ -147,13 +158,20 @@ final class FuelLevelProvider {
         currentSensorValue = Float.NaN;
         currentReceivedAtMillis = 0L;
         currentReceivedAtElapsedRealtime = 0L;
+        currentRangeSensorValue = Float.NaN;
+        currentRangeReceivedAtElapsedRealtime = 0L;
         lastLoggedLiters = SystemStatusSnapshot.UNAVAILABLE;
     }
 
-    private void sendSensorCommand(String action) {
-        Intent request = new Intent(action)
+    private void requestFuelData() {
+        sendSensorCommand(SENSOR_TYPE_FUEL_PERCENTAGE);
+        sendSensorCommand(SENSOR_TYPE_ENDURANCE_MILEAGE_FUEL);
+    }
+
+    private void sendSensorCommand(int sensorType) {
+        Intent request = new Intent(ACTION_GET_FLOAT_SENSOR)
                 .setPackage(BRIDGE_PACKAGE)
-                .putExtra(EXTRA_ID, Integer.toString(SENSOR_TYPE_FUEL_PERCENTAGE));
+                .putExtra(EXTRA_ID, Integer.toString(sensorType));
         try {
             context.sendBroadcast(request);
         } catch (RuntimeException error) {
@@ -179,12 +197,19 @@ final class FuelLevelProvider {
     }
 
     static Float parseSensorValue(Object rawId, Object rawValue) {
+        return parseSensorValue(rawId, rawValue, SENSOR_TYPE_FUEL_PERCENTAGE);
+    }
+
+    static Float parseRangeSensorValue(Object rawId, Object rawValue) {
+        return parseSensorValue(rawId, rawValue, SENSOR_TYPE_ENDURANCE_MILEAGE_FUEL);
+    }
+
+    private static Float parseSensorValue(Object rawId, Object rawValue, int expectedSensorType) {
         if (rawId == null || rawValue == null) {
             return null;
         }
         try {
-            if (Integer.parseInt(rawId.toString().trim())
-                    != SENSOR_TYPE_FUEL_PERCENTAGE) {
+            if (Integer.parseInt(rawId.toString().trim()) != expectedSensorType) {
                 return null;
             }
             float value = Float.parseFloat(rawValue.toString().trim());
@@ -195,18 +220,28 @@ final class FuelLevelProvider {
     }
 
     static Reading fromSensorValue(float sensorValue) {
-        return fromSensorValue(sensorValue, DEFAULT_MULTIPLIER, DEFAULT_OFFSET, 0L);
+        return fromSensorValue(sensorValue, DEFAULT_MULTIPLIER, DEFAULT_OFFSET, 0L,
+                SystemStatusSnapshot.UNAVAILABLE);
     }
 
     static Reading fromSensorValue(float sensorValue, float multiplier, float offset) {
-        return fromSensorValue(sensorValue, multiplier, offset, 0L);
+        return fromSensorValue(sensorValue, multiplier, offset, 0L,
+                SystemStatusSnapshot.UNAVAILABLE);
+    }
+
+    static int rangeKmFromSensorValue(float sensorValue) {
+        if (!Float.isFinite(sensorValue) || sensorValue <= 1f) {
+            return SystemStatusSnapshot.UNAVAILABLE;
+        }
+        return (int) sensorValue;
     }
 
     private static Reading fromSensorValue(
             float sensorValue,
             float multiplier,
             float offset,
-            long receivedAtMillis
+            long receivedAtMillis,
+            int rangeKm
     ) {
         if (!Float.isFinite(sensorValue)
                 || !Float.isFinite(multiplier)
@@ -228,6 +263,7 @@ final class FuelLevelProvider {
                 calculatedLiters,
                 Math.max(0, Math.min(TANK_CAPACITY_LITERS, liters)),
                 Math.max(0, Math.min(100, percent)),
+                rangeKm,
                 receivedAtMillis
         );
     }
@@ -240,6 +276,7 @@ final class FuelLevelProvider {
         final int liters;
         final int freeLiters;
         final int percent;
+        final int rangeKm;
         final long receivedAtMillis;
 
         Reading(
@@ -249,6 +286,7 @@ final class FuelLevelProvider {
                 float calculatedLiters,
                 int liters,
                 int percent,
+                int rangeKm,
                 long receivedAtMillis
         ) {
             this.sensorValue = sensorValue;
@@ -260,6 +298,7 @@ final class FuelLevelProvider {
                     ? SystemStatusSnapshot.UNAVAILABLE
                     : TANK_CAPACITY_LITERS - liters;
             this.percent = percent;
+            this.rangeKm = rangeKm;
             this.receivedAtMillis = receivedAtMillis;
         }
 
@@ -273,6 +312,7 @@ final class FuelLevelProvider {
                     Float.NaN,
                     Float.NaN,
                     Float.NaN,
+                    SystemStatusSnapshot.UNAVAILABLE,
                     SystemStatusSnapshot.UNAVAILABLE,
                     SystemStatusSnapshot.UNAVAILABLE,
                     0L

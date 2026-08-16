@@ -20,6 +20,7 @@ final class FuelDetailsView extends LinearLayout {
     private final TextView primary;
     private final TextView filled;
     private final TextView free;
+    private final TextView range;
     private final TextView formula;
     private final TextView received;
     private boolean closeRequested;
@@ -89,6 +90,8 @@ final class FuelDetailsView extends LinearLayout {
         values.addView(filled);
         free = detailLine(22);
         values.addView(free);
+        range = detailLine(22);
+        values.addView(range);
 
         formula = detailLine(19);
         formula.setLineSpacing(0, 1.1f);
@@ -120,6 +123,10 @@ final class FuelDetailsView extends LinearLayout {
                     R.string.fuel_free_detail,
                     getContext().getString(R.string.value_unavailable)
             ));
+            range.setText(getContext().getString(
+                    R.string.fuel_range_detail,
+                    getContext().getString(R.string.value_unavailable)
+            ));
             formula.setText(getContext().getString(
                     R.string.fuel_formula_waiting,
                     formatNumber(prefs.fuelMultiplier()),
@@ -144,6 +151,12 @@ final class FuelDetailsView extends LinearLayout {
                 R.string.fuel_free_detail,
                 getContext().getString(R.string.liters_value, reading.freeLiters)
         ));
+        range.setText(getContext().getString(
+                R.string.fuel_range_detail,
+                reading.rangeKm == SystemStatusSnapshot.UNAVAILABLE
+                        ? getContext().getString(R.string.value_unavailable)
+                        : getContext().getString(R.string.kilometers_value, reading.rangeKm)
+        ));
         formula.setText(getContext().getString(
                 R.string.fuel_formula_detail,
                 formatNumber(reading.sensorValue),
@@ -158,10 +171,11 @@ final class FuelDetailsView extends LinearLayout {
         received.setText(getContext().getString(R.string.fuel_received_detail, time));
         setContentDescription(String.format(
                 Locale.getDefault(),
-                "%s. %s. %s. %s",
+                "%s. %s. %s. %s. %s",
                 primary.getText(),
                 filled.getText(),
                 free.getText(),
+                range.getText(),
                 formula.getText()
         ));
     }

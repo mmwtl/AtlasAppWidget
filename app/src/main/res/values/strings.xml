@@ -142,8 +142,10 @@
     <string name="fuel_primary_detail">%1$d из %2$d л</string>
     <string name="fuel_filled_detail">Залито: %1$s</string>
     <string name="fuel_free_detail">Свободно: %1$s</string>
+    <string name="fuel_range_detail">Запас хода: %1$s</string>
     <string name="liters_and_percent">%1$d л · %2$d%%</string>
     <string name="liters_value">%1$d л</string>
+    <string name="kilometers_value">%1$d км</string>
     <string name="fuel_formula_detail">Расчёт: %1$s × %2$s %3$s = %4$s л</string>
     <string name="fuel_formula_waiting">Формула: API × %1$s %2$s</string>
     <string name="fuel_received_detail">Последнее значение: %1$s</string>
