@@ -92,6 +92,6 @@ final class ColorPickerDialog {
                     listener.onColorSelected(Color.rgb(channels[0], channels[1], channels[2]));
                     dialog.dismiss();
                 }));
-        dialog.show();
+        CompactDialog.show(dialog);
     }
 }

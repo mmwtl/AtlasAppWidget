@@ -1072,13 +1072,14 @@ public final class MainActivity extends ScaledActivity
     }
 
     private void confirmSettingsImport(SettingsBackup.Data imported) {
-        new AlertDialog.Builder(this)
+        AlertDialog dialog = new AlertDialog.Builder(this)
                 .setTitle(R.string.settings_import_confirm_title)
                 .setMessage(R.string.settings_import_confirm_message)
                 .setNegativeButton(R.string.cancel, null)
                 .setPositiveButton(R.string.import_settings_confirm,
-                        (dialog, which) -> applySettings(imported))
-                .show();
+                        (ignoredDialog, which) -> applySettings(imported))
+                .create();
+        CompactDialog.show(dialog);
     }
 
     private void applySettings(SettingsBackup.Data imported) {
@@ -1267,18 +1268,7 @@ public final class MainActivity extends ScaledActivity
                     prefs.putFuelFormula(parsedMultiplier, parsedOffset);
                     dialog.dismiss();
                 }));
-        dialog.show();
-        if (dialog.getWindow() != null) {
-            int availableWidth = Math.max(
-                    1,
-                    getWindowManager().getCurrentWindowMetrics().getBounds().width()
-                            - Ui.dp(this, 32)
-            );
-            dialog.getWindow().setLayout(
-                    Math.min(availableWidth, Ui.dp(this, 640)),
-                    ViewGroup.LayoutParams.WRAP_CONTENT
-            );
-        }
+        CompactDialog.show(dialog);
     }
 
     private EditText formulaField(float value) {

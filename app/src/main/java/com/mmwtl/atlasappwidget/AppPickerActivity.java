@@ -216,9 +216,9 @@ public final class AppPickerActivity extends ScaledActivity {
                 ? new String[]{getString(R.string.choose_image),
                 getString(R.string.restore_system_icon), getString(R.string.cancel)}
                 : new String[]{getString(R.string.choose_image), getString(R.string.cancel)};
-        new AlertDialog.Builder(this)
+        AlertDialog dialog = new AlertDialog.Builder(this)
                 .setTitle(entry.label + " — " + entry.activityLabel)
-                .setItems(options, (dialog, which) -> {
+                .setItems(options, (ignoredDialog, which) -> {
                     if (which == 0) {
                         chooseIcon(entry);
                     } else if (hasCustom && which == 1) {
@@ -230,7 +230,8 @@ public final class AppPickerActivity extends ScaledActivity {
                         }
                     }
                 })
-                .show();
+                .create();
+        CompactDialog.show(dialog);
     }
 
     private void chooseIcon(AppEntry entry) {
