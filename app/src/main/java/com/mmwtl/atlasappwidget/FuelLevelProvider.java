@@ -11,8 +11,6 @@ import android.os.Handler;
 import android.os.Looper;
 import android.os.SystemClock;
 
-import java.util.Locale;
-
 /** Receives the fuel level exposed by GInputBridge and converts it to tank liters. */
 final class FuelLevelProvider {
     static final String BRIDGE_PACKAGE = "com.salat.gbinder";
@@ -272,7 +270,7 @@ final class FuelLevelProvider {
         }
         float boundedLiters = Math.max(0f,
                 Math.min(tankCapacityLiters, calculatedLiters));
-        int liters = (int) Math.rint(boundedLiters);
+        int liters = Math.round(boundedLiters);
         int percent = tankCapacityLiters == 0
                 ? 0
                 : Math.round(liters * 100f / tankCapacityLiters);
@@ -335,7 +333,7 @@ final class FuelLevelProvider {
                 return "—";
             }
             return sensorValue == API_MIN_VALUE
-                    ? "<" + formatFormulaNumber(offset)
+                    ? "<" + liters
                     : Integer.toString(liters);
         }
 
@@ -344,7 +342,7 @@ final class FuelLevelProvider {
                 return "—";
             }
             return sensorValue == API_MIN_VALUE
-                    ? ">" + formatFormulaNumber(API_MAX_VALUE * multiplier)
+                    ? ">" + freeLiters
                     : Integer.toString(freeLiters);
         }
 
@@ -363,14 +361,4 @@ final class FuelLevelProvider {
         }
     }
 
-    private static String formatFormulaNumber(float value) {
-        if (!Float.isFinite(value)) {
-            return "—";
-        }
-        if (Math.abs(value - Math.round(value)) < 0.0001f) {
-            return String.format(Locale.getDefault(), "%d", Math.round(value));
-        }
-        String valueText = String.format(Locale.getDefault(), "%.3f", value);
-        return valueText.replaceAll("0+$", "").replaceAll("[.,]$", "");
-    }
 }

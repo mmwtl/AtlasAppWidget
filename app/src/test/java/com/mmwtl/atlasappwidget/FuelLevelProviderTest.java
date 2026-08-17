@@ -23,7 +23,22 @@ public final class FuelLevelProviderTest {
         assertEquals(54, reading.tankCapacityLiters);
         assertEquals("<4", reading.filledDisplayValue());
         assertEquals(">50", reading.freeDisplayValue());
+        assertEquals(reading.tankCapacityLiters, reading.liters + reading.freeLiters);
         assertEquals(7, reading.percent);
+    }
+
+    @Test
+    public void zeroApiRoundsBoundaryValuesWithoutBreakingTankArithmetic() {
+        FuelLevelProvider.Reading reading =
+                FuelLevelProvider.fromSensorValue(0f, 0.466f, 4.4f);
+
+        assertNotNull(reading);
+        assertEquals(51, reading.tankCapacityLiters);
+        assertEquals(4, reading.liters);
+        assertEquals(47, reading.freeLiters);
+        assertEquals("<4", reading.filledDisplayValue());
+        assertEquals(">47", reading.freeDisplayValue());
+        assertEquals(reading.tankCapacityLiters, reading.liters + reading.freeLiters);
     }
 
     @Test
