@@ -12,7 +12,7 @@ import android.view.WindowManager;
 import android.widget.TextView;
 
 final class CompactDialog {
-    private static final int MAX_WIDTH_DP = 360;
+    private static final int MAX_WIDTH_DP = 640;
     private static final int SIDE_MARGIN_DP = 24;
     private static final float MESSAGE_TEXT_SIZE_SP = 12f;
     private static final float MESSAGE_LINE_SPACING_MULTIPLIER = 1.1f;
