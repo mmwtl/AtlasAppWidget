@@ -19,6 +19,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.RejectedExecutionException;
 
 public final class WindowAccessibilityService extends AccessibilityService {
+    private static final long LAUNCHER_APP_LIST_REFRESH_MS = 250L;
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
     private final ExecutorService windowReader = Executors.newSingleThreadExecutor(runnable -> {
         Thread thread = new Thread(runnable, "atlas-accessibility-windows");
@@ -30,13 +31,16 @@ public final class WindowAccessibilityService extends AccessibilityService {
     private boolean refreshInFlight;
     private boolean refreshPending;
     private volatile boolean destroyed;
+    private final Runnable launcherAppListRefresh = this::requestWindowRefresh;
 
     @Override
     protected void onServiceConnected() {
         super.onServiceConnected();
         AccessibilityServiceInfo info = getServiceInfo();
         info.eventTypes = AccessibilityEvent.TYPE_WINDOWS_CHANGED
-                | AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED;
+                | AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED
+                | AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED
+                | AccessibilityEvent.TYPE_VIEW_SCROLLED;
         info.flags |= AccessibilityServiceInfo.FLAG_RETRIEVE_INTERACTIVE_WINDOWS
                 | AccessibilityServiceInfo.FLAG_INCLUDE_NOT_IMPORTANT_VIEWS
                 | AccessibilityServiceInfo.FLAG_REPORT_VIEW_IDS;
@@ -56,7 +60,9 @@ public final class WindowAccessibilityService extends AccessibilityService {
             lastEventClass = text(event.getClassName());
         }
         if (event.getEventType() == AccessibilityEvent.TYPE_WINDOWS_CHANGED
-                || event.getEventType() == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
+                || event.getEventType() == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED
+                || event.getEventType() == AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED
+                || event.getEventType() == AccessibilityEvent.TYPE_VIEW_SCROLLED) {
             requestWindowRefresh();
         }
     }
@@ -69,6 +75,7 @@ public final class WindowAccessibilityService extends AccessibilityService {
     public void onDestroy() {
         destroyed = true;
         refreshPending = false;
+        mainHandler.removeCallbacks(launcherAppListRefresh);
         windowReader.shutdownNow();
         AccessibilityWindowState.markUnavailable();
         notifyOverlayService();
@@ -100,6 +107,7 @@ public final class WindowAccessibilityService extends AccessibilityService {
         long startedAt = SystemClock.elapsedRealtime();
         List<WindowObservation> observations = new ArrayList<>();
         boolean eventWindowPresent = false;
+        boolean launcherAppListVisible = false;
         try {
             List<AccessibilityWindowInfo> windows = getWindows();
             if (windows != null) {
@@ -109,14 +117,14 @@ public final class WindowAccessibilityService extends AccessibilityService {
                     AccessibilityNodeInfo root = null;
                     String packageName = "";
                     String className = "";
-                    boolean launcherAppListVisible = false;
+                    boolean windowAppListVisible = false;
                     try {
                         root = window.getRoot();
                         if (root != null) {
                             packageName = text(root.getPackageName());
                             className = text(root.getClassName());
                             if (LauncherAllAppsViewDetector.isLauncherPackage(packageName)) {
-                                launcherAppListVisible = containsAllAppsMarker(root);
+                                windowAppListVisible = containsAllAppsMarker(root);
                             }
                         }
                     } catch (RuntimeException error) {
@@ -149,8 +157,9 @@ public final class WindowAccessibilityService extends AccessibilityService {
                             bounds.top,
                             bounds.right,
                             bounds.bottom,
-                            launcherAppListVisible
+                            windowAppListVisible
                     ));
+                    launcherAppListVisible |= windowAppListVisible;
                 }
             }
             WindowManager manager = getSystemService(WindowManager.class);
@@ -166,6 +175,7 @@ public final class WindowAccessibilityService extends AccessibilityService {
                     eventWindowPresent ? eventPackage : "",
                     eventWindowPresent ? eventClass : ""
             );
+            scheduleLauncherAppListRefresh(launcherAppListVisible);
             notifyOverlayService();
         } catch (RuntimeException error) {
             AppLog.warnRateLimited(
@@ -195,9 +205,28 @@ public final class WindowAccessibilityService extends AccessibilityService {
         OverlayService.onAccessibilityWindowsChanged();
     }
 
+    private void scheduleLauncherAppListRefresh(boolean appListVisible) {
+        mainHandler.removeCallbacks(launcherAppListRefresh);
+        if (appListVisible && !destroyed) {
+            mainHandler.postDelayed(launcherAppListRefresh, LAUNCHER_APP_LIST_REFRESH_MS);
+        }
+    }
+
     @SuppressWarnings("deprecation")
     private static boolean containsAllAppsMarker(AccessibilityNodeInfo node) {
         if (node == null) {
+            return false;
+        }
+        try {
+            if (!node.isVisibleToUser()) {
+                return false;
+            }
+        } catch (RuntimeException error) {
+            AppLog.warnRateLimited(
+                    "accessibility-app-list-visibility",
+                    "Cannot inspect launcher app-list node visibility",
+                    error
+            );
             return false;
         }
         if (LauncherAllAppsViewDetector.isAllAppsMarker(
