@@ -47,6 +47,7 @@ public final class OverlayService extends Service
     private static final int NOTIFICATION_HIDDEN = 2;
     private static final int NOTIFICATION_PERMISSION_ERROR = 3;
     private static final int NOTIFICATION_NO_APPS = 5;
+    static final long FUEL_DETAILS_AUTO_HIDE_DELAY_MS = 10_000L;
     private static volatile boolean running;
     private static volatile OverlayService instance;
 
@@ -68,6 +69,7 @@ public final class OverlayService extends Service
     private int panelBoundsHeight;
     private List<AppEntry> selectedEntriesCache;
     private FuelDetailsView fuelDetailsView;
+    private Runnable fuelDetailsAutoHide;
     private final PanelSuppressionPolicy panelSuppression = new PanelSuppressionPolicy();
     private Boolean lastAppliedHomeVisible;
     private final Runnable applyPreferenceChanges = () -> {
@@ -742,12 +744,22 @@ public final class OverlayService extends Service
         try {
             windowManager.addView(details, params);
             fuelDetailsView = details;
+            fuelDetailsAutoHide = () -> {
+                if (fuelDetailsView == details) {
+                    dismissFuelDetails();
+                }
+            };
+            handler.postDelayed(fuelDetailsAutoHide, FUEL_DETAILS_AUTO_HIDE_DELAY_MS);
         } catch (SecurityException | WindowManager.BadTokenException error) {
             AppLog.warn("Cannot show fuel details overlay", error);
         }
     }
 
     private void dismissFuelDetails() {
+        if (fuelDetailsAutoHide != null) {
+            handler.removeCallbacks(fuelDetailsAutoHide);
+            fuelDetailsAutoHide = null;
+        }
         FuelDetailsView details = fuelDetailsView;
         if (details == null) {
             fuelDetailsView = null;
