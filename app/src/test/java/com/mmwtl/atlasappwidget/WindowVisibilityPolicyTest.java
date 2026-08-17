@@ -120,6 +120,29 @@ public final class WindowVisibilityPolicyTest {
         );
     }
 
+    @Test
+    public void launcherAllAppsStateHidesPanelEvenWithinHomeActivity() {
+        assertDecision(
+                WindowVisibilityPolicy.Decision.HOME_HIDDEN,
+                List.of(new WindowObservation(
+                        "launcher",
+                        "com.android.launcher3.Launcher",
+                        AccessibilityWindowInfo.TYPE_APPLICATION,
+                        true,
+                        true,
+                        0,
+                        0,
+                        0,
+                        WIDTH,
+                        HEIGHT,
+                        true
+                )),
+                activity("launcher", "com.android.launcher3.Launcher"),
+                "launcher",
+                "com.android.launcher3.Launcher"
+        );
+    }
+
     private static WindowObservation window(
             String packageName,
             String className,

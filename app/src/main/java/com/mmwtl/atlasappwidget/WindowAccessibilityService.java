@@ -38,7 +38,8 @@ public final class WindowAccessibilityService extends AccessibilityService {
         info.eventTypes = AccessibilityEvent.TYPE_WINDOWS_CHANGED
                 | AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED;
         info.flags |= AccessibilityServiceInfo.FLAG_RETRIEVE_INTERACTIVE_WINDOWS
-                | AccessibilityServiceInfo.FLAG_INCLUDE_NOT_IMPORTANT_VIEWS;
+                | AccessibilityServiceInfo.FLAG_INCLUDE_NOT_IMPORTANT_VIEWS
+                | AccessibilityServiceInfo.FLAG_REPORT_VIEW_IDS;
         info.notificationTimeout = 50L;
         setServiceInfo(info);
         requestWindowRefresh();
@@ -108,11 +109,15 @@ public final class WindowAccessibilityService extends AccessibilityService {
                     AccessibilityNodeInfo root = null;
                     String packageName = "";
                     String className = "";
+                    boolean launcherAppListVisible = false;
                     try {
                         root = window.getRoot();
                         if (root != null) {
                             packageName = text(root.getPackageName());
                             className = text(root.getClassName());
+                            if (LauncherAllAppsViewDetector.isLauncherPackage(packageName)) {
+                                launcherAppListVisible = containsAllAppsMarker(root);
+                            }
                         }
                     } catch (RuntimeException error) {
                         AppLog.warnRateLimited(
@@ -143,7 +148,8 @@ public final class WindowAccessibilityService extends AccessibilityService {
                             bounds.left,
                             bounds.top,
                             bounds.right,
-                            bounds.bottom
+                            bounds.bottom,
+                            launcherAppListVisible
                     ));
                 }
             }
@@ -187,6 +193,50 @@ public final class WindowAccessibilityService extends AccessibilityService {
 
     private void notifyOverlayService() {
         OverlayService.onAccessibilityWindowsChanged();
+    }
+
+    @SuppressWarnings("deprecation")
+    private static boolean containsAllAppsMarker(AccessibilityNodeInfo node) {
+        if (node == null) {
+            return false;
+        }
+        if (LauncherAllAppsViewDetector.isAllAppsMarker(
+                text(node.getViewIdResourceName()),
+                text(node.getClassName()),
+                text(node.getText()))) {
+            return true;
+        }
+        int childCount;
+        try {
+            childCount = node.getChildCount();
+        } catch (RuntimeException error) {
+            AppLog.warnRateLimited(
+                    "accessibility-app-list-child-count",
+                    "Cannot inspect launcher app-list child count",
+                    error
+            );
+            return false;
+        }
+        for (int index = 0; index < childCount; index++) {
+            AccessibilityNodeInfo child = null;
+            try {
+                child = node.getChild(index);
+                if (containsAllAppsMarker(child)) {
+                    return true;
+                }
+            } catch (RuntimeException error) {
+                AppLog.warnRateLimited(
+                        "accessibility-app-list",
+                        "Cannot inspect launcher app-list node",
+                        error
+                );
+            } finally {
+                if (child != null) {
+                    child.recycle();
+                }
+            }
+        }
+        return false;
     }
 
     private static String text(CharSequence value) {

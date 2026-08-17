@@ -12,6 +12,7 @@ final class WindowObservation {
     final int top;
     final int right;
     final int bottom;
+    final boolean launcherAppListVisible;
 
     WindowObservation(
             String packageName,
@@ -25,6 +26,34 @@ final class WindowObservation {
             int right,
             int bottom
     ) {
+        this(
+                packageName,
+                className,
+                type,
+                active,
+                focused,
+                layer,
+                left,
+                top,
+                right,
+                bottom,
+                false
+        );
+    }
+
+    WindowObservation(
+            String packageName,
+            String className,
+            int type,
+            boolean active,
+            boolean focused,
+            int layer,
+            int left,
+            int top,
+            int right,
+            int bottom,
+            boolean launcherAppListVisible
+    ) {
         this.packageName = value(packageName);
         this.className = value(className);
         this.type = type;
@@ -35,6 +64,7 @@ final class WindowObservation {
         this.top = top;
         this.right = right;
         this.bottom = bottom;
+        this.launcherAppListVisible = launcherAppListVisible;
     }
 
     int width() {

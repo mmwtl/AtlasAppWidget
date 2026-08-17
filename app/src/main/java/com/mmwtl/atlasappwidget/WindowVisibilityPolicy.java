@@ -48,6 +48,16 @@ final class WindowVisibilityPolicy {
             return Decision.HOME_HIDDEN;
         }
 
+        for (WindowObservation window : windows) {
+            if (window.launcherAppListVisible
+                    && homePackages.contains(window.packageName)
+                    && (window.active
+                    || window.focused
+                    || window.packageName.equals(foregroundPackage))) {
+                return Decision.HOME_HIDDEN;
+            }
+        }
+
         boolean launcherPresent = false;
         int highestLauncherLayer = Integer.MIN_VALUE;
         boolean nonHomeApplicationPresent = false;
