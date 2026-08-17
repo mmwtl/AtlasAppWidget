@@ -344,7 +344,7 @@ final class PanelView extends LinearLayout {
             FuelLevelProvider.Reading fuelReading
     ) {
         if (systemStatusView != null) {
-            systemStatusView.update(snapshot);
+            systemStatusView.update(snapshot, fuelReading);
         }
         if (fuelTileView != null) {
             fuelTileView.update(fuelReading);

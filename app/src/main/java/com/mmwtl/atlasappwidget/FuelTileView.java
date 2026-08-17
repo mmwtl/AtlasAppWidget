@@ -29,8 +29,8 @@ final class FuelTileView extends View {
             setContentDescription(String.format(
                     Locale.getDefault(),
                     getContext().getString(R.string.fuel_tile_content_description),
-                    reading.freeLiters,
-                    reading.liters
+                    reading.freeDisplayValue(),
+                    reading.filledDisplayValue()
             ));
         }
         invalidate();
@@ -41,8 +41,8 @@ final class FuelTileView extends View {
         setContentDescription(String.format(
                 Locale.getDefault(),
                 getContext().getString(R.string.fuel_tile_content_description),
-                FuelLevelProvider.TANK_CAPACITY_LITERS - 42,
-                42
+                Integer.toString(FuelLevelProvider.DEFAULT_TANK_CAPACITY_LITERS - 42),
+                "42"
         ));
         invalidate();
     }

@@ -94,6 +94,10 @@ final class SystemStatusView extends LinearLayout {
     }
 
     void update(SystemStatusSnapshot snapshot) {
+        update(snapshot, null);
+    }
+
+    void update(SystemStatusSnapshot snapshot, FuelLevelProvider.Reading fuelReading) {
         List<CharSequence> descriptions = new ArrayList<>(3);
         if (cpu != null) {
             cpu.updatePercent(snapshot.cpuPercent);
@@ -104,7 +108,11 @@ final class SystemStatusView extends LinearLayout {
             descriptions.add(ram.label.getText());
         }
         if (fuel != null) {
-            fuel.updateLiters(snapshot.fuelLiters, snapshot.fuelPercent);
+            if (fuelReading == null) {
+                fuel.updateLiters(snapshot.fuelLiters, snapshot.fuelPercent);
+            } else {
+                fuel.updateLiters(fuelReading);
+            }
             descriptions.add(fuel.label.getText());
         }
         setContentDescription(android.text.TextUtils.join(", ", descriptions));
@@ -250,6 +258,14 @@ final class SystemStatusView extends LinearLayout {
                 updateValue("—", 0);
             } else {
                 updateValue(String.format(Locale.getDefault(), "%d л", liters), percent);
+            }
+        }
+
+        void updateLiters(FuelLevelProvider.Reading reading) {
+            if (reading == null || !reading.isAvailable()) {
+                updateValue("—", 0);
+            } else {
+                updateValue(reading.filledDisplayValue() + " л", reading.percent);
             }
         }
 

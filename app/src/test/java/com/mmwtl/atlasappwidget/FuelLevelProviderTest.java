@@ -20,17 +20,21 @@ public final class FuelLevelProviderTest {
 
         assertNotNull(reading);
         assertEquals(4, reading.liters);
+        assertEquals(54, reading.tankCapacityLiters);
+        assertEquals("<4", reading.filledDisplayValue());
+        assertEquals(">50", reading.freeDisplayValue());
         assertEquals(7, reading.percent);
     }
 
     @Test
-    public void fullFx11PercentageUsesCalibratedFormula() {
+    public void fullApiPercentageUsesNewFormulaAndDerivedTankCapacity() {
         FuelLevelProvider.Reading reading = FuelLevelProvider.fromSensorValue(100f);
 
         assertNotNull(reading);
-        assertEquals(51, reading.liters);
-        assertEquals(94, reading.percent);
-        assertEquals(3, reading.freeLiters);
+        assertEquals(54, reading.liters);
+        assertEquals(54, reading.tankCapacityLiters);
+        assertEquals(100, reading.percent);
+        assertEquals(0, reading.freeLiters);
     }
 
     @Test
@@ -42,9 +46,9 @@ public final class FuelLevelProviderTest {
                 FuelLevelProvider.fromSensorValue(sensorValue);
 
         assertNotNull(reading);
-        assertEquals(16, reading.liters);
-        assertEquals(30, reading.percent);
-        assertEquals(38, reading.freeLiters);
+        assertEquals(17, reading.liters);
+        assertEquals(31, reading.percent);
+        assertEquals(37, reading.freeLiters);
     }
 
     @Test
@@ -80,8 +84,9 @@ public final class FuelLevelProviderTest {
 
         assertNotNull(reading);
         assertEquals(12, reading.liters);
-        assertEquals(22, reading.percent);
-        assertEquals(42, reading.freeLiters);
+        assertEquals(52, reading.tankCapacityLiters);
+        assertEquals(23, reading.percent);
+        assertEquals(40, reading.freeLiters);
     }
 
     @Test
@@ -91,6 +96,7 @@ public final class FuelLevelProviderTest {
 
         assertNotNull(reading);
         assertEquals(44, reading.liters);
+        assertEquals(54, reading.tankCapacityLiters);
         assertEquals(81, reading.percent);
     }
 
@@ -100,6 +106,7 @@ public final class FuelLevelProviderTest {
 
         assertNotNull(reading);
         assertEquals(54, reading.liters);
+        assertEquals(54, reading.tankCapacityLiters);
         assertEquals(100, reading.percent);
     }
 

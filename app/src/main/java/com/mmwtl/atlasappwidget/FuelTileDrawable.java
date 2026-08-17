@@ -10,8 +10,6 @@ import android.graphics.RectF;
 import android.graphics.Typeface;
 import android.graphics.drawable.Drawable;
 
-import java.util.Locale;
-
 /** Static fuel-card artwork with live free/filled liter values. */
 final class FuelTileDrawable extends Drawable {
     private static final int BACKGROUND_COLOR = 0xFF171717;
@@ -27,8 +25,8 @@ final class FuelTileDrawable extends Drawable {
     private final Path path = new Path();
     private final String freeLabel;
     private final String filledLabel;
-    private int liters = SystemStatusSnapshot.UNAVAILABLE;
-    private int freeLiters = SystemStatusSnapshot.UNAVAILABLE;
+    private String liters;
+    private String freeLiters;
     private int alpha = 255;
 
     FuelTileDrawable(String freeLabel, String filledLabel) {
@@ -38,18 +36,18 @@ final class FuelTileDrawable extends Drawable {
 
     void update(FuelLevelProvider.Reading reading) {
         if (reading == null || !reading.isAvailable()) {
-            liters = SystemStatusSnapshot.UNAVAILABLE;
-            freeLiters = SystemStatusSnapshot.UNAVAILABLE;
+            liters = null;
+            freeLiters = null;
         } else {
-            liters = reading.liters;
-            freeLiters = reading.freeLiters;
+            liters = reading.filledDisplayValue();
+            freeLiters = reading.freeDisplayValue();
         }
         invalidateSelf();
     }
 
     void showPreview() {
-        liters = 42;
-        freeLiters = FuelLevelProvider.TANK_CAPACITY_LITERS - liters;
+        liters = "42";
+        freeLiters = Integer.toString(FuelLevelProvider.DEFAULT_TANK_CAPACITY_LITERS - 42);
         invalidateSelf();
     }
 
@@ -78,10 +76,8 @@ final class FuelTileDrawable extends Drawable {
 
         drawDotField(canvas, bounds, minimum);
 
-        String free = freeLiters == SystemStatusSnapshot.UNAVAILABLE
-                ? "—" : String.format(Locale.getDefault(), "%d", freeLiters);
-        String filled = liters == SystemStatusSnapshot.UNAVAILABLE
-                ? "—" : String.format(Locale.getDefault(), "%d", liters);
+        String free = freeLiters == null ? "—" : freeLiters;
+        String filled = liters == null ? "—" : liters;
         float left = bounds.left + width * 0.095f;
         drawValue(canvas, free, left, bounds.top + height * 0.245f,
                 minimum * 0.225f, LIGHT_TEXT);

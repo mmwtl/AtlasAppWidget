@@ -49,7 +49,7 @@
     <string name="use_custom_fuel_formula">Использовать свою формулу</string>
     <string name="change_fuel_formula">Изменить формулу</string>
     <string name="fuel_formula_dialog_title">Формула уровня топлива</string>
-    <string name="fuel_formula_dialog_hint">Результат ограничивается диапазоном бака 0–54 л. Допустимы дробные и отрицательные коэффициенты.</string>
+    <string name="fuel_formula_dialog_hint">Максимальный объём бака вычисляется по формуле на диапазоне API 0–100. Допустимы дробные и отрицательные коэффициенты.</string>
     <string name="fuel_multiplier">Множитель X</string>
     <string name="fuel_offset">Смещение Y, литры</string>
     <string name="fuel_formula_invalid">Введите корректное число</string>
@@ -135,16 +135,16 @@
     <string name="fuel_tile_component_label">Atlas App Widget · датчик GInputBridge</string>
     <string name="fuel_free_short">СВОБОДНО</string>
     <string name="fuel_filled_short">ТОПЛИВО</string>
-    <string name="fuel_tile_content_description">%1$d л свободно, %2$d л залито</string>
+    <string name="fuel_tile_content_description">%1$s л свободно, %2$s л залито</string>
     <string name="fuel_data_unavailable">Данные топлива недоступны</string>
     <string name="fuel_details_title">Данные топлива</string>
     <string name="close_fuel_details">Закрыть данные топлива</string>
-    <string name="fuel_primary_detail">%1$d из %2$d л</string>
+    <string name="fuel_primary_detail">%1$s из %2$d л</string>
     <string name="fuel_filled_detail">Залито: %1$s</string>
     <string name="fuel_free_detail">Свободно: %1$s</string>
     <string name="fuel_range_detail">Запас хода: %1$s</string>
-    <string name="liters_and_percent">%1$d л · %2$d%%</string>
-    <string name="liters_value">%1$d л</string>
+    <string name="liters_and_percent">%1$s л · %2$d%%</string>
+    <string name="liters_value">%1$s л</string>
     <string name="kilometers_value">%1$d км</string>
     <string name="fuel_formula_detail">Расчёт: %1$s × %2$s %3$s = %4$s л</string>
     <string name="fuel_formula_waiting">Формула: API × %1$s %2$s</string>

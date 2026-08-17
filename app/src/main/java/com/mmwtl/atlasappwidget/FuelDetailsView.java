@@ -139,17 +139,17 @@ final class FuelDetailsView extends LinearLayout {
 
         primary.setText(getContext().getString(
                 R.string.fuel_primary_detail,
-                reading.liters,
-                FuelLevelProvider.TANK_CAPACITY_LITERS
+                reading.filledDisplayValue(),
+                reading.tankCapacityLiters
         ));
         filled.setText(getContext().getString(
                 R.string.fuel_filled_detail,
                 getContext().getString(R.string.liters_and_percent,
-                        reading.liters, reading.percent)
+                        reading.filledDisplayValue(), reading.percent)
         ));
         free.setText(getContext().getString(
                 R.string.fuel_free_detail,
-                getContext().getString(R.string.liters_value, reading.freeLiters)
+                getContext().getString(R.string.liters_value, reading.freeDisplayValue())
         ));
         range.setText(getContext().getString(
                 R.string.fuel_range_detail,

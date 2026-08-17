@@ -11,6 +11,8 @@ import android.os.Handler;
 import android.os.Looper;
 import android.os.SystemClock;
 
+import java.util.Locale;
+
 /** Receives the fuel level exposed by GInputBridge and converts it to tank liters. */
 final class FuelLevelProvider {
     static final String BRIDGE_PACKAGE = "com.salat.gbinder";
@@ -24,9 +26,12 @@ final class FuelLevelProvider {
     static final String EXTRA_VALUE = "value";
     static final int SENSOR_TYPE_FUEL_PERCENTAGE = 4_211_968;
     static final int SENSOR_TYPE_ENDURANCE_MILEAGE_FUEL = 1_054_720;
-    static final int TANK_CAPACITY_LITERS = 54;
-    static final float DEFAULT_MULTIPLIER = 0.466f;
-    static final float DEFAULT_OFFSET = 4.4f;
+    static final float API_MIN_VALUE = 0f;
+    static final float API_MAX_VALUE = 100f;
+    static final float DEFAULT_MULTIPLIER = 0.5f;
+    static final float DEFAULT_OFFSET = 4f;
+    static final int DEFAULT_TANK_CAPACITY_LITERS = calculateTankCapacityLiters(
+            DEFAULT_MULTIPLIER, DEFAULT_OFFSET);
     static final long SENSOR_REFRESH_INTERVAL_MS = 60_000L;
     static final long READING_STALE_AFTER_MS = 120_000L;
 
@@ -229,6 +234,15 @@ final class FuelLevelProvider {
                 SystemStatusSnapshot.UNAVAILABLE);
     }
 
+    static int calculateTankCapacityLiters(float multiplier, float offset) {
+        float atMinimumApi = API_MIN_VALUE * multiplier + offset;
+        float atMaximumApi = API_MAX_VALUE * multiplier + offset;
+        if (!Float.isFinite(atMinimumApi) || !Float.isFinite(atMaximumApi)) {
+            return -1;
+        }
+        return Math.max(0, Math.round(Math.max(atMinimumApi, atMaximumApi)));
+    }
+
     static int rangeKmFromSensorValue(float sensorValue) {
         if (!Float.isFinite(sensorValue) || sensorValue <= 1f) {
             return SystemStatusSnapshot.UNAVAILABLE;
@@ -252,16 +266,23 @@ final class FuelLevelProvider {
         if (!Float.isFinite(calculatedLiters)) {
             return null;
         }
+        int tankCapacityLiters = calculateTankCapacityLiters(multiplier, offset);
+        if (tankCapacityLiters < 0) {
+            return null;
+        }
         float boundedLiters = Math.max(0f,
-                Math.min(TANK_CAPACITY_LITERS, calculatedLiters));
+                Math.min(tankCapacityLiters, calculatedLiters));
         int liters = (int) Math.rint(boundedLiters);
-        int percent = Math.round(liters * 100f / TANK_CAPACITY_LITERS);
+        int percent = tankCapacityLiters == 0
+                ? 0
+                : Math.round(liters * 100f / tankCapacityLiters);
         return new Reading(
                 sensorValue,
                 multiplier,
                 offset,
                 calculatedLiters,
-                Math.max(0, Math.min(TANK_CAPACITY_LITERS, liters)),
+                tankCapacityLiters,
+                Math.max(0, Math.min(tankCapacityLiters, liters)),
                 Math.max(0, Math.min(100, percent)),
                 rangeKm,
                 receivedAtMillis
@@ -273,6 +294,7 @@ final class FuelLevelProvider {
         final float multiplier;
         final float offset;
         final float calculatedLiters;
+        final int tankCapacityLiters;
         final int liters;
         final int freeLiters;
         final int percent;
@@ -284,6 +306,7 @@ final class FuelLevelProvider {
                 float multiplier,
                 float offset,
                 float calculatedLiters,
+                int tankCapacityLiters,
                 int liters,
                 int percent,
                 int rangeKm,
@@ -293,10 +316,11 @@ final class FuelLevelProvider {
             this.multiplier = multiplier;
             this.offset = offset;
             this.calculatedLiters = calculatedLiters;
+            this.tankCapacityLiters = tankCapacityLiters;
             this.liters = liters;
             this.freeLiters = liters == SystemStatusSnapshot.UNAVAILABLE
                     ? SystemStatusSnapshot.UNAVAILABLE
-                    : TANK_CAPACITY_LITERS - liters;
+                    : Math.max(0, tankCapacityLiters - liters);
             this.percent = percent;
             this.rangeKm = rangeKm;
             this.receivedAtMillis = receivedAtMillis;
@@ -306,17 +330,47 @@ final class FuelLevelProvider {
             return liters != SystemStatusSnapshot.UNAVAILABLE;
         }
 
+        String filledDisplayValue() {
+            if (!isAvailable()) {
+                return "—";
+            }
+            return sensorValue == API_MIN_VALUE
+                    ? "<" + formatFormulaNumber(offset)
+                    : Integer.toString(liters);
+        }
+
+        String freeDisplayValue() {
+            if (!isAvailable()) {
+                return "—";
+            }
+            return sensorValue == API_MIN_VALUE
+                    ? ">" + formatFormulaNumber(API_MAX_VALUE * multiplier)
+                    : Integer.toString(freeLiters);
+        }
+
         static Reading unavailable() {
             return new Reading(
                     Float.NaN,
                     Float.NaN,
                     Float.NaN,
                     Float.NaN,
+                    -1,
                     SystemStatusSnapshot.UNAVAILABLE,
                     SystemStatusSnapshot.UNAVAILABLE,
                     SystemStatusSnapshot.UNAVAILABLE,
                     0L
             );
         }
+    }
+
+    private static String formatFormulaNumber(float value) {
+        if (!Float.isFinite(value)) {
+            return "—";
+        }
+        if (Math.abs(value - Math.round(value)) < 0.0001f) {
+            return String.format(Locale.getDefault(), "%d", Math.round(value));
+        }
+        String valueText = String.format(Locale.getDefault(), "%.3f", value);
+        return valueText.replaceAll("0+$", "").replaceAll("[.,]$", "");
     }
 }
