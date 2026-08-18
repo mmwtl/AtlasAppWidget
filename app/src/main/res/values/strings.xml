@@ -19,7 +19,7 @@
     <string name="permissions_hint">Нужны три специальных доступа: наложение создаёт панель, статистика даёт fallback foreground, а контроль окон отличает fullscreen от freeform.</string>
     <string name="allow_overlay">Разрешить поверх других окон</string>
     <string name="allow_usage">Разрешить доступ к статистике</string>
-    <string name="allow_accessibility">Разрешить контроль окон</string>
+    <string name="allow_accessibility">Разрешить спецвозможности</string>
     <string name="accessibility_service_label">Atlas App Widget: контроль окон</string>
     <string name="accessibility_service_description">Определяет, виден ли домашний экран под полноэкранным или свободным окном. Не читает и не вводит текст.</string>
     <string name="allow_notifications">Разрешить уведомления</string>
