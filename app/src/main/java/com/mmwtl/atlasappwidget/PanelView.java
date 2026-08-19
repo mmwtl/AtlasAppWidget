@@ -19,6 +19,7 @@ import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 
+import java.util.ArrayList;
 import java.util.List;
 
 @SuppressLint("ViewConstructor")
@@ -41,6 +42,13 @@ final class PanelView extends LinearLayout {
     private final boolean needsCpuUpdates;
     private final boolean needsRamUpdates;
     private final boolean needsFuelUpdates;
+    private final Prefs panelPrefs;
+    private final PanelConfig panelConfig;
+    private final boolean previewMode;
+    private final Listener panelListener;
+    private final int labelHeight;
+    private final int iconSizePixels;
+    private final List<FrameLayout> shortcutCells = new ArrayList<>();
     private FuelTileView fuelTileView;
     private EmptySpaceDragTouchListener emptySpaceDragTouchListener;
 
@@ -54,7 +62,26 @@ final class PanelView extends LinearLayout {
             int availableHeightPixels,
             Listener listener
     ) {
+        this(context, prefs, config, entries, preview, availableWidthPixels,
+                availableHeightPixels, listener, true);
+    }
+
+    PanelView(
+            Context context,
+            Prefs prefs,
+            PanelConfig config,
+            List<AppEntry> entries,
+            boolean preview,
+            int availableWidthPixels,
+            int availableHeightPixels,
+            Listener listener,
+            boolean loadIcons
+    ) {
         super(context);
+        panelPrefs = prefs;
+        panelConfig = config;
+        previewMode = preview;
+        panelListener = listener;
         int handlePosition = config.dragHandlePosition;
         boolean handleVertical = config.showDragHandle
                 && (handlePosition == PanelConfig.HANDLE_TOP
@@ -84,7 +111,7 @@ final class PanelView extends LinearLayout {
         int handleSize = config.showDragHandle ? Ui.dp(context, 34) : 0;
         int handleGap = config.showDragHandle ? Ui.dp(context, 4) : 0;
         int configuredIconSize = Ui.dp(context, config.iconSizeDp);
-        int labelHeight = config.showAppLabels ? Ui.dp(context, 20) : 0;
+        labelHeight = config.showAppLabels ? Ui.dp(context, 20) : 0;
         int labelGap = config.showAppLabels ? Ui.dp(context, 4) : 0;
         int systemStatusHeight = SystemStatusView.heightPixels(
                 context,
@@ -214,6 +241,7 @@ final class PanelView extends LinearLayout {
         int cellWidth = layout.cellWidth;
         int cellHeight = layout.cellHeight;
         int actualIconSize = layout.iconSize;
+        iconSizePixels = actualIconSize;
 
         GridLayout grid = new GridLayout(context);
         grid.setColumnCount(columns);
@@ -289,6 +317,7 @@ final class PanelView extends LinearLayout {
                 cellParams.topMargin = layout.verticalGap;
             }
             grid.addView(cell, cellParams);
+            shortcutCells.add(cell);
 
             AppEntry entry = index < entries.size() ? entries.get(index) : null;
             if (entry != null) {
@@ -297,7 +326,7 @@ final class PanelView extends LinearLayout {
                             actualIconSize, labelHeight, listener, preview);
                 } else {
                     addAppIcon(cell, prefs, config, entry, actualIconSize,
-                            actualIconSize, labelHeight, listener);
+                            actualIconSize, labelHeight, listener, loadIcons);
                 }
             } else if (preview && index < Math.min(4, slotCount)) {
                 addPlaceholder(cell, config, actualIconSize, actualIconSize, index);
@@ -313,6 +342,31 @@ final class PanelView extends LinearLayout {
 
     int panelHeight() {
         return panelHeight;
+    }
+
+    int actualIconSize() {
+        return iconSizePixels;
+    }
+
+    void updateEntries(List<AppEntry> entries) {
+        fuelTileView = null;
+        for (int index = 0; index < shortcutCells.size(); index++) {
+            FrameLayout cell = shortcutCells.get(index);
+            cell.removeAllViews();
+            AppEntry entry = index < entries.size() ? entries.get(index) : null;
+            if (entry == null) {
+                continue;
+            }
+            if (entry.isFuel()) {
+                addFuelTile(cell, panelConfig, entry, iconSizePixels,
+                        iconSizePixels, labelHeight, panelListener, previewMode);
+            } else {
+                addAppIcon(cell, panelPrefs, panelConfig, entry, iconSizePixels,
+                        iconSizePixels, labelHeight, panelListener, true);
+            }
+        }
+        requestLayout();
+        invalidate();
     }
 
     int outlineInset() {
@@ -407,17 +461,23 @@ final class PanelView extends LinearLayout {
             int iconSize,
             int iconAreaHeight,
             int labelHeight,
-            Listener listener
+            Listener listener,
+            boolean loadIcons
     ) {
         FrameLayout mask = iconMask(config, iconSize, Color.TRANSPARENT);
         FrameLayout.LayoutParams maskParams = iconLayoutParams(config, iconSize, iconAreaHeight);
         cell.addView(mask, maskParams);
 
-        IconLoader.Result icon = IconLoader.load(getContext(), prefs, entry, iconSize);
+        IconLoader.Result icon = loadIcons
+                ? IconLoader.load(getContext(), prefs, entry, iconSize)
+                : new IconLoader.Result(
+                        getContext().getDrawable(android.R.drawable.sym_def_app_icon), false);
         ImageView image = new ImageView(getContext());
         image.setImageDrawable(icon.drawable);
         image.setScaleType(ImageView.ScaleType.CENTER_CROP);
-        image.setContentDescription(entry.label + ", " + entry.activityLabel);
+        image.setContentDescription(loadIcons
+                ? entry.label + ", " + entry.activityLabel
+                : entry.componentKey);
         mask.addView(image, new FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.MATCH_PARENT

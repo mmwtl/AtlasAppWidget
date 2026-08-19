@@ -80,7 +80,9 @@ final class IconLoader {
                     "Cannot load system activity icon",
                     error
             );
-            return new Result(context.getPackageManager().getDefaultActivityIcon(), false);
+            Drawable fallback = context.getPackageManager().getDefaultActivityIcon();
+            cache(systemKey, fallback);
+            return new Result(fallback, false);
         }
     }
 

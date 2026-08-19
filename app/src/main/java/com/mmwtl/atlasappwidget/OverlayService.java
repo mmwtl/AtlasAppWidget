@@ -58,6 +58,12 @@ public final class OverlayService extends Service
         return thread;
     });
     private final ExecutorService systemStatusExecutor = Executors.newSingleThreadExecutor();
+    private final ExecutorService panelPreparationExecutor = Executors.newSingleThreadExecutor(
+            runnable -> {
+                Thread thread = new Thread(runnable, "atlas-panel-preparation");
+                thread.setDaemon(true);
+                return thread;
+            });
     private Prefs prefs;
     private WindowManager windowManager;
     private ForegroundAppDetector foregroundDetector;
@@ -68,6 +74,8 @@ public final class OverlayService extends Service
     private int panelBoundsWidth;
     private int panelBoundsHeight;
     private List<AppEntry> selectedEntriesCache;
+    private PanelView panelPreparationTarget;
+    private boolean panelPreparationInFlight;
     private FuelDetailsView fuelDetailsView;
     private Runnable fuelDetailsAutoHide;
     private final PanelSuppressionPolicy panelSuppression = new PanelSuppressionPolicy();
@@ -200,6 +208,7 @@ public final class OverlayService extends Service
         hidePanel();
         foregroundExecutor.shutdownNow();
         systemStatusExecutor.shutdownNow();
+        panelPreparationExecutor.shutdownNow();
         if (fuelLevelProvider != null) {
             fuelLevelProvider.stop();
         }
@@ -514,9 +523,9 @@ public final class OverlayService extends Service
         }
         Rect bounds = availableBounds();
         List<AppEntry> entries = selectedEntriesCache;
+        boolean iconsReady = entries != null;
         if (entries == null) {
-            entries = List.copyOf(AppRepository.loadSelectedActivities(this, prefs));
-            selectedEntriesCache = entries;
+            entries = AppRepository.placeholderSelectedActivities(this, prefs);
         }
         if (entries.isEmpty()) {
             discardPanel();
@@ -530,7 +539,8 @@ public final class OverlayService extends Service
                 false,
                 bounds.width(),
                 bounds.height(),
-                this
+                this,
+                iconsReady
         );
 
         WindowManager.LayoutParams params = new WindowManager.LayoutParams(
@@ -563,6 +573,9 @@ public final class OverlayService extends Service
             AppLog.info("Overlay panel attached t+"
                     + (SystemClock.elapsedRealtime() - createdAt)
                     + " ms after service creation");
+            if (!iconsReady) {
+                preparePanelEntries(candidate, candidate.actualIconSize());
+            }
             return true;
         } catch (SecurityException | WindowManager.BadTokenException
                  | IllegalArgumentException | IllegalStateException error) {
@@ -581,6 +594,59 @@ public final class OverlayService extends Service
             foregroundDetector = new ForegroundAppDetector(this);
         }
         return foregroundDetector;
+    }
+
+    private void preparePanelEntries(PanelView target, int targetPixels) {
+        if (destroyed || target == null || panel != target) {
+            return;
+        }
+        if (panelPreparationInFlight && panelPreparationTarget == target) {
+            return;
+        }
+        panelPreparationTarget = target;
+        panelPreparationInFlight = true;
+        long startedAt = SystemClock.elapsedRealtime();
+        try {
+            panelPreparationExecutor.execute(() -> {
+                List<AppEntry> prepared = List.of();
+                try {
+                    List<AppEntry> entries = AppRepository.loadSelectedActivities(this, prefs);
+                    for (AppEntry entry : entries) {
+                        if (!entry.isFuel()) {
+                            IconLoader.load(this, prefs, entry, targetPixels);
+                        }
+                    }
+                    prepared = List.copyOf(entries);
+                } catch (RuntimeException error) {
+                    AppLog.warn("Panel content preparation failed", error);
+                }
+                List<AppEntry> result = prepared;
+                handler.post(() -> {
+                    if (panelPreparationTarget == target) {
+                        panelPreparationTarget = null;
+                        panelPreparationInFlight = false;
+                    }
+                    if (destroyed || panel != target) {
+                        return;
+                    }
+                    if (result.isEmpty()) {
+                        AppLog.info("Panel content preparation returned no activities; retrying");
+                        handler.postDelayed(
+                                () -> preparePanelEntries(target, targetPixels),
+                                ForegroundPollPolicy.HIDDEN_DELAY_MS
+                        );
+                        return;
+                    }
+                    selectedEntriesCache = result;
+                    target.updateEntries(result);
+                    AppLog.info("Panel content prepared in "
+                            + (SystemClock.elapsedRealtime() - startedAt) + " ms");
+                });
+            });
+        } catch (RejectedExecutionException ignored) {
+            panelPreparationInFlight = false;
+            panelPreparationTarget = null;
+        }
     }
 
     private void hidePanel() {
@@ -627,6 +693,8 @@ public final class OverlayService extends Service
         panelParams = null;
         panelBoundsWidth = 0;
         panelBoundsHeight = 0;
+        panelPreparationTarget = null;
+        panelPreparationInFlight = false;
     }
 
     private void refreshSystemStatusIfNeeded() {

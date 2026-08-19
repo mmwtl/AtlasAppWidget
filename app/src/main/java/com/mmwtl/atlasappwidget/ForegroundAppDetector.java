@@ -61,13 +61,20 @@ final class ForegroundAppDetector {
         if (homePackages.isEmpty() || now - lastHomeRefreshTime > 30_000L) {
             refreshHomePackages();
         }
+        // Accessibility snapshots are already collected by the window service and are the
+        // quickest authoritative source during boot. Do not put the potentially slow UsageStats
+        // Binder query in front of a decisive snapshot.
+        WindowVisibilityPolicy.Decision decision = evaluateAccessibilitySnapshot();
+        if (decision != WindowVisibilityPolicy.Decision.UNKNOWN) {
+            return decision == WindowVisibilityPolicy.Decision.HOME_VISIBLE;
+        }
+
+        // UsageStats remains a bounded fallback for OEM frames where accessibility is not ready
+        // yet or cannot disambiguate the active window.
         boolean usageStateAvailable = refreshActivityVisibility();
-        AccessibilityWindowState.Snapshot windowState = AccessibilityWindowState.current();
-        if (windowState.available) {
-            WindowVisibilityPolicy.Decision decision = evaluateAccessibilitySnapshot(windowState);
-            if (decision != WindowVisibilityPolicy.Decision.UNKNOWN) {
-                return decision == WindowVisibilityPolicy.Decision.HOME_VISIBLE;
-            }
+        decision = evaluateAccessibilitySnapshot();
+        if (decision != WindowVisibilityPolicy.Decision.UNKNOWN) {
+            return decision == WindowVisibilityPolicy.Decision.HOME_VISIBLE;
         }
         return usageStateAvailable && eventTracker.isAnyPackageVisible(homePackages);
     }
@@ -104,6 +111,14 @@ final class ForegroundAppDetector {
                 && powerManager.isInteractive()
                 && (keyguardManager == null || !keyguardManager.isKeyguardLocked())
                 && (userManager == null || userManager.isUserUnlocked());
+    }
+
+    private WindowVisibilityPolicy.Decision evaluateAccessibilitySnapshot() {
+        AccessibilityWindowState.Snapshot windowState = AccessibilityWindowState.current();
+        if (!windowState.available) {
+            return WindowVisibilityPolicy.Decision.UNKNOWN;
+        }
+        return evaluateAccessibilitySnapshot(windowState);
     }
 
     private WindowVisibilityPolicy.Decision evaluateAccessibilitySnapshot(

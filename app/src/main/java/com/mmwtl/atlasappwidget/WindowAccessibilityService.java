@@ -6,6 +6,7 @@ import android.graphics.Rect;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.SystemClock;
+import android.provider.Settings;
 import android.view.WindowManager;
 import android.view.WindowMetrics;
 import android.view.accessibility.AccessibilityEvent;
@@ -47,6 +48,7 @@ public final class WindowAccessibilityService extends AccessibilityService {
         info.notificationTimeout = 50L;
         setServiceInfo(info);
         requestWindowRefresh();
+        startOverlayIfNeeded();
         AppLog.info("Window accessibility service connected");
     }
 
@@ -203,6 +205,21 @@ public final class WindowAccessibilityService extends AccessibilityService {
 
     private void notifyOverlayService() {
         OverlayService.onAccessibilityWindowsChanged();
+    }
+
+    private void startOverlayIfNeeded() {
+        Prefs prefs = new Prefs(this);
+        if (!prefs.getBoolean(Prefs.KEY_SERVICE_ENABLED, false)
+                || !Settings.canDrawOverlays(this)
+                || !ForegroundAppDetector.hasUsageAccess(this)) {
+            return;
+        }
+        try {
+            OverlayService.start(this);
+            AppLog.info("Accessibility service connected; requesting overlay service start");
+        } catch (RuntimeException error) {
+            AppLog.warn("Cannot start overlay service after accessibility connection", error);
+        }
     }
 
     private void scheduleLauncherAppListRefresh(boolean appListVisible) {

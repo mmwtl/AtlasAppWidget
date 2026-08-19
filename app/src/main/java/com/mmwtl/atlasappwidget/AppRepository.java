@@ -61,14 +61,6 @@ final class AppRepository {
         }
         Set<String> selectedKeySet = new LinkedHashSet<>(selectedKeys);
 
-        Set<String> selectedPackages = new LinkedHashSet<>();
-        for (String key : selectedKeys) {
-            ComponentName component = ComponentName.unflattenFromString(key);
-            if (component != null) {
-                selectedPackages.add(component.getPackageName());
-            }
-        }
-
         PackageManager packageManager = context.getPackageManager();
         Map<String, AppEntry> byComponent = new LinkedHashMap<>();
         if (selectedKeySet.contains(AppEntry.FUEL_COMPONENT_KEY)) {
@@ -77,33 +69,30 @@ final class AppRepository {
                     context.getString(R.string.fuel_tile_picker_description)
             ));
         }
-        for (String packageName : selectedPackages) {
-            Intent launcherIntent = new Intent(Intent.ACTION_MAIN)
-                    .addCategory(Intent.CATEGORY_LAUNCHER)
-                    .setPackage(packageName);
-            List<ResolveInfo> resolved = packageManager.queryIntentActivities(
-                    launcherIntent,
-                    PackageManager.MATCH_ALL
-            );
-            for (ResolveInfo info : resolved) {
-                ActivityInfo activity = info.activityInfo;
-                if (activity == null || !activity.exported || !activity.enabled
-                        || activity.applicationInfo == null
-                        || !activity.applicationInfo.enabled) {
-                    continue;
-                }
-                ComponentName component = new ComponentName(activity.packageName, activity.name);
-                String key = component.flattenToString();
-                if (!selectedKeySet.contains(key)) {
-                    continue;
-                }
-                String appLabel = safeLabel(
-                        activity.applicationInfo.loadLabel(packageManager),
-                        activity.packageName
-                );
-                String activityLabel = safeLabel(info.loadLabel(packageManager), activity.name);
-                byComponent.put(key, new AppEntry(component, appLabel, activityLabel));
+        Intent launcherIntent = new Intent(Intent.ACTION_MAIN)
+                .addCategory(Intent.CATEGORY_LAUNCHER);
+        List<ResolveInfo> resolved = packageManager.queryIntentActivities(
+                launcherIntent,
+                PackageManager.MATCH_ALL
+        );
+        for (ResolveInfo info : resolved) {
+            ActivityInfo activity = info.activityInfo;
+            if (activity == null || !activity.exported || !activity.enabled
+                    || activity.applicationInfo == null
+                    || !activity.applicationInfo.enabled) {
+                continue;
             }
+            ComponentName component = new ComponentName(activity.packageName, activity.name);
+            String key = component.flattenToString();
+            if (!selectedKeySet.contains(key)) {
+                continue;
+            }
+            String appLabel = safeLabel(
+                    activity.applicationInfo.loadLabel(packageManager),
+                    activity.packageName
+            );
+            String activityLabel = safeLabel(info.loadLabel(packageManager), activity.name);
+            byComponent.put(key, new AppEntry(component, appLabel, activityLabel));
         }
 
         ArrayList<AppEntry> selected = new ArrayList<>();
@@ -114,6 +103,24 @@ final class AppRepository {
             }
         }
         return selected;
+    }
+
+    static List<AppEntry> placeholderSelectedActivities(Context context, Prefs prefs) {
+        List<AppEntry> result = new ArrayList<>();
+        for (String key : prefs.selectedComponents()) {
+            if (AppEntry.FUEL_COMPONENT_KEY.equals(key)) {
+                result.add(AppEntry.fuel(
+                        context.getString(R.string.fuel_tile_name),
+                        context.getString(R.string.fuel_tile_picker_description)
+                ));
+                continue;
+            }
+            ComponentName component = ComponentName.unflattenFromString(key);
+            if (component != null) {
+                result.add(new AppEntry(component, "", ""));
+            }
+        }
+        return result;
     }
 
     private static String safeLabel(CharSequence value, String fallback) {
