@@ -104,6 +104,14 @@ final class WindowVisibilityPolicy {
             boolean foregroundWindow = window.active || window.focused
                     || (!foregroundPackage.isEmpty()
                     && foregroundPackage.equals(window.packageName));
+            // GSplit restores its singleTask activity after moveTaskToBack() without reliably
+            // emitting a fresh window-state event on this head unit. Trust the current focused
+            // application window even when the stale event still points at HOME and the restored
+            // task uses freeform bounds.
+            if (applicationWindow && (window.active || window.focused)
+                    && HeadUnitWindowRules.forceHide(window.packageName, window.className)) {
+                return Decision.HOME_HIDDEN;
+            }
             if (fullScreen && aboveLauncher && foregroundWindow
                     && (!window.packageName.isEmpty() || applicationWindow)) {
                 return Decision.HOME_HIDDEN;

@@ -109,6 +109,22 @@ public final class WindowVisibilityPolicyTest {
     }
 
     @Test
+    public void restoredFreeformGsplitHidesPanelWithStaleLauncherEvent() {
+        assertDecision(
+                WindowVisibilityPolicy.Decision.HOME_HIDDEN,
+                List.of(
+                        window("launcher", "HomeActivity", false, false,
+                                0, 0, WIDTH, HEIGHT, 0),
+                        window("com.salat.gsplit", "com.salat.gsplit.presentation.MainActivity",
+                                true, true, 180, 300, 1180, 1450, 4)
+                ),
+                activity("launcher", "HomeActivity"),
+                "launcher",
+                "HomeActivity"
+        );
+    }
+
+    @Test
     public void homeWithoutOtherWindowsIsVisible() {
         assertDecision(
                 WindowVisibilityPolicy.Decision.HOME_VISIBLE,
