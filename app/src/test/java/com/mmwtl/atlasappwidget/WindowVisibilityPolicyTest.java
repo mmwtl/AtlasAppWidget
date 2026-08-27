@@ -125,6 +125,18 @@ public final class WindowVisibilityPolicyTest {
     }
 
     @Test
+    public void staleGsplitUsageDoesNotHideActiveHomeWindow() {
+        assertDecision(
+                WindowVisibilityPolicy.Decision.HOME_VISIBLE,
+                List.of(window("launcher", "HomeActivity", true, true,
+                        0, 0, WIDTH, HEIGHT, 0)),
+                activity("com.salat.gsplit", "com.salat.gsplit.presentation.MainActivity"),
+                "",
+                ""
+        );
+    }
+
+    @Test
     public void homeWithoutOtherWindowsIsVisible() {
         assertDecision(
                 WindowVisibilityPolicy.Decision.HOME_VISIBLE,

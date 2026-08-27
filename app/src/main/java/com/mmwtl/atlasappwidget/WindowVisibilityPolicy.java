@@ -37,6 +37,7 @@ final class WindowVisibilityPolicy {
 
         String foregroundPackage = value(eventPackage);
         String foregroundClass = value(eventClass);
+        boolean foregroundFromCurrentWindow = !foregroundPackage.isEmpty();
         if (foregroundPackage.isEmpty() && foreground != null) {
             foregroundPackage = foreground.packageName;
             foregroundClass = foreground.className;
@@ -44,7 +45,11 @@ final class WindowVisibilityPolicy {
         boolean foregroundIsKnownHome = isHomeComponent(
                 foregroundPackage, foregroundClass, homeComponents);
 
-        if (HeadUnitWindowRules.forceHide(foregroundPackage, foregroundClass)) {
+        // UsageEvents may leave a paused GSplit activity marked visible after moveTaskToBack().
+        // Only a package tied to the current accessibility window may bypass window inspection;
+        // a UsageStats fallback must not override an unambiguously active HOME window below.
+        if (foregroundFromCurrentWindow
+                && HeadUnitWindowRules.forceHide(foregroundPackage, foregroundClass)) {
             return Decision.HOME_HIDDEN;
         }
 
