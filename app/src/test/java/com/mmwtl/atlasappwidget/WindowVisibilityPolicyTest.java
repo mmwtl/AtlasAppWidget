@@ -137,6 +137,61 @@ public final class WindowVisibilityPolicyTest {
     }
 
     @Test
+    public void twoFreeformWindowsHidePanelWhenTheirUnionReachesThreshold() {
+        assertDecision(
+                WindowVisibilityPolicy.Decision.HOME_HIDDEN,
+                List.of(
+                        window("launcher", "HomeActivity", false, false,
+                                0, 0, WIDTH, HEIGHT, 0),
+                        window("maps", "MapActivity", true, true,
+                                0, 0, WIDTH / 2, HEIGHT, 4),
+                        window("music", "MusicActivity", false, false,
+                                WIDTH / 2, 0, WIDTH, HEIGHT, 4)
+                ),
+                activity("maps", "MapActivity"),
+                "maps",
+                "MapActivity"
+        );
+    }
+
+    @Test
+    public void overlappingFreeformWindowsCountSharedAreaOnlyOnce() {
+        assertDecision(
+                WindowVisibilityPolicy.Decision.HOME_VISIBLE,
+                List.of(
+                        window("launcher", "HomeActivity", false, false,
+                                0, 0, WIDTH, HEIGHT, 0),
+                        window("maps", "MapActivity", true, true,
+                                0, 0, 864, 1536, 4),
+                        window("music", "MusicActivity", false, false,
+                                576, 0, WIDTH, 1536, 4)
+                ),
+                activity("maps", "MapActivity"),
+                "maps",
+                "MapActivity"
+        );
+    }
+
+    @Test
+    public void configuredThresholdAppliesToCombinedWindowArea() {
+        assertDecision(
+                WindowVisibilityPolicy.Decision.HOME_HIDDEN,
+                List.of(
+                        window("launcher", "HomeActivity", false, false,
+                                0, 0, WIDTH, HEIGHT, 0),
+                        window("maps", "MapActivity", true, true,
+                                0, 0, 864, 1536, 4),
+                        window("music", "MusicActivity", false, false,
+                                576, 0, WIDTH, 1536, 4)
+                ),
+                activity("maps", "MapActivity"),
+                "maps",
+                "MapActivity",
+                80
+        );
+    }
+
+    @Test
     public void homeWithoutOtherWindowsIsVisible() {
         assertDecision(
                 WindowVisibilityPolicy.Decision.HOME_VISIBLE,
@@ -210,6 +265,18 @@ public final class WindowVisibilityPolicyTest {
             String eventPackage,
             String eventClass
     ) {
+        assertDecision(expected, windows, foreground, eventPackage, eventClass,
+                WindowVisibilityPolicy.DEFAULT_HIDE_THRESHOLD_PERCENT);
+    }
+
+    private static void assertDecision(
+            WindowVisibilityPolicy.Decision expected,
+            List<WindowObservation> windows,
+            ForegroundEventTracker.VisibleActivity foreground,
+            String eventPackage,
+            String eventClass,
+            int thresholdPercent
+    ) {
         assertEquals(expected, WindowVisibilityPolicy.evaluate(
                 windows,
                 WIDTH,
@@ -219,7 +286,8 @@ public final class WindowVisibilityPolicyTest {
                 foreground,
                 eventPackage,
                 eventClass,
-                "com.mmwtl.atlasappwidget"
+                "com.mmwtl.atlasappwidget",
+                thresholdPercent
         ));
     }
 }

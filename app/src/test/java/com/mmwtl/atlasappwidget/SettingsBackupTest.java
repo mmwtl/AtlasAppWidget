@@ -21,6 +21,7 @@ public final class SettingsBackupTest {
 
         assertTrue(restored.autoStart);
         assertEquals(17, restored.appUiScaleTenths);
+        assertEquals(80, restored.freeformHideThresholdPercent);
         assertEquals(Integer.valueOf(321), restored.positionX);
         assertEquals(Integer.valueOf(654), restored.positionY);
         assertEquals(List.of("com.example/.MainActivity", AppEntry.FUEL_COMPONENT_KEY),
@@ -37,6 +38,7 @@ public final class SettingsBackupTest {
         assertEquals("1.2.3", root.getString("appVersion"));
         JSONObject settings = root.getJSONObject("settings");
         assertEquals(0.466, settings.getJSONObject("fuel").getDouble("multiplier"), 0d);
+        assertEquals(80, settings.getInt("freeformHideThresholdPercent"));
         assertFalse(settings.has("serviceEnabled"));
         assertFalse(settings.has("customIcons"));
     }
@@ -57,6 +59,16 @@ public final class SettingsBackupTest {
                 () -> SettingsBackup.decode(root.toString()));
 
         assertTrue(error.getMessage().contains("Неподдерживаемая версия"));
+    }
+
+    @Test public void olderJsonDefaultsMissingFreeformThreshold() throws Exception {
+        JSONObject root = new JSONObject(SettingsBackup.encode(data(15, null, null), "test"));
+        root.getJSONObject("settings").remove("freeformHideThresholdPercent");
+
+        SettingsBackup.Data restored = SettingsBackup.decode(root.toString());
+
+        assertEquals(WindowVisibilityPolicy.DEFAULT_HIDE_THRESHOLD_PERCENT,
+                restored.freeformHideThresholdPercent);
     }
 
     @Test public void rejectsValuesOutsideUiLimits() throws Exception {
@@ -96,6 +108,7 @@ public final class SettingsBackupTest {
         return new SettingsBackup.Data(
                 true,
                 scale,
+                80,
                 x,
                 y,
                 List.of("com.example/.MainActivity", AppEntry.FUEL_COMPONENT_KEY),

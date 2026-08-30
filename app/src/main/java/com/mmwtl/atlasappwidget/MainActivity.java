@@ -607,6 +607,7 @@ public final class MainActivity extends ScaledActivity
         content.addView(apps);
         content.addView(fuelSettings);
         content.addView(movement);
+        content.addView(buildWindowVisibilityCard());
 
         addSectionHeading(content, R.string.settings_section_visual, false);
         content.addView(systemStatus);
@@ -705,6 +706,29 @@ public final class MainActivity extends ScaledActivity
                 value -> getString(R.string.dp_value, value),
                 value -> prefs.putInt(Prefs.KEY_GAP_DP, value));
         return geometry;
+    }
+
+    private LinearLayout buildWindowVisibilityCard() {
+        LinearLayout visibility = Ui.card(this);
+        visibility.addView(Ui.heading(this, R.string.window_visibility_title, 20));
+        TextView hint = Ui.text(this,
+                R.string.freeform_hide_threshold_hint,
+                13,
+                Ui.TEXT_SECONDARY
+        );
+        hint.setLineSpacing(0, 1.1f);
+        Ui.topMargin(hint, 7);
+        visibility.addView(hint);
+        addSlider(
+                visibility,
+                getString(R.string.freeform_hide_threshold),
+                WindowVisibilityPolicy.MIN_HIDE_THRESHOLD_PERCENT,
+                WindowVisibilityPolicy.MAX_HIDE_THRESHOLD_PERCENT,
+                prefs.freeformHideThresholdPercent(),
+                value -> getString(R.string.percent_value, value),
+                value -> prefs.putInt(Prefs.KEY_FREEFORM_HIDE_THRESHOLD_PERCENT, value)
+        );
+        return visibility;
     }
 
     private LinearLayout buildBackgroundCard() {

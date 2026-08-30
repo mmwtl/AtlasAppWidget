@@ -34,6 +34,7 @@ final class SettingsBackup {
     static final class Data {
         final boolean autoStart;
         final int appUiScaleTenths;
+        final int freeformHideThresholdPercent;
         final Integer positionX;
         final Integer positionY;
         final List<String> selectedComponents;
@@ -44,13 +45,19 @@ final class SettingsBackup {
         final GeometryData geometry;
         final AppearanceData appearance;
 
-        Data(boolean autoStart, int appUiScaleTenths, Integer positionX, Integer positionY,
+        Data(boolean autoStart, int appUiScaleTenths, int freeformHideThresholdPercent,
+                Integer positionX, Integer positionY,
                 List<String> selectedComponents, ContentData content, MovementData movement,
                 SystemStatusData systemStatus, FuelData fuel, GeometryData geometry,
                 AppearanceData appearance) throws IOException {
             this.autoStart = autoStart;
             this.appUiScaleTenths = requireRange("settings.uiScaleTenths", appUiScaleTenths,
                     ScaledActivity.MIN_SCALE_TENTHS, ScaledActivity.MAX_SCALE_TENTHS);
+            this.freeformHideThresholdPercent = requireRange(
+                    "settings.freeformHideThresholdPercent",
+                    freeformHideThresholdPercent,
+                    WindowVisibilityPolicy.MIN_HIDE_THRESHOLD_PERCENT,
+                    WindowVisibilityPolicy.MAX_HIDE_THRESHOLD_PERCENT);
             if ((positionX == null) != (positionY == null)) {
                 throw invalid("Положение overlay должно содержать обе координаты");
             }
@@ -242,6 +249,7 @@ final class SettingsBackup {
                 clamp(prefs.getInt(Prefs.KEY_APP_UI_SCALE_TENTHS,
                                 ScaledActivity.DEFAULT_SCALE_TENTHS),
                         ScaledActivity.MIN_SCALE_TENTHS, ScaledActivity.MAX_SCALE_TENTHS),
+                prefs.freeformHideThresholdPercent(),
                 positionX,
                 positionY,
                 prefs.selectedComponents(),
@@ -380,6 +388,8 @@ final class SettingsBackup {
             JSONObject settings = new JSONObject()
                     .put("autoStart", data.autoStart)
                     .put("uiScaleTenths", data.appUiScaleTenths)
+                    .put("freeformHideThresholdPercent",
+                            data.freeformHideThresholdPercent)
                     .put("selectedComponents", new JSONArray(data.selectedComponents))
                     .put("content", new JSONObject()
                             .put("showAppLabels", data.content.showAppLabels))
@@ -467,6 +477,10 @@ final class SettingsBackup {
             return new Data(
                     requireBoolean(settings, "autoStart", "settings.autoStart"),
                     requireInt(settings, "uiScaleTenths", "settings.uiScaleTenths"),
+                    settings.has("freeformHideThresholdPercent")
+                            ? requireInt(settings, "freeformHideThresholdPercent",
+                                    "settings.freeformHideThresholdPercent")
+                            : WindowVisibilityPolicy.DEFAULT_HIDE_THRESHOLD_PERCENT,
                     x,
                     y,
                     requireStringList(settings, "selectedComponents",

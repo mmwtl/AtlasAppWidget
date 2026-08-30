@@ -483,6 +483,10 @@ public final class OverlayService extends Service
 
     @Override
     public void onSharedPreferenceChanged(SharedPreferences sharedPreferences, String key) {
+        if (Prefs.KEY_FREEFORM_HIDE_THRESHOLD_PERCENT.equals(key)) {
+            requestImmediateVisibilityCheck(true);
+            return;
+        }
         if (Prefs.KEY_POSITION_X.equals(key) || Prefs.KEY_POSITION_Y.equals(key)
                 || Prefs.KEY_SERVICE_ENABLED.equals(key)
                 || Prefs.KEY_AUTO_START.equals(key)) {

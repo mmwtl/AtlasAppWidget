@@ -19,6 +19,8 @@ final class Prefs {
     static final String KEY_AUTO_START = "auto_start";
     static final String KEY_SERVICE_ENABLED = "service_enabled";
     static final String KEY_APP_UI_SCALE_TENTHS = "app_ui_scale_tenths";
+    static final String KEY_FREEFORM_HIDE_THRESHOLD_PERCENT =
+            "freeform_hide_threshold_percent";
     static final String KEY_SHOW_DRAG_HANDLE = "show_drag_handle";
     static final String KEY_DRAG_HANDLE_POSITION = "drag_handle_position";
     static final String KEY_SHOW_APP_LABELS = "show_app_labels";
@@ -145,6 +147,17 @@ final class Prefs {
         return new PanelConfig(this);
     }
 
+    int freeformHideThresholdPercent() {
+        return Math.max(
+                WindowVisibilityPolicy.MIN_HIDE_THRESHOLD_PERCENT,
+                Math.min(
+                        WindowVisibilityPolicy.MAX_HIDE_THRESHOLD_PERCENT,
+                        getInt(KEY_FREEFORM_HIDE_THRESHOLD_PERCENT,
+                                WindowVisibilityPolicy.DEFAULT_HIDE_THRESHOLD_PERCENT)
+                )
+        );
+    }
+
     boolean needsFuelData() {
         boolean fuelGraphEnabled = getBoolean(KEY_SHOW_SYSTEM_STATUS, false)
                 && getBoolean(KEY_SHOW_FUEL_STATUS, true);
@@ -209,6 +222,8 @@ final class Prefs {
         SharedPreferences.Editor editor = values.edit()
                 .putBoolean(KEY_AUTO_START, data.autoStart)
                 .putInt(KEY_APP_UI_SCALE_TENTHS, data.appUiScaleTenths)
+                .putInt(KEY_FREEFORM_HIDE_THRESHOLD_PERCENT,
+                        data.freeformHideThresholdPercent)
                 .putBoolean(KEY_SHOW_DRAG_HANDLE, data.movement.showDragHandle)
                 .putInt(KEY_DRAG_HANDLE_POSITION, data.movement.dragHandlePosition)
                 .putBoolean(KEY_SHOW_APP_LABELS, data.content.showAppLabels)

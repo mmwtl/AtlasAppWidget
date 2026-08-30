@@ -63,6 +63,9 @@
         <item>Слева</item><item>Справа</item><item>Сверху</item><item>Снизу</item>
     </string-array>
     <string name="drag_handle_hint">Если ручка скрыта, удерживайте пустое место панели 1 секунду, затем перетаскивайте.</string>
+    <string name="window_visibility_title">Скрытие поверх окон</string>
+    <string name="freeform_hide_threshold">Порог скрытия</string>
+    <string name="freeform_hide_threshold_hint">Панель скрывается, если одно окно достигает порога одновременно по ширине и высоте или если все видимые freeform-окна вместе покрывают этот процент экрана. Пересечения считаются один раз. GSplit и системные исключения скрывают панель при любом размере.</string>
     <string name="service_title">Запуск и сервис</string>
     <string name="auto_start">Автозапуск после загрузки ГУ</string>
     <string name="auto_start_permission_warning">Автозапуск сохранён, но без трёх специальных разрешений он не сработает корректно</string>
@@ -97,7 +100,7 @@
     <string name="scale_hint">Меняет размер экранов и элементов приложения без изменения системного масштаба ГУ. Геометрия overlay-панели настраивается отдельно выше.</string>
     <string name="scale">Масштаб</string>
     <string name="settings_backup_title">Импорт и экспорт настроек</string>
-    <string name="settings_backup_hint">JSON содержит выбранные activity и их порядок, внешний вид, положение overlay, масштаб, автозапуск и формулу топлива. Разрешения, работа сервиса и файлы пользовательских иконок не переносятся.</string>
+    <string name="settings_backup_hint">JSON содержит выбранные activity и их порядок, внешний вид, положение overlay, порог скрытия, масштаб, автозапуск и формулу топлива. Разрешения, работа сервиса и файлы пользовательских иконок не переносятся.</string>
     <string name="export_settings">Экспортировать настройки в JSON</string>
     <string name="import_settings">Импортировать настройки из JSON</string>
     <string name="import_settings_confirm">Импортировать</string>

@@ -2,6 +2,8 @@ package com.mmwtl.atlasappwidget;
 
 import android.view.accessibility.AccessibilityWindowInfo;
 
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Set;
 
@@ -13,7 +15,9 @@ final class WindowVisibilityPolicy {
         UNKNOWN
     }
 
-    private static final int FULLSCREEN_PERCENT = 85;
+    static final int MIN_HIDE_THRESHOLD_PERCENT = 30;
+    static final int MAX_HIDE_THRESHOLD_PERCENT = 95;
+    static final int DEFAULT_HIDE_THRESHOLD_PERCENT = 85;
 
     private WindowVisibilityPolicy() {
     }
@@ -27,13 +31,16 @@ final class WindowVisibilityPolicy {
             ForegroundEventTracker.VisibleActivity foreground,
             String eventPackage,
             String eventClass,
-            String ownPackage
+            String ownPackage,
+            int hideThresholdPercent
     ) {
         if (windows == null || windows.isEmpty()
                 || displayWidth <= 0 || displayHeight <= 0
                 || homePackages == null || homePackages.isEmpty()) {
             return Decision.UNKNOWN;
         }
+        int threshold = Math.max(MIN_HIDE_THRESHOLD_PERCENT,
+                Math.min(MAX_HIDE_THRESHOLD_PERCENT, hideThresholdPercent));
 
         String foregroundPackage = value(eventPackage);
         String foregroundClass = value(eventClass);
@@ -66,6 +73,7 @@ final class WindowVisibilityPolicy {
         boolean launcherPresent = false;
         int highestLauncherLayer = Integer.MIN_VALUE;
         boolean nonHomeApplicationPresent = false;
+        List<CoveredRect> visibleApplicationRects = new ArrayList<>();
         for (WindowObservation window : windows) {
             boolean homeWindow = isHomeWindow(
                     window,
@@ -102,10 +110,16 @@ final class WindowVisibilityPolicy {
             }
 
             boolean fullScreen = coversPercent(
-                    window.width(), displayWidth, FULLSCREEN_PERCENT)
-                    && coversPercent(window.height(), displayHeight, FULLSCREEN_PERCENT);
+                    window.width(), displayWidth, threshold)
+                    && coversPercent(window.height(), displayHeight, threshold);
             boolean aboveLauncher = highestLauncherLayer == Integer.MIN_VALUE
                     || window.layer >= highestLauncherLayer;
+            if (applicationWindow && aboveLauncher && !window.packageName.isEmpty()) {
+                CoveredRect clipped = CoveredRect.clipped(window, displayWidth, displayHeight);
+                if (clipped != null) {
+                    visibleApplicationRects.add(clipped);
+                }
+            }
             boolean foregroundWindow = window.active || window.focused
                     || (!foregroundPackage.isEmpty()
                     && foregroundPackage.equals(window.packageName));
@@ -125,6 +139,11 @@ final class WindowVisibilityPolicy {
                     && HeadUnitWindowRules.forceHide(window.packageName, window.className)) {
                 return Decision.HOME_HIDDEN;
             }
+        }
+
+        if (launcherPresent && coversDisplayPercent(
+                visibleApplicationRects, displayWidth, displayHeight, threshold)) {
+            return Decision.HOME_HIDDEN;
         }
 
         // A focused non-HOME activity from a package that also exposes FallbackHome must not be
@@ -183,6 +202,89 @@ final class WindowVisibilityPolicy {
 
     private static boolean coversPercent(int size, int displaySize, int percent) {
         return (long) size * 100L >= (long) displaySize * percent;
+    }
+
+    /** Returns true when the union of the rectangles covers the requested display percentage. */
+    private static boolean coversDisplayPercent(
+            List<CoveredRect> rectangles,
+            int displayWidth,
+            int displayHeight,
+            int percent
+    ) {
+        if (rectangles.isEmpty()) {
+            return false;
+        }
+        ArrayList<Integer> xEdges = new ArrayList<>(rectangles.size() * 2);
+        for (CoveredRect rectangle : rectangles) {
+            xEdges.add(rectangle.left);
+            xEdges.add(rectangle.right);
+        }
+        xEdges.sort(Integer::compareTo);
+
+        long coveredArea = 0L;
+        for (int edge = 0; edge + 1 < xEdges.size(); edge++) {
+            int left = xEdges.get(edge);
+            int right = xEdges.get(edge + 1);
+            if (right <= left) {
+                continue;
+            }
+            ArrayList<CoveredRect> intervals = new ArrayList<>();
+            for (CoveredRect rectangle : rectangles) {
+                if (rectangle.left < right && rectangle.right > left) {
+                    intervals.add(rectangle);
+                }
+            }
+            intervals.sort(Comparator.comparingInt(rectangle -> rectangle.top));
+            int coveredHeight = 0;
+            int intervalTop = -1;
+            int intervalBottom = -1;
+            for (CoveredRect interval : intervals) {
+                if (intervalTop < 0) {
+                    intervalTop = interval.top;
+                    intervalBottom = interval.bottom;
+                } else if (interval.top > intervalBottom) {
+                    coveredHeight += intervalBottom - intervalTop;
+                    intervalTop = interval.top;
+                    intervalBottom = interval.bottom;
+                } else {
+                    intervalBottom = Math.max(intervalBottom, interval.bottom);
+                }
+            }
+            if (intervalTop >= 0) {
+                coveredHeight += intervalBottom - intervalTop;
+            }
+            coveredArea += (long) (right - left) * coveredHeight;
+        }
+        return coveredArea * 100L
+                >= (long) displayWidth * displayHeight * percent;
+    }
+
+    private static final class CoveredRect {
+        final int left;
+        final int top;
+        final int right;
+        final int bottom;
+
+        CoveredRect(int left, int top, int right, int bottom) {
+            this.left = left;
+            this.top = top;
+            this.right = right;
+            this.bottom = bottom;
+        }
+
+        static CoveredRect clipped(
+                WindowObservation window,
+                int displayWidth,
+                int displayHeight
+        ) {
+            int left = Math.max(0, Math.min(displayWidth, window.left));
+            int top = Math.max(0, Math.min(displayHeight, window.top));
+            int right = Math.max(0, Math.min(displayWidth, window.right));
+            int bottom = Math.max(0, Math.min(displayHeight, window.bottom));
+            return right > left && bottom > top
+                    ? new CoveredRect(left, top, right, bottom)
+                    : null;
+        }
     }
 
     private static String value(String text) {

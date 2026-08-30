@@ -26,6 +26,7 @@ final class ForegroundAppDetector {
     private final PowerManager powerManager;
     private final KeyguardManager keyguardManager;
     private final UserManager userManager;
+    private final Prefs prefs;
     private final Set<String> homePackages = new HashSet<>();
     private final Set<String> homeComponents = new HashSet<>();
     private final ForegroundEventTracker eventTracker = new ForegroundEventTracker();
@@ -38,6 +39,7 @@ final class ForegroundAppDetector {
         powerManager = (PowerManager) context.getSystemService(Context.POWER_SERVICE);
         keyguardManager = (KeyguardManager) context.getSystemService(Context.KEYGUARD_SERVICE);
         userManager = (UserManager) context.getSystemService(Context.USER_SERVICE);
+        prefs = new Prefs(context);
     }
 
     static boolean hasUsageAccess(Context context) {
@@ -133,7 +135,8 @@ final class ForegroundAppDetector {
                 eventTracker.mostRecentVisibleActivity(),
                 windowState.eventPackage,
                 windowState.eventClass,
-                context.getPackageName()
+                context.getPackageName(),
+                prefs.freeformHideThresholdPercent()
         );
     }
 
