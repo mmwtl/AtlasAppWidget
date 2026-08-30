@@ -14,12 +14,13 @@ import java.util.List;
 
 public final class SettingsBackupTest {
     @Test public void jsonRoundTripPreservesPortableSettings() throws Exception {
-        SettingsBackup.Data original = data(17, 321, 654);
+        SettingsBackup.Data original = data(true, 17, 321, 654);
 
         String json = SettingsBackup.encode(original, "1.2.3");
         SettingsBackup.Data restored = SettingsBackup.decode(json);
 
         assertTrue(restored.autoStart);
+        assertTrue(restored.useLaunchProxy);
         assertEquals(17, restored.appUiScaleTenths);
         assertEquals(80, restored.freeformHideThresholdPercent);
         assertEquals(Integer.valueOf(321), restored.positionX);
@@ -41,6 +42,15 @@ public final class SettingsBackupTest {
         assertEquals(80, settings.getInt("freeformHideThresholdPercent"));
         assertFalse(settings.has("serviceEnabled"));
         assertFalse(settings.has("customIcons"));
+    }
+
+    @Test public void olderJsonDefaultsMissingLaunchProxyToFalse() throws Exception {
+        JSONObject root = new JSONObject(SettingsBackup.encode(data(false, 15, null, null), "test"));
+        root.getJSONObject("settings").remove("useLaunchProxy");
+
+        SettingsBackup.Data restored = SettingsBackup.decode(root.toString());
+
+        assertFalse(restored.useLaunchProxy);
     }
 
     @Test public void jsonRoundTripPreservesDefaultPosition() throws Exception {
@@ -105,8 +115,14 @@ public final class SettingsBackupTest {
 
     private static SettingsBackup.Data data(int scale, Integer x, Integer y)
             throws IOException {
+        return data(false, scale, x, y);
+    }
+
+    private static SettingsBackup.Data data(boolean useLaunchProxy, int scale, Integer x,
+            Integer y) throws IOException {
         return new SettingsBackup.Data(
                 true,
+                useLaunchProxy,
                 scale,
                 80,
                 x,

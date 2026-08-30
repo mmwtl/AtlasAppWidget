@@ -778,6 +778,25 @@ public final class OverlayService extends Service
     public void onAppClicked(AppEntry entry) {
         panelSuppression.suppress(SystemClock.elapsedRealtime(), 1_500L);
         dismissFuelDetails();
+        if (prefs.getBoolean(Prefs.KEY_USE_LAUNCH_PROXY, false)) {
+            Intent proxy = LaunchProxyIntents.proxy(this, entry.componentName, entry.label);
+            if (proxy == null) {
+                AppLog.warn("Cannot launch selected activity through proxy: invalid component "
+                        + entry.componentKey, new IllegalArgumentException(entry.componentKey));
+                Toast.makeText(this, getString(R.string.launch_failed, entry.label),
+                        Toast.LENGTH_SHORT).show();
+                return;
+            }
+            try {
+                startActivity(proxy);
+            } catch (ActivityNotFoundException | SecurityException error) {
+                AppLog.warn("Cannot launch selected activity through proxy "
+                        + entry.componentKey, error);
+                Toast.makeText(this, getString(R.string.launch_failed, entry.label),
+                        Toast.LENGTH_SHORT).show();
+            }
+            return;
+        }
         Intent launch = new Intent(Intent.ACTION_MAIN)
                 .addCategory(Intent.CATEGORY_LAUNCHER)
                 .setComponent(entry.componentName)

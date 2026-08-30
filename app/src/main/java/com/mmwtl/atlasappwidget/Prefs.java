@@ -17,6 +17,7 @@ final class Prefs {
     private static final Object MIGRATION_LOCK = new Object();
     private static volatile boolean credentialMigrationAttempted;
     static final String KEY_AUTO_START = "auto_start";
+    static final String KEY_USE_LAUNCH_PROXY = "use_launch_proxy";
     static final String KEY_SERVICE_ENABLED = "service_enabled";
     static final String KEY_APP_UI_SCALE_TENTHS = "app_ui_scale_tenths";
     static final String KEY_FREEFORM_HIDE_THRESHOLD_PERCENT =
@@ -221,6 +222,7 @@ final class Prefs {
     boolean replacePortableSettings(SettingsBackup.Data data) {
         SharedPreferences.Editor editor = values.edit()
                 .putBoolean(KEY_AUTO_START, data.autoStart)
+                .putBoolean(KEY_USE_LAUNCH_PROXY, data.useLaunchProxy)
                 .putInt(KEY_APP_UI_SCALE_TENTHS, data.appUiScaleTenths)
                 .putInt(KEY_FREEFORM_HIDE_THRESHOLD_PERCENT,
                         data.freeformHideThresholdPercent)

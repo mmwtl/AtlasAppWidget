@@ -33,6 +33,7 @@ final class SettingsBackup {
 
     static final class Data {
         final boolean autoStart;
+        final boolean useLaunchProxy;
         final int appUiScaleTenths;
         final int freeformHideThresholdPercent;
         final Integer positionX;
@@ -45,12 +46,13 @@ final class SettingsBackup {
         final GeometryData geometry;
         final AppearanceData appearance;
 
-        Data(boolean autoStart, int appUiScaleTenths, int freeformHideThresholdPercent,
-                Integer positionX, Integer positionY,
+        Data(boolean autoStart, boolean useLaunchProxy, int appUiScaleTenths,
+                int freeformHideThresholdPercent, Integer positionX, Integer positionY,
                 List<String> selectedComponents, ContentData content, MovementData movement,
                 SystemStatusData systemStatus, FuelData fuel, GeometryData geometry,
                 AppearanceData appearance) throws IOException {
             this.autoStart = autoStart;
+            this.useLaunchProxy = useLaunchProxy;
             this.appUiScaleTenths = requireRange("settings.uiScaleTenths", appUiScaleTenths,
                     ScaledActivity.MIN_SCALE_TENTHS, ScaledActivity.MAX_SCALE_TENTHS);
             this.freeformHideThresholdPercent = requireRange(
@@ -246,6 +248,7 @@ final class SettingsBackup {
         }
         return new Data(
                 prefs.getBoolean(Prefs.KEY_AUTO_START, false),
+                prefs.getBoolean(Prefs.KEY_USE_LAUNCH_PROXY, false),
                 clamp(prefs.getInt(Prefs.KEY_APP_UI_SCALE_TENTHS,
                                 ScaledActivity.DEFAULT_SCALE_TENTHS),
                         ScaledActivity.MIN_SCALE_TENTHS, ScaledActivity.MAX_SCALE_TENTHS),
@@ -387,6 +390,7 @@ final class SettingsBackup {
                     .put("appVersion", appVersion == null ? "" : appVersion);
             JSONObject settings = new JSONObject()
                     .put("autoStart", data.autoStart)
+                    .put("useLaunchProxy", data.useLaunchProxy)
                     .put("uiScaleTenths", data.appUiScaleTenths)
                     .put("freeformHideThresholdPercent",
                             data.freeformHideThresholdPercent)
@@ -476,6 +480,9 @@ final class SettingsBackup {
             }
             return new Data(
                     requireBoolean(settings, "autoStart", "settings.autoStart"),
+                    settings.has("useLaunchProxy")
+                            && requireBoolean(settings, "useLaunchProxy",
+                                    "settings.useLaunchProxy"),
                     requireInt(settings, "uiScaleTenths", "settings.uiScaleTenths"),
                     settings.has("freeformHideThresholdPercent")
                             ? requireInt(settings, "freeformHideThresholdPercent",
