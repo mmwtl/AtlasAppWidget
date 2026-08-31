@@ -104,7 +104,7 @@
     <string name="scale_hint">Меняет размер экранов и элементов приложения без изменения системного масштаба ГУ. Геометрия overlay-панели настраивается отдельно выше.</string>
     <string name="scale">Масштаб</string>
     <string name="settings_backup_title">Импорт и экспорт настроек</string>
-    <string name="settings_backup_hint">JSON содержит выбранные activity и ярлыки, их порядок, внешний вид, положение overlay, порог скрытия, масштаб, автозапуск, режим запуска через прокси и формулу топлива. Разрешения, работа сервиса и файлы пользовательских иконок не переносятся.</string>
+    <string name="settings_backup_hint">JSON содержит выбранные activity и ярлыки, их порядок, иконки ярлыков, внешний вид, положение overlay, порог скрытия, масштаб, автозапуск, режим запуска через прокси и формулу топлива. Разрешения и работа сервиса не переносятся.</string>
     <string name="export_settings">Экспортировать настройки в JSON</string>
     <string name="import_settings">Импортировать настройки из JSON</string>
     <string name="import_settings_confirm">Импортировать</string>

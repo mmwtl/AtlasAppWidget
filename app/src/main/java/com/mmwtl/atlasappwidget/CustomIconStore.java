@@ -1,6 +1,12 @@
 package com.mmwtl.atlasappwidget;
 
 import android.content.Context;
+import android.content.pm.PackageManager;
+import android.content.Intent;
+import android.graphics.Bitmap;
+import android.graphics.Canvas;
+import android.graphics.drawable.BitmapDrawable;
+import android.graphics.drawable.Drawable;
 import android.net.Uri;
 
 import java.io.File;
@@ -15,6 +21,7 @@ import java.security.NoSuchAlgorithmException;
 
 final class CustomIconStore {
     static final String INTERNAL_PREFIX = "internal:";
+    private static final int MAX_IMPORTED_BITMAP_DIMENSION = 192;
     private static final int BUFFER_SIZE = 16 * 1024;
     private static final long MAX_ICON_BYTES = 25L * 1024L * 1024L;
 
@@ -64,6 +71,125 @@ final class CustomIconStore {
             throw error;
         }
         return INTERNAL_PREFIX + fileName;
+    }
+
+    static String importIcon(Context context, Bitmap bitmap, String componentKey)
+            throws IOException {
+        if (bitmap == null || bitmap.isRecycled()) {
+            throw new IOException("Shortcut icon bitmap is unavailable");
+        }
+        File temporary = prepareTemporary(context, componentKey);
+        long bytes;
+        Bitmap encoded = bitmap;
+        boolean ownsEncoded = false;
+        int largest = Math.max(bitmap.getWidth(), bitmap.getHeight());
+        if (largest > MAX_IMPORTED_BITMAP_DIMENSION) {
+            float scale = (float) MAX_IMPORTED_BITMAP_DIMENSION / largest;
+            encoded = Bitmap.createScaledBitmap(bitmap,
+                    Math.max(1, Math.round(bitmap.getWidth() * scale)),
+                    Math.max(1, Math.round(bitmap.getHeight() * scale)), true);
+            ownsEncoded = encoded != bitmap;
+        }
+        try (FileOutputStream output = new FileOutputStream(temporary, false)) {
+            if (!encoded.compress(Bitmap.CompressFormat.PNG, 100, output)) {
+                throw new IOException("Cannot encode shortcut icon");
+            }
+            output.getFD().sync();
+            bytes = temporary.length();
+        } catch (IOException error) {
+            temporary.delete();
+            throw error;
+        } finally {
+            if (ownsEncoded) encoded.recycle();
+        }
+        return finishImport(context, componentKey, temporary, bytes);
+    }
+
+    static String importIcon(Context context, byte[] bytes, String componentKey)
+            throws IOException {
+        if (bytes == null || bytes.length == 0 || bytes.length > MAX_ICON_BYTES) {
+            throw new IOException("Shortcut icon data is invalid");
+        }
+        File temporary = prepareTemporary(context, componentKey);
+        try (FileOutputStream output = new FileOutputStream(temporary, false)) {
+            output.write(bytes);
+            output.getFD().sync();
+        } catch (IOException error) {
+            temporary.delete();
+            throw error;
+        }
+        return finishImport(context, componentKey, temporary, bytes.length);
+    }
+
+    static String importIcon(Context context, Intent.ShortcutIconResource resource,
+            String componentKey)
+            throws IOException {
+        if (resource == null || resource.packageName == null || resource.resourceName == null) {
+            throw new IOException("Shortcut icon resource is invalid");
+        }
+        try {
+            PackageManager packageManager = context.getPackageManager();
+            android.content.res.Resources resources =
+                    packageManager.getResourcesForApplication(resource.packageName);
+            int resourceId = resources.getIdentifier(
+                    resource.resourceName, null, resource.packageName);
+            if (resourceId == 0) {
+                int separator = resource.resourceName.indexOf(':');
+                String unqualified = separator >= 0
+                        ? resource.resourceName.substring(separator + 1)
+                        : resource.resourceName;
+                if (unqualified.startsWith("@")) unqualified = unqualified.substring(1);
+                resourceId = resources.getIdentifier(unqualified, null, resource.packageName);
+            }
+            if (resourceId == 0) throw new IOException("Shortcut icon resource not found");
+            Drawable drawable = resources.getDrawable(resourceId, context.getTheme());
+            if (drawable instanceof BitmapDrawable bitmapDrawable) {
+                return importIcon(context, bitmapDrawable.getBitmap(), componentKey);
+            }
+            int width = Math.max(1, Math.min(MAX_IMPORTED_BITMAP_DIMENSION,
+                    drawable.getIntrinsicWidth()));
+            int height = Math.max(1, Math.min(MAX_IMPORTED_BITMAP_DIMENSION,
+                    drawable.getIntrinsicHeight()));
+            Bitmap bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888);
+            try {
+                drawable.setBounds(0, 0, width, height);
+                drawable.draw(new Canvas(bitmap));
+                return importIcon(context, bitmap, componentKey);
+            } finally {
+                bitmap.recycle();
+            }
+        } catch (PackageManager.NameNotFoundException | RuntimeException error) {
+            throw new IOException("Cannot load shortcut icon resource", error);
+        }
+    }
+
+    private static File prepareTemporary(Context context, String componentKey) throws IOException {
+        File directory = iconDirectory(context);
+        if (!directory.isDirectory() && !directory.mkdirs()) {
+            throw new IOException("Cannot create custom icon directory");
+        }
+        return new File(directory, digest(componentKey) + ".img.tmp");
+    }
+
+    private static String finishImport(Context context, String componentKey, File temporary,
+            long bytes) throws IOException {
+        if (bytes <= 0) {
+            temporary.delete();
+            throw new IOException("Shortcut icon is empty");
+        }
+        if (bytes > MAX_ICON_BYTES) {
+            temporary.delete();
+            throw new IOException("Shortcut icon is larger than 25 MB");
+        }
+        File destination = new File(iconDirectory(context), digest(componentKey) + ".img");
+        try {
+            Files.move(temporary.toPath(), destination.toPath(),
+                    StandardCopyOption.REPLACE_EXISTING);
+        } catch (IOException error) {
+            temporary.delete();
+            throw error;
+        }
+        return INTERNAL_PREFIX + destination.getName();
     }
 
     static File resolve(Context context, String storedValue) {

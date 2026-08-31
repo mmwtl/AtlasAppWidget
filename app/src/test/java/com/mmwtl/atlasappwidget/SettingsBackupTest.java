@@ -10,6 +10,7 @@ import org.json.JSONObject;
 import org.junit.Test;
 
 import java.io.IOException;
+import java.util.Map;
 import java.util.List;
 
 public final class SettingsBackupTest {
@@ -43,7 +44,8 @@ public final class SettingsBackupTest {
         assertEquals(80, settings.getInt("freeformHideThresholdPercent"));
         assertTrue(settings.getBoolean("showOnlyInAppList"));
         assertFalse(settings.has("serviceEnabled"));
-        assertFalse(settings.has("customIcons"));
+        assertTrue(settings.has("customIcons"));
+        assertTrue(settings.getJSONObject("customIcons").length() == 0);
     }
 
     @Test public void olderJsonDefaultsMissingLaunchProxyToFalse() throws Exception {
@@ -68,7 +70,7 @@ public final class SettingsBackupTest {
 
     @Test public void rejectsUnsupportedSchemaVersion() throws Exception {
         JSONObject root = new JSONObject(SettingsBackup.encode(data(15, null, null), "test"));
-        root.put("schemaVersion", 3);
+        root.put("schemaVersion", 4);
 
         IOException error = assertThrows(IOException.class,
                 () -> SettingsBackup.decode(root.toString()));
@@ -100,6 +102,35 @@ public final class SettingsBackupTest {
                 restored.selectedComponents);
         assertEquals(1, restored.shortcuts.size());
         assertEquals(uri, restored.shortcuts.get(0).intentUri);
+    }
+
+    @Test public void customIconsRoundTripAsPortableBase64Payload() throws Exception {
+        SettingsBackup.Data base = data(15, null, null);
+        byte[] icon = new byte[]{0, 1, 2, 3, 4};
+        String uri = "#Intent;action=android.intent.action.VIEW;"
+                + "component=com.salat.gsplit/.PresetLauncherActivity;end";
+        ShortcutSpec shortcut = new ShortcutSpec(
+                ShortcutSpec.stableKey(uri), "Preset", uri,
+                "com.salat.gsplit/.PresetLauncherActivity");
+        SettingsBackup.Data original = new SettingsBackup.Data(
+                base.autoStart, base.useLaunchProxy, base.showOnlyInAppList,
+                base.appUiScaleTenths, base.freeformHideThresholdPercent,
+                base.positionX, base.positionY, List.of(shortcut.key), List.of(shortcut),
+                Map.of(shortcut.key, icon), base.content, base.movement,
+                base.systemStatus, base.fuel, base.geometry, base.appearance);
+
+        SettingsBackup.Data restored = SettingsBackup.decode(
+                SettingsBackup.encode(original, "test"));
+
+        assertEquals(1, restored.customIcons.size());
+        assertEquals(List.of(0, 1, 2, 3, 4),
+                toList(restored.customIcons.get(shortcut.key)));
+    }
+
+    private static List<Integer> toList(byte[] bytes) {
+        java.util.ArrayList<Integer> result = new java.util.ArrayList<>();
+        for (byte value : bytes) result.add((int) value);
+        return result;
     }
 
     @Test public void olderJsonDefaultsMissingFreeformThreshold() throws Exception {

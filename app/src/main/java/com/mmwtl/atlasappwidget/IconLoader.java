@@ -5,6 +5,7 @@ import android.graphics.ImageDecoder;
 import android.graphics.Bitmap;
 import android.graphics.drawable.BitmapDrawable;
 import android.graphics.drawable.Drawable;
+import android.graphics.drawable.LayerDrawable;
 import android.net.Uri;
 import android.util.LruCache;
 
@@ -62,18 +63,18 @@ final class IconLoader {
                     "custom|" + entry.componentKey + "|" + customUri + "|" + targetPixels,
                     customUri, targetPixels);
             if (custom != null) {
-                return new Result(custom, true);
+                return new Result(decorate(context, entry, custom, targetPixels), true);
             }
         }
         String systemKey = "system|" + entry.componentKey;
         Drawable cached = cached(systemKey, context);
         if (cached != null) {
-            return new Result(cached, false);
+            return new Result(decorate(context, entry, cached, targetPixels), false);
         }
         try {
             Drawable system = context.getPackageManager().getActivityIcon(entry.componentName);
             cache(systemKey, system);
-            return new Result(system, false);
+            return new Result(decorate(context, entry, system, targetPixels), false);
         } catch (Exception error) {
             AppLog.warnRateLimited(
                     "system-icon-" + entry.componentKey,
@@ -82,8 +83,31 @@ final class IconLoader {
             );
             Drawable fallback = context.getPackageManager().getDefaultActivityIcon();
             cache(systemKey, fallback);
-            return new Result(fallback, false);
+            return new Result(decorate(context, entry, fallback, targetPixels), false);
         }
+    }
+
+    private static Drawable decorate(Context context, AppEntry entry, Drawable icon,
+            int targetPixels) {
+        if (!entry.isShortcut() || !ShortcutSpec.isGsplitPreset(entry.componentName)) {
+            return icon;
+        }
+        final Drawable badge;
+        try {
+            badge = context.getPackageManager().getApplicationIcon(
+                    entry.componentName.getPackageName());
+        } catch (Exception error) {
+            AppLog.warnRateLimited(
+                    "shortcut-badge-" + entry.componentName.getPackageName(),
+                    "Cannot load shortcut provider icon",
+                    error
+            );
+            return icon;
+        }
+        LayerDrawable layers = new LayerDrawable(new Drawable[]{icon, badge});
+        int inset = Math.max(1, Math.round(targetPixels * 0.58f));
+        layers.setLayerInset(1, inset, inset, 0, 0);
+        return layers;
     }
 
     private static Drawable cachedOrDecode(Context context, String cacheKey, String uri, int targetPixels) {

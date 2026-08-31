@@ -1154,7 +1154,7 @@ public final class MainActivity extends ScaledActivity
         ioExecutor.execute(() -> {
             boolean saved;
             try {
-                saved = prefs.replacePortableSettings(imported);
+                saved = prefs.replacePortableSettings(getApplicationContext(), imported);
             } catch (RuntimeException error) {
                 AppLog.warn("Cannot apply imported settings", error);
                 main.post(() -> {

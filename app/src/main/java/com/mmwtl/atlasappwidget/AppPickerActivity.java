@@ -5,6 +5,7 @@ import android.content.Intent;
 import android.content.ComponentName;
 import android.content.pm.ActivityInfo;
 import android.graphics.Color;
+import android.graphics.Bitmap;
 import android.net.Uri;
 import android.os.Bundle;
 import android.text.Editable;
@@ -337,12 +338,35 @@ public final class AppPickerActivity extends ScaledActivity {
             }
             ShortcutSpec shortcut = ShortcutSpec.create(title, safe);
             prefs.saveShortcut(shortcut);
+            saveShortcutIcon(result, shortcut.key);
             prefs.setComponentSelected(shortcut.key, true);
             Toast.makeText(this, R.string.shortcut_saved, Toast.LENGTH_SHORT).show();
             loadApplications();
         } catch (Exception error) {
             AppLog.warn("Rejected legacy shortcut result", error);
             Toast.makeText(this, R.string.shortcut_invalid, Toast.LENGTH_LONG).show();
+        }
+    }
+
+    @SuppressWarnings("deprecation")
+    private void saveShortcutIcon(Intent result, String componentKey) {
+        String previous = prefs.customIcon(componentKey);
+        try {
+            Bitmap bitmap = result.getParcelableExtra(Intent.EXTRA_SHORTCUT_ICON);
+            Intent.ShortcutIconResource resource = result.getParcelableExtra(
+                    Intent.EXTRA_SHORTCUT_ICON_RESOURCE);
+            String stored = bitmap == null
+                    ? CustomIconStore.importIcon(getApplicationContext(), resource, componentKey)
+                    : CustomIconStore.importIcon(
+                    getApplicationContext(), bitmap, componentKey);
+            prefs.setCustomIcon(componentKey, stored);
+            if (!stored.equals(previous)) {
+                CustomIconStore.delete(getApplicationContext(), previous);
+            }
+            IconLoader.clearComponent(componentKey);
+        } catch (Exception error) {
+            // The shortcut itself remains usable when a provider supplies an invalid icon.
+            AppLog.warn("Cannot import legacy shortcut icon", error);
         }
     }
 

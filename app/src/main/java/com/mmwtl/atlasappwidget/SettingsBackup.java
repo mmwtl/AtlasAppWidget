@@ -14,20 +14,26 @@ import org.json.JSONException;
 import org.json.JSONObject;
 
 import java.io.ByteArrayOutputStream;
+import java.io.File;
+import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 final class SettingsBackup {
     static final String FILE_NAME = "AtlasAppWidget-settings.json";
     private static final String FORMAT = "atlas-app-widget-settings";
-    private static final int SCHEMA_VERSION = 2;
+    private static final int SCHEMA_VERSION = 3;
     private static final int MAX_FILE_BYTES = 256 * 1024;
+    private static final int MAX_BACKUP_ICON_BYTES = 128 * 1024;
     private static final int MAX_SELECTED_COMPONENTS = 200;
     private static final int MAX_COMPONENT_LENGTH = 2_048;
 
@@ -41,6 +47,7 @@ final class SettingsBackup {
         final Integer positionY;
         final List<String> selectedComponents;
         final List<ShortcutSpec> shortcuts;
+        final Map<String, byte[]> customIcons;
         final ContentData content;
         final MovementData movement;
         final SystemStatusData systemStatus;
@@ -56,7 +63,8 @@ final class SettingsBackup {
                 AppearanceData appearance) throws IOException {
             this(autoStart, useLaunchProxy, showOnlyInAppList, appUiScaleTenths,
                     freeformHideThresholdPercent, positionX, positionY, selectedComponents,
-                    List.of(), content, movement, systemStatus, fuel, geometry, appearance);
+                    List.of(), Map.of(), content, movement, systemStatus, fuel, geometry,
+                    appearance);
         }
 
         Data(boolean autoStart, boolean useLaunchProxy, boolean showOnlyInAppList,
@@ -65,6 +73,19 @@ final class SettingsBackup {
                 List<String> selectedComponents, List<ShortcutSpec> shortcuts,
                 ContentData content, MovementData movement, SystemStatusData systemStatus,
                 FuelData fuel, GeometryData geometry, AppearanceData appearance) throws IOException {
+            this(autoStart, useLaunchProxy, showOnlyInAppList, appUiScaleTenths,
+                    freeformHideThresholdPercent, positionX, positionY, selectedComponents,
+                    shortcuts, Map.of(), content, movement, systemStatus, fuel, geometry,
+                    appearance);
+        }
+
+        Data(boolean autoStart, boolean useLaunchProxy, boolean showOnlyInAppList,
+                int appUiScaleTenths,
+                int freeformHideThresholdPercent, Integer positionX, Integer positionY,
+                List<String> selectedComponents, List<ShortcutSpec> shortcuts,
+                Map<String, byte[]> customIcons, ContentData content, MovementData movement,
+                SystemStatusData systemStatus, FuelData fuel, GeometryData geometry,
+                AppearanceData appearance) throws IOException {
             this.autoStart = autoStart;
             this.useLaunchProxy = useLaunchProxy;
             this.showOnlyInAppList = showOnlyInAppList;
@@ -85,6 +106,7 @@ final class SettingsBackup {
             this.positionX = positionX;
             this.positionY = positionY;
             this.shortcuts = validateShortcuts(shortcuts);
+            this.customIcons = validateCustomIcons(customIcons, this.shortcuts);
             this.selectedComponents = validateSelectedComponents(selectedComponents, this.shortcuts);
             if (content == null || movement == null || systemStatus == null || fuel == null
                     || geometry == null || appearance == null) {
@@ -252,6 +274,10 @@ final class SettingsBackup {
     }
 
     static Data capture(Prefs prefs) throws IOException {
+        return capture(null, prefs);
+    }
+
+    static Data capture(Context context, Prefs prefs) throws IOException {
         int x = prefs.getInt(Prefs.KEY_POSITION_X, Prefs.POSITION_UNSET);
         int y = prefs.getInt(Prefs.KEY_POSITION_Y, Prefs.POSITION_UNSET);
         Integer positionX = x == Prefs.POSITION_UNSET || y == Prefs.POSITION_UNSET ? null : x;
@@ -274,6 +300,7 @@ final class SettingsBackup {
                 positionY,
                 prefs.selectedComponents(),
                 prefs.shortcutCatalog(),
+                captureCustomIcons(context, prefs),
                 new ContentData(prefs.getBoolean(Prefs.KEY_SHOW_APP_LABELS, false)),
                 new MovementData(
                         prefs.getBoolean(Prefs.KEY_SHOW_DRAG_HANDLE, true),
@@ -323,6 +350,43 @@ final class SettingsBackup {
                                 0, PanelConfig.PANEL_RADIUS_FULLY_ROUNDED)));
     }
 
+    private static Map<String, byte[]> captureCustomIcons(Context context, Prefs prefs)
+            throws IOException {
+        if (context == null) {
+            return Map.of();
+        }
+        Map<String, byte[]> result = new LinkedHashMap<>();
+        Set<String> shortcutKeys = new HashSet<>();
+        for (ShortcutSpec shortcut : prefs.shortcutCatalog()) shortcutKeys.add(shortcut.key);
+        for (Map.Entry<String, String> item : prefs.customIcons().entrySet()) {
+            if (!shortcutKeys.contains(item.getKey())) continue;
+            result.put(item.getKey(), readIcon(context, item.getValue()));
+        }
+        return result;
+    }
+
+    private static byte[] readIcon(Context context, String storedValue) throws IOException {
+        File internal = CustomIconStore.resolve(context, storedValue);
+        try (InputStream input = internal == null
+                ? context.getContentResolver().openInputStream(Uri.parse(storedValue))
+                : new FileInputStream(internal)) {
+            if (input == null) throw new IOException("Custom icon data is unavailable");
+            ByteArrayOutputStream output = new ByteArrayOutputStream();
+            byte[] buffer = new byte[8 * 1024];
+            int total = 0;
+            int count;
+            while ((count = input.read(buffer)) != -1) {
+                total += count;
+                if (total > MAX_BACKUP_ICON_BYTES) {
+                    throw new IOException("Custom icon is too large for settings backup");
+                }
+                output.write(buffer, 0, count);
+            }
+            if (total == 0) throw new IOException("Custom icon is empty");
+            return output.toByteArray();
+        }
+    }
+
     static void write(Context context, Prefs prefs, Uri uri) throws IOException {
         if (uri == null) throw invalid("Файл не выбран");
         writeContents(context.getContentResolver(), uri, encodedContents(context, prefs));
@@ -357,7 +421,7 @@ final class SettingsBackup {
     }
 
     private static byte[] encodedContents(Context context, Prefs prefs) throws IOException {
-        return encode(capture(prefs), appVersion(context)).getBytes(StandardCharsets.UTF_8);
+        return encode(capture(context, prefs), appVersion(context)).getBytes(StandardCharsets.UTF_8);
     }
 
     private static void writeContents(ContentResolver resolver, Uri uri, byte[] contents)
@@ -415,6 +479,7 @@ final class SettingsBackup {
                             data.freeformHideThresholdPercent)
                     .put("selectedComponents", new JSONArray(data.selectedComponents))
                     .put("shortcuts", shortcutArray(data.shortcuts))
+                    .put("customIcons", customIconObject(data.customIcons))
                     .put("content", new JSONObject()
                             .put("showAppLabels", data.content.showAppLabels))
                     .put("movement", new JSONObject()
@@ -461,7 +526,11 @@ final class SettingsBackup {
                         .put("y", data.positionY));
             }
             root.put("settings", settings);
-            return root.toString(2) + '\n';
+            String encoded = root.toString(2) + '\n';
+            if (encoded.getBytes(StandardCharsets.UTF_8).length > MAX_FILE_BYTES) {
+                throw invalid("JSON настроек с иконками больше 256 КБ");
+            }
+            return encoded;
         } catch (JSONException error) {
             throw new IOException("Не удалось сформировать JSON настроек", error);
         }
@@ -477,7 +546,7 @@ final class SettingsBackup {
                 throw invalid("Это не файл настроек Atlas App Widget");
             }
             int version = requireInt(root, "schemaVersion", "schemaVersion");
-            if (version != 1 && version != SCHEMA_VERSION) {
+            if (version < 1 || version > SCHEMA_VERSION) {
                 throw invalid("Неподдерживаемая версия JSON: " + version);
             }
             JSONObject settings = requireObject(root, "settings", "settings");
@@ -500,6 +569,8 @@ final class SettingsBackup {
             }
             List<ShortcutSpec> shortcuts = version >= 2 && settings.has("shortcuts")
                     ? parseShortcuts(settings) : List.of();
+            Map<String, byte[]> customIcons = version >= 3 && settings.has("customIcons")
+                    ? parseCustomIcons(settings) : Map.of();
             return new Data(
                     requireBoolean(settings, "autoStart", "settings.autoStart"),
                     settings.has("useLaunchProxy")
@@ -518,6 +589,7 @@ final class SettingsBackup {
                     requireStringList(settings, "selectedComponents",
                             "settings.selectedComponents"),
                     shortcuts,
+                    customIcons,
                     new ContentData(requireBoolean(content, "showAppLabels",
                             "settings.content.showAppLabels")),
                     new MovementData(
@@ -582,6 +654,14 @@ final class SettingsBackup {
         return result;
     }
 
+    private static JSONObject customIconObject(Map<String, byte[]> icons) throws JSONException {
+        JSONObject result = new JSONObject();
+        for (Map.Entry<String, byte[]> item : icons.entrySet()) {
+            result.put(item.getKey(), Base64.getEncoder().encodeToString(item.getValue()));
+        }
+        return result;
+    }
+
     private static List<ShortcutSpec> parseShortcuts(JSONObject settings) throws IOException {
         Object value = requireValue(settings, "shortcuts", "settings.shortcuts");
         if (!(value instanceof JSONArray array)) {
@@ -607,6 +687,66 @@ final class SettingsBackup {
             }
         }
         return List.copyOf(result);
+    }
+
+    private static Map<String, byte[]> parseCustomIcons(JSONObject settings) throws IOException {
+        Object value = requireValue(settings, "customIcons", "settings.customIcons");
+        if (!(value instanceof JSONObject object)) {
+            throw invalid("Поле settings.customIcons должно быть объектом");
+        }
+        if (object.length() > MAX_SELECTED_COMPONENTS) {
+            throw invalid("Слишком много пользовательских иконок");
+        }
+        Map<String, byte[]> result = new LinkedHashMap<>();
+        java.util.Iterator<String> keys = object.keys();
+        while (keys.hasNext()) {
+            String key = keys.next();
+            if (key == null || key.isEmpty() || key.length() > MAX_COMPONENT_LENGTH) {
+                throw invalid("Некорректный ключ в settings.customIcons");
+            }
+            Object encoded;
+            try {
+                encoded = object.get(key);
+            } catch (JSONException error) {
+                throw invalid("Не удалось прочитать settings.customIcons." + key, error);
+            }
+            if (!(encoded instanceof String text) || text.isEmpty()) {
+                throw invalid("Иконка settings.customIcons." + key
+                        + " должна быть base64-строкой");
+            }
+            final byte[] bytes;
+            try {
+                bytes = Base64.getDecoder().decode(text);
+            } catch (IllegalArgumentException error) {
+                throw invalid("Некорректная base64-иконка settings.customIcons." + key, error);
+            }
+            if (bytes.length == 0 || bytes.length > MAX_BACKUP_ICON_BYTES) {
+                throw invalid("Иконка settings.customIcons." + key + " слишком большая");
+            }
+            result.put(key, bytes);
+        }
+        return Map.copyOf(result);
+    }
+
+    private static Map<String, byte[]> validateCustomIcons(Map<String, byte[]> customIcons,
+            List<ShortcutSpec> shortcuts) throws IOException {
+        if (customIcons == null || customIcons.size() > MAX_SELECTED_COMPONENTS) {
+            throw invalid("Некорректный каталог пользовательских иконок");
+        }
+        Set<String> shortcutKeys = new HashSet<>();
+        for (ShortcutSpec shortcut : shortcuts) shortcutKeys.add(shortcut.key);
+        Map<String, byte[]> result = new LinkedHashMap<>();
+        for (Map.Entry<String, byte[]> item : customIcons.entrySet()) {
+            if (!shortcutKeys.contains(item.getKey())) {
+                throw invalid("Пользовательская иконка не относится к ярлыку");
+            }
+            if (item.getValue() == null || item.getValue().length == 0
+                    || item.getValue().length > MAX_BACKUP_ICON_BYTES) {
+                throw invalid("Некорректные данные пользовательской иконки");
+            }
+            result.put(item.getKey(), item.getValue().clone());
+        }
+        return Map.copyOf(result);
     }
 
     private static List<ShortcutSpec> validateShortcuts(List<ShortcutSpec> shortcuts)

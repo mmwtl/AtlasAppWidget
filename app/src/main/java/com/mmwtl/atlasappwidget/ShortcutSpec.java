@@ -10,6 +10,8 @@ import java.security.NoSuchAlgorithmException;
 /** Immutable, portable description of a legacy ACTION_CREATE_SHORTCUT result. */
 final class ShortcutSpec {
     static final String KEY_PREFIX = "atlas:shortcut:";
+    static final String GSPLIT_PACKAGE = "com.salat.gsplit";
+    static final String GSPLIT_PRESET_ACTIVITY = ".PresetLauncherActivity";
     static final int MAX_SHORTCUTS = 100;
     static final int MAX_TITLE_LENGTH = 200;
     static final int MAX_INTENT_URI_LENGTH = 16 * 1024;
@@ -80,6 +82,12 @@ final class ShortcutSpec {
         } catch (NoSuchAlgorithmException impossible) {
             throw new AssertionError(impossible);
         }
+    }
+
+    static boolean isGsplitPreset(ComponentName component) {
+        return component != null
+                && GSPLIT_PACKAGE.equals(component.getPackageName())
+                && (GSPLIT_PACKAGE + GSPLIT_PRESET_ACTIVITY).equals(component.getClassName());
     }
 
     Intent parseIntent() throws Exception {

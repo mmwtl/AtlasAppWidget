@@ -8,8 +8,11 @@ import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
+import java.io.IOException;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 final class Prefs {
@@ -279,7 +282,35 @@ final class Prefs {
         values.edit().putString(KEY_SELECTED_COMPONENTS, selectedJson(selected)).apply();
     }
 
-    boolean replacePortableSettings(SettingsBackup.Data data) {
+    boolean replacePortableSettings(Context context, SettingsBackup.Data data) {
+        Map<String, String> previousIcons = customIcons();
+        Set<String> previousShortcutKeys = new java.util.HashSet<>();
+        for (ShortcutSpec shortcut : shortcutCatalog()) previousShortcutKeys.add(shortcut.key);
+        Map<String, String> importedIcons = new LinkedHashMap<>();
+        try {
+            for (Map.Entry<String, byte[]> item : data.customIcons.entrySet()) {
+                importedIcons.put(item.getKey(), CustomIconStore.importIcon(
+                        context, item.getValue(), item.getKey()));
+            }
+        } catch (IOException error) {
+            AppLog.warn("Cannot restore custom icons", error);
+            for (String stored : importedIcons.values()) {
+                if (!previousIcons.containsValue(stored)) {
+                    CustomIconStore.delete(context, stored);
+                }
+            }
+            return false;
+        }
+        Map<String, String> mergedIcons = new LinkedHashMap<>();
+        Set<String> importedShortcutKeys = new java.util.HashSet<>();
+        for (ShortcutSpec shortcut : data.shortcuts) importedShortcutKeys.add(shortcut.key);
+        for (Map.Entry<String, String> item : previousIcons.entrySet()) {
+            if (!previousShortcutKeys.contains(item.getKey())
+                    && !importedShortcutKeys.contains(item.getKey())) {
+                mergedIcons.put(item.getKey(), item.getValue());
+            }
+        }
+        mergedIcons.putAll(importedIcons);
         SharedPreferences.Editor editor = values.edit()
                 .putBoolean(KEY_AUTO_START, data.autoStart)
                 .putBoolean(KEY_USE_LAUNCH_PROXY, data.useLaunchProxy)
@@ -321,6 +352,7 @@ final class Prefs {
                 .putInt(KEY_PANEL_RADIUS_DP, data.appearance.panelRadiusDp)
                 .putString(KEY_SELECTED_COMPONENTS, selectedJson(data.selectedComponents))
                 .putString(KEY_SHORTCUT_CATALOG, shortcutJson(data.shortcuts))
+                .putString(KEY_CUSTOM_ICONS, customIconJson(mergedIcons))
                 .putInt(KEY_PORTABLE_SETTINGS_REVISION,
                         values.getInt(KEY_PORTABLE_SETTINGS_REVISION, 0) + 1);
         if (data.positionX == null) {
@@ -329,7 +361,26 @@ final class Prefs {
             editor.putInt(KEY_POSITION_X, data.positionX)
                     .putInt(KEY_POSITION_Y, data.positionY);
         }
-        return editor.commit();
+        boolean saved = editor.commit();
+        if (!saved) {
+            for (String stored : importedIcons.values()) {
+                if (!previousIcons.containsValue(stored)) {
+                    CustomIconStore.delete(context, stored);
+                }
+            }
+            return false;
+        }
+        for (Map.Entry<String, String> item : previousIcons.entrySet()) {
+            String replacement = mergedIcons.get(item.getKey());
+            if (!item.getValue().equals(replacement)) {
+                CustomIconStore.delete(context, item.getValue());
+                IconLoader.clearComponent(item.getKey());
+            }
+        }
+        for (String component : importedIcons.keySet()) {
+            IconLoader.clearComponent(component);
+        }
+        return true;
     }
 
     private static String selectedJson(List<String> selected) {
@@ -340,10 +391,36 @@ final class Prefs {
         return array.toString();
     }
 
+    private static String customIconJson(Map<String, String> icons) {
+        JSONObject object = new JSONObject();
+        for (Map.Entry<String, String> item : icons.entrySet()) {
+            try {
+                object.put(item.getKey(), item.getValue());
+            } catch (JSONException impossible) {
+                throw new AssertionError(impossible);
+            }
+        }
+        return object.toString();
+    }
+
     synchronized String customIcon(String component) {
         JSONObject object = readCustomIcons();
         String value = object.optString(component, null);
         return value == null || value.isEmpty() ? null : value;
+    }
+
+    synchronized Map<String, String> customIcons() {
+        JSONObject object = readCustomIcons();
+        Map<String, String> result = new LinkedHashMap<>();
+        java.util.Iterator<String> keys = object.keys();
+        while (keys.hasNext()) {
+            String key = keys.next();
+            String value = object.optString(key, null);
+            if (value != null && !value.isEmpty()) {
+                result.put(key, value);
+            }
+        }
+        return result;
     }
 
     synchronized void setCustomIcon(String component, String uri) {
