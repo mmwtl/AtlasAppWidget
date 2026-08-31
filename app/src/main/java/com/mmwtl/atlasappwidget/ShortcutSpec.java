@@ -6,6 +6,7 @@ import android.content.Intent;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.util.List;
 
 /** Immutable, portable description of a legacy ACTION_CREATE_SHORTCUT result. */
 final class ShortcutSpec {
@@ -88,6 +89,23 @@ final class ShortcutSpec {
         return component != null
                 && GSPLIT_PACKAGE.equals(component.getPackageName())
                 && (GSPLIT_PACKAGE + GSPLIT_PRESET_ACTIVITY).equals(component.getClassName());
+    }
+
+    static List<String> gsplitAppLabels(String title) {
+        if (title == null || !title.startsWith("ID")) return List.of();
+        String[] sections = title.split(" - ", -1);
+        if (sections.length < 3) return List.of();
+        String first = bracketValue(sections[0], false);
+        String second = bracketValue(sections[sections.length - 1], true);
+        return first == null || second == null ? List.of() : List.of(first, second);
+    }
+
+    private static String bracketValue(String value, boolean last) {
+        int open = last ? value.lastIndexOf('[') : value.indexOf('[');
+        int close = open < 0 ? -1 : value.indexOf(']', open + 1);
+        if (open < 0 || close <= open + 1) return null;
+        String result = value.substring(open + 1, close).trim();
+        return result.isEmpty() || "▶".equals(result) ? null : result;
     }
 
     Intent parseIntent() throws Exception {

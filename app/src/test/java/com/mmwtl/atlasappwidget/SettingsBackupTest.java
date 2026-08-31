@@ -127,6 +127,16 @@ public final class SettingsBackupTest {
                 toList(restored.customIcons.get(shortcut.key)));
     }
 
+    @Test public void gsplitPresetTitleExposesBothAppLabels() {
+        assertEquals(List.of("YT Music", "Atlas App Widget"),
+                ShortcutSpec.gsplitAppLabels(
+                        "ID1: [YT Music] - 1x1 - [Atlas App Widget]"));
+        assertEquals(List.of("Navigator", "Poweramp"),
+                ShortcutSpec.gsplitAppLabels(
+                        "ID2: [Navigator][▶] - 1x2[D] - [▶][Poweramp]"));
+        assertEquals(List.of(), ShortcutSpec.gsplitAppLabels("Last launched"));
+    }
+
     private static List<Integer> toList(byte[] bytes) {
         java.util.ArrayList<Integer> result = new java.util.ArrayList<>();
         for (byte value : bytes) result.add((int) value);

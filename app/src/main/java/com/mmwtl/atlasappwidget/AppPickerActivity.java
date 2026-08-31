@@ -338,7 +338,7 @@ public final class AppPickerActivity extends ScaledActivity {
             }
             ShortcutSpec shortcut = ShortcutSpec.create(title, safe);
             prefs.saveShortcut(shortcut);
-            saveShortcutIcon(result, shortcut.key);
+            saveShortcutIcon(result, shortcut);
             prefs.setComponentSelected(shortcut.key, true);
             Toast.makeText(this, R.string.shortcut_saved, Toast.LENGTH_SHORT).show();
             loadApplications();
@@ -349,16 +349,28 @@ public final class AppPickerActivity extends ScaledActivity {
     }
 
     @SuppressWarnings("deprecation")
-    private void saveShortcutIcon(Intent result, String componentKey) {
+    private void saveShortcutIcon(Intent result, ShortcutSpec shortcut) {
+        String componentKey = shortcut.key;
         String previous = prefs.customIcon(componentKey);
         try {
-            Bitmap bitmap = result.getParcelableExtra(Intent.EXTRA_SHORTCUT_ICON);
+            Bitmap bitmap = ShortcutIconComposer.createGsplitPreset(
+                    getApplicationContext(), shortcut.title, shortcut.targetComponent);
+            boolean ownsBitmap = bitmap != null;
+            if (bitmap == null) {
+                bitmap = result.getParcelableExtra(Intent.EXTRA_SHORTCUT_ICON);
+            }
             Intent.ShortcutIconResource resource = result.getParcelableExtra(
                     Intent.EXTRA_SHORTCUT_ICON_RESOURCE);
-            String stored = bitmap == null
-                    ? CustomIconStore.importIcon(getApplicationContext(), resource, componentKey)
-                    : CustomIconStore.importIcon(
-                    getApplicationContext(), bitmap, componentKey);
+            String stored;
+            try {
+                stored = bitmap == null
+                        ? CustomIconStore.importIcon(
+                        getApplicationContext(), resource, componentKey)
+                        : CustomIconStore.importIcon(
+                        getApplicationContext(), bitmap, componentKey);
+            } finally {
+                if (ownsBitmap) bitmap.recycle();
+            }
             prefs.setCustomIcon(componentKey, stored);
             if (!stored.equals(previous)) {
                 CustomIconStore.delete(getApplicationContext(), previous);
