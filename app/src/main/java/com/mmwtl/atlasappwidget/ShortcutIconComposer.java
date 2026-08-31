@@ -37,7 +37,18 @@ final class ShortcutIconComposer {
         Bitmap result = Bitmap.createBitmap(SIZE_PX, SIZE_PX, Bitmap.Config.ARGB_8888);
         Canvas canvas = new Canvas(result);
         canvas.drawColor(Ui.SURFACE_RAISED);
+
+        Path firstHalf = new Path();
+        firstHalf.moveTo(0, 0);
+        firstHalf.lineTo(ICON_PX, 0);
+        firstHalf.lineTo(ICON_PX, SECOND_ICON_OFFSET_PX);
+        firstHalf.lineTo(SECOND_ICON_OFFSET_PX, ICON_PX);
+        firstHalf.lineTo(0, ICON_PX);
+        firstHalf.close();
+        int restore = canvas.save();
+        canvas.clipPath(firstHalf);
         draw(first, canvas, 0, 0, ICON_PX);
+        canvas.restoreToCount(restore);
 
         Path secondHalf = new Path();
         secondHalf.moveTo(ICON_PX, SECOND_ICON_OFFSET_PX);
@@ -46,7 +57,7 @@ final class ShortcutIconComposer {
         secondHalf.lineTo(SECOND_ICON_OFFSET_PX, SIZE_PX);
         secondHalf.lineTo(SECOND_ICON_OFFSET_PX, ICON_PX);
         secondHalf.close();
-        int restore = canvas.save();
+        restore = canvas.save();
         canvas.clipPath(secondHalf);
         draw(second, canvas, SECOND_ICON_OFFSET_PX, SECOND_ICON_OFFSET_PX, ICON_PX);
         canvas.restoreToCount(restore);
