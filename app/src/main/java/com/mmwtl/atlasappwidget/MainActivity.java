@@ -56,6 +56,7 @@ public final class MainActivity extends ScaledActivity
     private Switch dragHandleSwitch;
     private Switch appLabelsSwitch;
     private Switch launchProxySwitch;
+    private Switch showOnlyInAppListSwitch;
     private Switch systemStatusSwitch;
     private Switch cpuStatusSwitch;
     private Switch ramStatusSwitch;
@@ -731,6 +732,24 @@ public final class MainActivity extends ScaledActivity
     private LinearLayout buildWindowVisibilityCard() {
         LinearLayout visibility = Ui.card(this);
         visibility.addView(Ui.heading(this, R.string.window_visibility_title, 20));
+        showOnlyInAppListSwitch = new Switch(this);
+        showOnlyInAppListSwitch.setText(R.string.show_only_in_app_list);
+        showOnlyInAppListSwitch.setTextColor(Ui.TEXT);
+        showOnlyInAppListSwitch.setTextSize(15);
+        showOnlyInAppListSwitch.setPadding(0, Ui.dp(this, 12), 0, Ui.dp(this, 4));
+        showOnlyInAppListSwitch.setOnCheckedChangeListener((button, checked) -> {
+            if (!updatingSwitch) {
+                prefs.putBoolean(Prefs.KEY_SHOW_ONLY_IN_APP_LIST, checked);
+            }
+        });
+        visibility.addView(showOnlyInAppListSwitch);
+        TextView appListHint = Ui.text(this,
+                R.string.show_only_in_app_list_hint,
+                13,
+                Ui.TEXT_SECONDARY
+        );
+        appListHint.setLineSpacing(0, 1.1f);
+        visibility.addView(appListHint);
         TextView hint = Ui.text(this,
                 R.string.freeform_hide_threshold_hint,
                 13,
@@ -970,6 +989,8 @@ public final class MainActivity extends ScaledActivity
         dragHandleSwitch.setChecked(showDragHandle);
         appLabelsSwitch.setChecked(prefs.getBoolean(Prefs.KEY_SHOW_APP_LABELS, false));
         launchProxySwitch.setChecked(prefs.getBoolean(Prefs.KEY_USE_LAUNCH_PROXY, false));
+        showOnlyInAppListSwitch.setChecked(
+                prefs.getBoolean(Prefs.KEY_SHOW_ONLY_IN_APP_LIST, false));
         boolean showSystemStatus = prefs.getBoolean(Prefs.KEY_SHOW_SYSTEM_STATUS, false);
         systemStatusSwitch.setChecked(showSystemStatus);
         cpuStatusSwitch.setChecked(prefs.getBoolean(Prefs.KEY_SHOW_CPU_STATUS, true));

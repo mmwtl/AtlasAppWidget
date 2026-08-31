@@ -34,6 +34,34 @@ final class WindowVisibilityPolicy {
             String ownPackage,
             int hideThresholdPercent
     ) {
+        return evaluate(
+                windows,
+                displayWidth,
+                displayHeight,
+                homePackages,
+                homeComponents,
+                foreground,
+                eventPackage,
+                eventClass,
+                ownPackage,
+                hideThresholdPercent,
+                false
+        );
+    }
+
+    static Decision evaluate(
+            List<WindowObservation> windows,
+            int displayWidth,
+            int displayHeight,
+            Set<String> homePackages,
+            Set<String> homeComponents,
+            ForegroundEventTracker.VisibleActivity foreground,
+            String eventPackage,
+            String eventClass,
+            String ownPackage,
+            int hideThresholdPercent,
+            boolean showOnlyInAppList
+    ) {
         if (windows == null || windows.isEmpty()
                 || displayWidth <= 0 || displayHeight <= 0
                 || homePackages == null || homePackages.isEmpty()) {
@@ -41,6 +69,17 @@ final class WindowVisibilityPolicy {
         }
         int threshold = Math.max(MIN_HIDE_THRESHOLD_PERCENT,
                 Math.min(MAX_HIDE_THRESHOLD_PERCENT, hideThresholdPercent));
+
+        if (showOnlyInAppList) {
+            for (WindowObservation window : windows) {
+                if (window.launcherAppListVisible
+                        && LauncherAllAppsViewDetector.isLauncherPackage(window.packageName)
+                        && (window.active || window.focused)) {
+                    return Decision.HOME_VISIBLE;
+                }
+            }
+            return Decision.HOME_HIDDEN;
+        }
 
         String foregroundPackage = value(eventPackage);
         String foregroundClass = value(eventClass);

@@ -226,6 +226,35 @@ public final class WindowVisibilityPolicyTest {
         );
     }
 
+    @Test
+    public void appListOnlyShowsPanelForFocusedLauncher3AllApps() {
+        assertAppListDecision(
+                WindowVisibilityPolicy.Decision.HOME_VISIBLE,
+                List.of(new WindowObservation(
+                        "com.android.launcher3",
+                        "com.android.launcher3.Launcher",
+                        AccessibilityWindowInfo.TYPE_APPLICATION,
+                        true,
+                        true,
+                        0,
+                        0,
+                        0,
+                        WIDTH,
+                        HEIGHT,
+                        true
+                ))
+        );
+    }
+
+    @Test
+    public void appListOnlyHidesPanelOnLauncherWorkspace() {
+        assertAppListDecision(
+                WindowVisibilityPolicy.Decision.HOME_HIDDEN,
+                List.of(window("launcher", "HomeActivity", true, true,
+                        0, 0, WIDTH, HEIGHT, 0))
+        );
+    }
+
     private static WindowObservation window(
             String packageName,
             String className,
@@ -288,6 +317,25 @@ public final class WindowVisibilityPolicyTest {
                 eventClass,
                 "com.mmwtl.atlasappwidget",
                 thresholdPercent
+        ));
+    }
+
+    private static void assertAppListDecision(
+            WindowVisibilityPolicy.Decision expected,
+            List<WindowObservation> windows
+    ) {
+        assertEquals(expected, WindowVisibilityPolicy.evaluate(
+                windows,
+                WIDTH,
+                HEIGHT,
+                HOME_PACKAGES,
+                HOME_COMPONENTS,
+                null,
+                "",
+                "",
+                "com.mmwtl.atlasappwidget",
+                WindowVisibilityPolicy.DEFAULT_HIDE_THRESHOLD_PERCENT,
+                true
         ));
     }
 }

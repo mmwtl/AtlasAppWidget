@@ -59,6 +59,9 @@ final class ForegroundAppDetector {
         if (!isDeviceReady()) {
             return false;
         }
+        if (prefs.getBoolean(Prefs.KEY_SHOW_ONLY_IN_APP_LIST, false)) {
+            return Boolean.TRUE.equals(isHomeVisibleFromAccessibility());
+        }
         long now = System.currentTimeMillis();
         if (homePackages.isEmpty() || now - lastHomeRefreshTime > 30_000L) {
             refreshHomePackages();
@@ -95,7 +98,8 @@ final class ForegroundAppDetector {
         if (!windowState.available
                 || windowState.updatedAtElapsedRealtime <= 0L
                 || snapshotAge > FAST_ACCESSIBILITY_SNAPSHOT_MAX_AGE_MS) {
-            return null;
+            return prefs.getBoolean(Prefs.KEY_SHOW_ONLY_IN_APP_LIST, false)
+                    ? Boolean.FALSE : null;
         }
         long now = System.currentTimeMillis();
         if (homePackages.isEmpty() || now - lastHomeRefreshTime > 30_000L) {
@@ -103,7 +107,8 @@ final class ForegroundAppDetector {
         }
         WindowVisibilityPolicy.Decision decision = evaluateAccessibilitySnapshot(windowState);
         if (decision == WindowVisibilityPolicy.Decision.UNKNOWN) {
-            return null;
+            return prefs.getBoolean(Prefs.KEY_SHOW_ONLY_IN_APP_LIST, false)
+                    ? Boolean.FALSE : null;
         }
         return decision == WindowVisibilityPolicy.Decision.HOME_VISIBLE;
     }
@@ -136,7 +141,8 @@ final class ForegroundAppDetector {
                 windowState.eventPackage,
                 windowState.eventClass,
                 context.getPackageName(),
-                prefs.freeformHideThresholdPercent()
+                prefs.freeformHideThresholdPercent(),
+                prefs.getBoolean(Prefs.KEY_SHOW_ONLY_IN_APP_LIST, false)
         );
     }
 

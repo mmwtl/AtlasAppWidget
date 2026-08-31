@@ -66,6 +66,8 @@
     </string-array>
     <string name="drag_handle_hint">Если ручка скрыта, удерживайте пустое место панели 1 секунду, затем перетаскивайте.</string>
     <string name="window_visibility_title">Скрытие поверх окон</string>
+    <string name="show_only_in_app_list">Показывать только в списке приложений</string>
+    <string name="show_only_in_app_list_hint">Панель будет скрыта на рабочем столе и появится только в окне списка приложений Launcher3, распознанном через специальные возможности. Если состояние окна определить нельзя, панель останется скрытой.</string>
     <string name="freeform_hide_threshold">Порог скрытия</string>
     <string name="freeform_hide_threshold_hint">Панель скрывается, если одно окно достигает порога одновременно по ширине и высоте или если все видимые freeform-окна вместе покрывают этот процент экрана. Пересечения считаются один раз. GSplit и системные исключения скрывают панель при любом размере.</string>
     <string name="service_title">Запуск и сервис</string>

@@ -1,12 +1,12 @@
 package com.mmwtl.atlasappwidget;
 
 import android.app.Activity;
-import android.content.ActivityNotFoundException;
 import android.content.Intent;
 import android.graphics.Color;
 import android.os.Bundle;
 import android.view.View;
 import android.view.Window;
+import android.view.ViewTreeObserver;
 import android.widget.Toast;
 
 /**
@@ -14,7 +14,9 @@ import android.widget.Toast;
  * transition before the selected application takes focus.
  */
 public final class LaunchProxyActivity extends Activity {
-    private boolean targetLaunchPosted;
+    private boolean targetLaunchScheduled;
+    private ViewTreeObserver.OnPreDrawListener firstFrameListener;
+    private Runnable launchTargetRunnable;
 
     @Override
     @SuppressWarnings("deprecation")
@@ -36,24 +38,53 @@ public final class LaunchProxyActivity extends Activity {
     @Override
     protected void onPostResume() {
         super.onPostResume();
-        if (targetLaunchPosted) {
+        if (targetLaunchScheduled) {
             return;
         }
-        targetLaunchPosted = true;
-        getWindow().getDecorView().post(this::launchTarget);
+        targetLaunchScheduled = true;
+        View decor = getWindow().getDecorView();
+        firstFrameListener = () -> {
+            ViewTreeObserver observer = decor.getViewTreeObserver();
+            if (observer.isAlive()) {
+                observer.removeOnPreDrawListener(firstFrameListener);
+            }
+            firstFrameListener = null;
+            // Let this pre-draw proceed and wait for the next frame before changing activities.
+            launchTargetRunnable = this::launchTarget;
+            decor.postOnAnimation(launchTargetRunnable);
+            return true;
+        };
+        decor.getViewTreeObserver().addOnPreDrawListener(firstFrameListener);
+    }
+
+    @Override
+    protected void onDestroy() {
+        if (firstFrameListener != null) {
+            View decor = getWindow().getDecorView();
+            ViewTreeObserver observer = decor.getViewTreeObserver();
+            if (observer.isAlive()) {
+                observer.removeOnPreDrawListener(firstFrameListener);
+            }
+            firstFrameListener = null;
+        }
+        if (launchTargetRunnable != null) {
+            getWindow().getDecorView().removeCallbacks(launchTargetRunnable);
+            launchTargetRunnable = null;
+        }
+        super.onDestroy();
     }
 
     private void launchTarget() {
+        launchTargetRunnable = null;
         String component = getIntent().getStringExtra(LaunchProxyIntents.EXTRA_TARGET_COMPONENT);
-        Intent target = LaunchProxyIntents.target(component);
-        if (target == null) {
-            failLaunch(component, null);
-            finishWithoutAnimation();
-            return;
-        }
         try {
+            Intent target = LaunchProxyIntents.target(component);
+            if (target == null) {
+                failLaunch(component, null);
+                return;
+            }
             startActivity(target);
-        } catch (ActivityNotFoundException | SecurityException error) {
+        } catch (RuntimeException error) {
             failLaunch(component, error);
         } finally {
             finishWithoutAnimation();

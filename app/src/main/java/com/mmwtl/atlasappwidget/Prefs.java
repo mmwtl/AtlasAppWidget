@@ -18,6 +18,7 @@ final class Prefs {
     private static volatile boolean credentialMigrationAttempted;
     static final String KEY_AUTO_START = "auto_start";
     static final String KEY_USE_LAUNCH_PROXY = "use_launch_proxy";
+    static final String KEY_SHOW_ONLY_IN_APP_LIST = "show_only_in_app_list";
     static final String KEY_SERVICE_ENABLED = "service_enabled";
     static final String KEY_APP_UI_SCALE_TENTHS = "app_ui_scale_tenths";
     static final String KEY_FREEFORM_HIDE_THRESHOLD_PERCENT =
@@ -223,6 +224,7 @@ final class Prefs {
         SharedPreferences.Editor editor = values.edit()
                 .putBoolean(KEY_AUTO_START, data.autoStart)
                 .putBoolean(KEY_USE_LAUNCH_PROXY, data.useLaunchProxy)
+                .putBoolean(KEY_SHOW_ONLY_IN_APP_LIST, data.showOnlyInAppList)
                 .putInt(KEY_APP_UI_SCALE_TENTHS, data.appUiScaleTenths)
                 .putInt(KEY_FREEFORM_HIDE_THRESHOLD_PERCENT,
                         data.freeformHideThresholdPercent)
