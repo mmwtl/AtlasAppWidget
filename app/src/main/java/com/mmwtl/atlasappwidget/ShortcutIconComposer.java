@@ -19,6 +19,8 @@ final class ShortcutIconComposer {
     private static final int SIZE_PX = 192;
     private static final int ICON_PX = 142;
     private static final int SECOND_ICON_OFFSET_PX = SIZE_PX - ICON_PX;
+    private static final int GSPLIT_BADGE_PX = 42;
+    private static final int GSPLIT_BADGE_MARGIN_PX = 4;
     private static final float DIVIDER_PX = 5f;
 
     private ShortcutIconComposer() {
@@ -68,6 +70,14 @@ final class ShortcutIconComposer {
         divider.setStrokeCap(Paint.Cap.SQUARE);
         canvas.drawLine(ICON_PX, SECOND_ICON_OFFSET_PX,
                 SECOND_ICON_OFFSET_PX, ICON_PX, divider);
+
+        Drawable gsplitIcon = loadApplicationIcon(context, target.getPackageName());
+        if (gsplitIcon != null) {
+            draw(gsplitIcon, canvas,
+                    SIZE_PX - GSPLIT_BADGE_MARGIN_PX - GSPLIT_BADGE_PX,
+                    GSPLIT_BADGE_MARGIN_PX,
+                    GSPLIT_BADGE_PX);
+        }
         return result;
     }
 
@@ -100,6 +110,14 @@ final class ShortcutIconComposer {
             matchedActivity = activity;
         }
         return matchedActivity == null ? null : matchedActivity.applicationInfo.loadIcon(packageManager);
+    }
+
+    private static Drawable loadApplicationIcon(Context context, String packageName) {
+        try {
+            return context.getPackageManager().getApplicationIcon(packageName);
+        } catch (PackageManager.NameNotFoundException error) {
+            return null;
+        }
     }
 
     private static boolean sameLabel(String expected, CharSequence actual) {

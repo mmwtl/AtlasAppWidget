@@ -655,6 +655,12 @@ public final class AppPickerActivity extends ScaledActivity {
             holder.up = compactButton("↑");
             holder.down = compactButton("↓");
             holder.iconButton = Ui.button(AppPickerActivity.this, R.string.icon);
+            holder.iconButton.setSingleLine(true);
+            holder.iconButton.setMinWidth(Ui.dp(AppPickerActivity.this, 112));
+            holder.iconButton.setMinimumWidth(Ui.dp(AppPickerActivity.this, 112));
+            holder.iconButton.setPadding(
+                    Ui.dp(AppPickerActivity.this, 12), 0,
+                    Ui.dp(AppPickerActivity.this, 12), 0);
             actions.addView(holder.up, compactParams());
             actions.addView(holder.down, compactParams());
             LinearLayout.LayoutParams iconButtonParams = new LinearLayout.LayoutParams(
