@@ -42,6 +42,11 @@ final class AppRepository {
             unique.put(entry.componentKey, entry);
         }
 
+        for (ShortcutEntry shortcut : loadValidShortcuts(context)) {
+            String targetLabel = safeActivityLabel(packageManager, shortcut.componentName);
+            unique.put(shortcut.spec.key, new AppEntry(shortcut, targetLabel));
+        }
+
         ArrayList<AppEntry> result = new ArrayList<>(unique.values());
         result.add(AppEntry.fuel(
                 context.getString(R.string.fuel_tile_name),
@@ -68,6 +73,12 @@ final class AppRepository {
                     context.getString(R.string.fuel_tile_name),
                     context.getString(R.string.fuel_tile_picker_description)
             ));
+        }
+        for (ShortcutEntry shortcut : loadValidShortcuts(context)) {
+            if (selectedKeySet.contains(shortcut.spec.key)) {
+                byComponent.put(shortcut.spec.key, new AppEntry(shortcut,
+                        safeActivityLabel(packageManager, shortcut.componentName)));
+            }
         }
         Intent launcherIntent = new Intent(Intent.ACTION_MAIN)
                 .addCategory(Intent.CATEGORY_LAUNCHER);
@@ -107,6 +118,10 @@ final class AppRepository {
 
     static List<AppEntry> placeholderSelectedActivities(Context context, Prefs prefs) {
         List<AppEntry> result = new ArrayList<>();
+        Map<String, ShortcutEntry> shortcuts = new LinkedHashMap<>();
+        for (ShortcutEntry shortcut : loadValidShortcuts(context)) {
+            shortcuts.put(shortcut.spec.key, shortcut);
+        }
         for (String key : prefs.selectedComponents()) {
             if (AppEntry.FUEL_COMPONENT_KEY.equals(key)) {
                 result.add(AppEntry.fuel(
@@ -118,9 +133,47 @@ final class AppRepository {
             ComponentName component = ComponentName.unflattenFromString(key);
             if (component != null) {
                 result.add(new AppEntry(component, "", ""));
+                continue;
+            }
+            ShortcutEntry shortcut = shortcuts.get(key);
+            if (shortcut != null) {
+                result.add(new AppEntry(shortcut, ""));
             }
         }
         return result;
+    }
+
+    private static List<ShortcutEntry> loadValidShortcuts(Context context) {
+        PackageManager packageManager = context.getPackageManager();
+        ArrayList<ShortcutEntry> result = new ArrayList<>();
+        for (ShortcutSpec spec : new Prefs(context).shortcutCatalog()) {
+            try {
+                ShortcutEntry entry = new ShortcutEntry(spec);
+                ActivityInfo info = packageManager.getActivityInfo(entry.componentName, 0);
+                Intent intent = spec.parseIntent();
+                if (intent.getComponent() == null
+                        || !entry.componentName.equals(intent.getComponent())
+                        || !info.exported || !info.enabled
+                        || info.applicationInfo == null || !info.applicationInfo.enabled) {
+                    continue;
+                }
+                result.add(entry);
+            } catch (Exception invalid) {
+                AppLog.warnRateLimited("shortcut-invalid-" + spec.key,
+                        "Ignoring unavailable shortcut", invalid);
+            }
+        }
+        return result;
+    }
+
+    private static String safeActivityLabel(PackageManager packageManager,
+            ComponentName component) {
+        try {
+            ActivityInfo info = packageManager.getActivityInfo(component, 0);
+            return safeLabel(info.loadLabel(packageManager), component.getClassName());
+        } catch (Exception ignored) {
+            return component.getClassName();
+        }
     }
 
     private static String safeLabel(CharSequence value, String fallback) {

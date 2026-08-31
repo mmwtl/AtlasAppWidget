@@ -26,7 +26,7 @@ import java.util.Set;
 final class SettingsBackup {
     static final String FILE_NAME = "AtlasAppWidget-settings.json";
     private static final String FORMAT = "atlas-app-widget-settings";
-    private static final int SCHEMA_VERSION = 1;
+    private static final int SCHEMA_VERSION = 2;
     private static final int MAX_FILE_BYTES = 256 * 1024;
     private static final int MAX_SELECTED_COMPONENTS = 200;
     private static final int MAX_COMPONENT_LENGTH = 2_048;
@@ -40,6 +40,7 @@ final class SettingsBackup {
         final Integer positionX;
         final Integer positionY;
         final List<String> selectedComponents;
+        final List<ShortcutSpec> shortcuts;
         final ContentData content;
         final MovementData movement;
         final SystemStatusData systemStatus;
@@ -53,6 +54,17 @@ final class SettingsBackup {
                 List<String> selectedComponents, ContentData content, MovementData movement,
                 SystemStatusData systemStatus, FuelData fuel, GeometryData geometry,
                 AppearanceData appearance) throws IOException {
+            this(autoStart, useLaunchProxy, showOnlyInAppList, appUiScaleTenths,
+                    freeformHideThresholdPercent, positionX, positionY, selectedComponents,
+                    List.of(), content, movement, systemStatus, fuel, geometry, appearance);
+        }
+
+        Data(boolean autoStart, boolean useLaunchProxy, boolean showOnlyInAppList,
+                int appUiScaleTenths,
+                int freeformHideThresholdPercent, Integer positionX, Integer positionY,
+                List<String> selectedComponents, List<ShortcutSpec> shortcuts,
+                ContentData content, MovementData movement, SystemStatusData systemStatus,
+                FuelData fuel, GeometryData geometry, AppearanceData appearance) throws IOException {
             this.autoStart = autoStart;
             this.useLaunchProxy = useLaunchProxy;
             this.showOnlyInAppList = showOnlyInAppList;
@@ -72,7 +84,8 @@ final class SettingsBackup {
             }
             this.positionX = positionX;
             this.positionY = positionY;
-            this.selectedComponents = validateSelectedComponents(selectedComponents);
+            this.shortcuts = validateShortcuts(shortcuts);
+            this.selectedComponents = validateSelectedComponents(selectedComponents, this.shortcuts);
             if (content == null || movement == null || systemStatus == null || fuel == null
                     || geometry == null || appearance == null) {
                 throw invalid("В JSON отсутствует раздел настроек");
@@ -260,6 +273,7 @@ final class SettingsBackup {
                 positionX,
                 positionY,
                 prefs.selectedComponents(),
+                prefs.shortcutCatalog(),
                 new ContentData(prefs.getBoolean(Prefs.KEY_SHOW_APP_LABELS, false)),
                 new MovementData(
                         prefs.getBoolean(Prefs.KEY_SHOW_DRAG_HANDLE, true),
@@ -400,6 +414,7 @@ final class SettingsBackup {
                     .put("freeformHideThresholdPercent",
                             data.freeformHideThresholdPercent)
                     .put("selectedComponents", new JSONArray(data.selectedComponents))
+                    .put("shortcuts", shortcutArray(data.shortcuts))
                     .put("content", new JSONObject()
                             .put("showAppLabels", data.content.showAppLabels))
                     .put("movement", new JSONObject()
@@ -462,7 +477,7 @@ final class SettingsBackup {
                 throw invalid("Это не файл настроек Atlas App Widget");
             }
             int version = requireInt(root, "schemaVersion", "schemaVersion");
-            if (version != SCHEMA_VERSION) {
+            if (version != 1 && version != SCHEMA_VERSION) {
                 throw invalid("Неподдерживаемая версия JSON: " + version);
             }
             JSONObject settings = requireObject(root, "settings", "settings");
@@ -483,6 +498,8 @@ final class SettingsBackup {
                 x = requireInt(position, "x", "settings.overlayPosition.x");
                 y = requireInt(position, "y", "settings.overlayPosition.y");
             }
+            List<ShortcutSpec> shortcuts = version >= 2 && settings.has("shortcuts")
+                    ? parseShortcuts(settings) : List.of();
             return new Data(
                     requireBoolean(settings, "autoStart", "settings.autoStart"),
                     settings.has("useLaunchProxy")
@@ -500,6 +517,7 @@ final class SettingsBackup {
                     y,
                     requireStringList(settings, "selectedComponents",
                             "settings.selectedComponents"),
+                    shortcuts,
                     new ContentData(requireBoolean(content, "showAppLabels",
                             "settings.content.showAppLabels")),
                     new MovementData(
@@ -552,13 +570,71 @@ final class SettingsBackup {
         }
     }
 
-    private static List<String> validateSelectedComponents(List<String> components)
+    private static JSONArray shortcutArray(List<ShortcutSpec> shortcuts) throws JSONException {
+        JSONArray result = new JSONArray();
+        for (ShortcutSpec shortcut : shortcuts) {
+            result.put(new JSONObject()
+                    .put("key", shortcut.key)
+                    .put("title", shortcut.title)
+                    .put("intentUri", shortcut.intentUri)
+                    .put("targetComponent", shortcut.targetComponent));
+        }
+        return result;
+    }
+
+    private static List<ShortcutSpec> parseShortcuts(JSONObject settings) throws IOException {
+        Object value = requireValue(settings, "shortcuts", "settings.shortcuts");
+        if (!(value instanceof JSONArray array)) {
+            throw invalid("Поле settings.shortcuts должно быть массивом");
+        }
+        if (array.length() > ShortcutSpec.MAX_SHORTCUTS) {
+            throw invalid("Слишком много ярлыков");
+        }
+        ArrayList<ShortcutSpec> result = new ArrayList<>(array.length());
+        Set<String> keys = new HashSet<>();
+        for (int index = 0; index < array.length(); index++) {
+            try {
+                JSONObject item = array.getJSONObject(index);
+                ShortcutSpec shortcut = new ShortcutSpec(
+                        item.getString("key"), item.getString("title"),
+                        item.getString("intentUri"), item.getString("targetComponent"));
+                if (!keys.add(shortcut.key)) {
+                    throw invalid("Повторяющийся ярлык в settings.shortcuts");
+                }
+                result.add(shortcut);
+            } catch (JSONException | IllegalArgumentException error) {
+                throw invalid("Некорректный ярлык в settings.shortcuts[" + index + "]", error);
+            }
+        }
+        return List.copyOf(result);
+    }
+
+    private static List<ShortcutSpec> validateShortcuts(List<ShortcutSpec> shortcuts)
+            throws IOException {
+        if (shortcuts == null || shortcuts.size() > ShortcutSpec.MAX_SHORTCUTS) {
+            throw invalid("Некорректный каталог ярлыков");
+        }
+        ArrayList<ShortcutSpec> result = new ArrayList<>(shortcuts.size());
+        Set<String> keys = new HashSet<>();
+        for (ShortcutSpec shortcut : shortcuts) {
+            if (shortcut == null || !keys.add(shortcut.key)) {
+                throw invalid("Повторяющийся ярлык");
+            }
+            result.add(shortcut);
+        }
+        return List.copyOf(result);
+    }
+
+    private static List<String> validateSelectedComponents(List<String> components,
+            List<ShortcutSpec> shortcuts)
             throws IOException {
         if (components == null) throw invalid("Не указан список выбранных элементов");
         if (components.size() > MAX_SELECTED_COMPONENTS) {
             throw invalid("Слишком много выбранных элементов");
         }
         Set<String> unique = new HashSet<>();
+        Set<String> shortcutKeys = new HashSet<>();
+        for (ShortcutSpec shortcut : shortcuts) shortcutKeys.add(shortcut.key);
         ArrayList<String> result = new ArrayList<>(components.size());
         for (String component : components) {
             if (component == null || component.isEmpty()
@@ -567,6 +643,10 @@ final class SettingsBackup {
             }
             if (!unique.add(component)) {
                 throw invalid("Повторяющийся элемент в settings.selectedComponents");
+            }
+            if (component.startsWith(ShortcutSpec.KEY_PREFIX)
+                    && !shortcutKeys.contains(component)) {
+                continue;
             }
             result.add(component);
         }

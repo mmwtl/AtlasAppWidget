@@ -24,7 +24,7 @@
     <string name="accessibility_service_description">Определяет, виден ли домашний экран под полноэкранным или свободным окном. Не читает и не вводит текст.</string>
     <string name="allow_notifications">Разрешить уведомления</string>
     <string name="panel_apps_title">Содержимое панели</string>
-    <string name="choose_apps">Выбрать приложения, activity и иконки</string>
+    <string name="choose_apps">Выбрать приложения, activity, ярлыки и иконки</string>
     <string name="show_app_labels">Показывать названия приложений</string>
     <string name="use_launch_proxy">Полноэкранный переход перед запуском</string>
     <string name="use_launch_proxy_hint">Перед открытием activity кратко показывает прозрачное полноэкранное окно, как лаунчер GInputBridge. Это помогает OneOS заранее скрыть системную панель климата. По умолчанию выключено.</string>
@@ -104,7 +104,7 @@
     <string name="scale_hint">Меняет размер экранов и элементов приложения без изменения системного масштаба ГУ. Геометрия overlay-панели настраивается отдельно выше.</string>
     <string name="scale">Масштаб</string>
     <string name="settings_backup_title">Импорт и экспорт настроек</string>
-    <string name="settings_backup_hint">JSON содержит выбранные activity и их порядок, внешний вид, положение overlay, порог скрытия, масштаб, автозапуск, режим запуска через прокси и формулу топлива. Разрешения, работа сервиса и файлы пользовательских иконок не переносятся.</string>
+    <string name="settings_backup_hint">JSON содержит выбранные activity и ярлыки, их порядок, внешний вид, положение overlay, порог скрытия, масштаб, автозапуск, режим запуска через прокси и формулу топлива. Разрешения, работа сервиса и файлы пользовательских иконок не переносятся.</string>
     <string name="export_settings">Экспортировать настройки в JSON</string>
     <string name="import_settings">Импортировать настройки из JSON</string>
     <string name="import_settings_confirm">Импортировать</string>
@@ -117,10 +117,15 @@
     <string name="settings_import_confirm_title">Импортировать настройки?</string>
     <string name="settings_import_confirm_message">Текущие переносимые настройки и список выбранных элементов будут заменены значениями из JSON. Разрешения, работа сервиса и файлы пользовательских иконок не изменятся.</string>
     <string name="picker_back">← Назад</string>
-    <string name="picker_title">Приложения и activity</string>
-    <string name="picker_hint">Сразу после выбранных элементов находится встроенная живая плитка топлива, ниже — экспортируемые activity с MAIN/LAUNCHER. Стрелки меняют порядок элементов в панели.</string>
+    <string name="picker_title">Приложения, activity и ярлыки</string>
+    <string name="picker_hint">Добавляйте приложения, legacy-ярлыки других программ и встроенную плитку топлива. Для ярлыка Atlas сохраняет полный Intent, включая extras; стрелки меняют порядок элементов в панели.</string>
     <string name="picker_search">Поиск по названию, пакету или activity</string>
     <string name="picker_loading">Загрузка списка…</string>
+    <string name="add_shortcut">Добавить ярлык</string>
+    <string name="remove_shortcut">Удалить ярлык</string>
+    <string name="shortcut_saved">Ярлык добавлен</string>
+    <string name="shortcut_invalid">Ярлык отклонён: недопустимая цель или превышен лимит</string>
+    <string name="shortcut_create_unavailable">В системе нет мастера создания ярлыков</string>
     <string name="choose_image">Выбрать изображение</string>
     <string name="restore_system_icon">Вернуть системную иконку</string>
     <string name="cancel">Отмена</string>

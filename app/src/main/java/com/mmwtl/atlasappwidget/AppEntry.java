@@ -9,6 +9,7 @@ final class AppEntry {
 
     enum Kind {
         APPLICATION,
+        SHORTCUT,
         FUEL
     }
 
@@ -18,13 +19,20 @@ final class AppEntry {
     final String activityLabel;
     final String searchText;
     final Kind kind;
+    final String intentUri;
 
     AppEntry(ComponentName componentName, String label, String activityLabel) {
         this(Kind.APPLICATION, componentName.flattenToString(),
                 componentName, label, activityLabel,
                 label + " " + activityLabel + " "
                         + componentName.getPackageName() + " "
-                        + componentName.getClassName());
+                        + componentName.getClassName(), null);
+    }
+
+    AppEntry(ShortcutEntry shortcut, String targetLabel) {
+        this(Kind.SHORTCUT, shortcut.spec.key, shortcut.componentName, shortcut.spec.title,
+                targetLabel, shortcut.spec.title + " " + targetLabel + " "
+                        + shortcut.componentName.flattenToString(), shortcut.spec.intentUri);
     }
 
     private AppEntry(
@@ -33,9 +41,11 @@ final class AppEntry {
             ComponentName componentName,
             String label,
             String activityLabel,
-            String searchText
+            String searchText,
+            String intentUri
     ) {
         this.kind = kind;
+        this.intentUri = intentUri;
         this.componentName = componentName;
         this.componentKey = componentKey;
         this.label = label;
@@ -50,11 +60,16 @@ final class AppEntry {
                 null,
                 label,
                 activityLabel,
-                label + " " + activityLabel + " fuel топливо бак бензин"
+                label + " " + activityLabel + " fuel топливо бак бензин",
+                null
         );
     }
 
     boolean isFuel() {
         return kind == Kind.FUEL;
+    }
+
+    boolean isShortcut() {
+        return kind == Kind.SHORTCUT;
     }
 }

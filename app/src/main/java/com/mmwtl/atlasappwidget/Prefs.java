@@ -54,6 +54,7 @@ final class Prefs {
     static final String KEY_POSITION_X = "position_x";
     static final String KEY_POSITION_Y = "position_y";
     static final String KEY_SELECTED_COMPONENTS = "selected_components_json";
+    static final String KEY_SHORTCUT_CATALOG = "shortcut_catalog_json";
     private static final String KEY_CUSTOM_ICONS = "custom_icons_json";
     private static final String KEY_PORTABLE_SETTINGS_REVISION = "portable_settings_revision";
 
@@ -216,6 +217,64 @@ final class Prefs {
         }
     }
 
+    synchronized List<ShortcutSpec> shortcutCatalog() {
+        ArrayList<ShortcutSpec> result = new ArrayList<>();
+        String json = values.getString(KEY_SHORTCUT_CATALOG, "[]");
+        try {
+            JSONArray array = new JSONArray(json);
+            for (int index = 0; index < array.length(); index++) {
+                JSONObject item = array.optJSONObject(index);
+                if (item == null) continue;
+                try {
+                    result.add(new ShortcutSpec(
+                            item.getString("key"), item.getString("title"),
+                            item.getString("intentUri"), item.getString("targetComponent")));
+                } catch (Exception invalid) {
+                    AppLog.warnRateLimited("shortcut-catalog-entry-" + index,
+                            "Ignoring invalid shortcut catalog entry", invalid);
+                }
+            }
+        } catch (JSONException error) {
+            AppLog.warnRateLimited("shortcut-catalog-json",
+                    "Shortcut catalog JSON is corrupt", error);
+        }
+        return result;
+    }
+
+    synchronized void saveShortcut(ShortcutSpec shortcut) {
+        ArrayList<ShortcutSpec> current = new ArrayList<>(shortcutCatalog());
+        boolean replacing = current.removeIf(item -> item.key.equals(shortcut.key));
+        if (!replacing && current.size() >= ShortcutSpec.MAX_SHORTCUTS) {
+            throw new IllegalArgumentException("Too many shortcuts");
+        }
+        current.add(shortcut);
+        values.edit().putString(KEY_SHORTCUT_CATALOG, shortcutJson(current)).apply();
+    }
+
+    synchronized void removeShortcut(String key) {
+        ArrayList<ShortcutSpec> current = new ArrayList<>(shortcutCatalog());
+        if (current.removeIf(item -> item.key.equals(key))) {
+            values.edit().putString(KEY_SHORTCUT_CATALOG, shortcutJson(current)).apply();
+        }
+        setComponentSelected(key, false);
+    }
+
+    private static String shortcutJson(List<ShortcutSpec> shortcuts) {
+        JSONArray array = new JSONArray();
+        for (ShortcutSpec shortcut : shortcuts) {
+            try {
+                array.put(new JSONObject()
+                        .put("key", shortcut.key)
+                        .put("title", shortcut.title)
+                        .put("intentUri", shortcut.intentUri)
+                        .put("targetComponent", shortcut.targetComponent));
+            } catch (JSONException impossible) {
+                throw new AssertionError(impossible);
+            }
+        }
+        return array.toString();
+    }
+
     private void writeSelected(List<String> selected) {
         values.edit().putString(KEY_SELECTED_COMPONENTS, selectedJson(selected)).apply();
     }
@@ -261,6 +320,7 @@ final class Prefs {
                         data.appearance.backgroundStrokeColor)
                 .putInt(KEY_PANEL_RADIUS_DP, data.appearance.panelRadiusDp)
                 .putString(KEY_SELECTED_COMPONENTS, selectedJson(data.selectedComponents))
+                .putString(KEY_SHORTCUT_CATALOG, shortcutJson(data.shortcuts))
                 .putInt(KEY_PORTABLE_SETTINGS_REVISION,
                         values.getInt(KEY_PORTABLE_SETTINGS_REVISION, 0) + 1);
         if (data.positionX == null) {

@@ -77,10 +77,28 @@ public final class LaunchProxyActivity extends Activity {
     private void launchTarget() {
         launchTargetRunnable = null;
         String component = getIntent().getStringExtra(LaunchProxyIntents.EXTRA_TARGET_COMPONENT);
+        String intentUri = getIntent().getStringExtra(LaunchProxyIntents.EXTRA_TARGET_INTENT_URI);
         try {
-            Intent target = LaunchProxyIntents.target(component);
+            Intent target = intentUri == null
+                    ? LaunchProxyIntents.targetComponent(component)
+                    : LaunchProxyIntents.targetIntent(intentUri);
             if (target == null) {
                 failLaunch(component, null);
+                return;
+            }
+            if (target.getComponent() == null) {
+                failLaunch(component, new IllegalArgumentException("Implicit shortcut target"));
+                return;
+            }
+            android.content.pm.ActivityInfo info;
+            try {
+                info = getPackageManager().getActivityInfo(target.getComponent(), 0);
+            } catch (android.content.pm.PackageManager.NameNotFoundException error) {
+                throw new SecurityException("Shortcut target is unavailable", error);
+            }
+            if (!info.exported || !info.enabled || info.applicationInfo == null
+                    || !info.applicationInfo.enabled) {
+                failLaunch(component, new SecurityException("Shortcut target is unavailable"));
                 return;
             }
             startActivity(target);

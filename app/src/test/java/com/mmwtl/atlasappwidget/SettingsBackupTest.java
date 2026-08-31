@@ -50,6 +50,7 @@ public final class SettingsBackupTest {
         JSONObject root = new JSONObject(SettingsBackup.encode(data(false, 15, null, null), "test"));
         root.getJSONObject("settings").remove("useLaunchProxy");
         root.getJSONObject("settings").remove("showOnlyInAppList");
+        root.put("schemaVersion", 1);
 
         SettingsBackup.Data restored = SettingsBackup.decode(root.toString());
 
@@ -67,12 +68,38 @@ public final class SettingsBackupTest {
 
     @Test public void rejectsUnsupportedSchemaVersion() throws Exception {
         JSONObject root = new JSONObject(SettingsBackup.encode(data(15, null, null), "test"));
-        root.put("schemaVersion", 2);
+        root.put("schemaVersion", 3);
 
         IOException error = assertThrows(IOException.class,
                 () -> SettingsBackup.decode(root.toString()));
 
         assertTrue(error.getMessage().contains("Неподдерживаемая версия"));
+    }
+
+    @Test public void shortcutCatalogRoundTripsAndOrphanSelectionIsFiltered() throws Exception {
+        String uri = "#Intent;action=android.intent.action.VIEW;"
+                + "component=com.salat.gsplit/.PresetLauncherActivity;S.id=7;end";
+        ShortcutSpec shortcut = new ShortcutSpec(
+                ShortcutSpec.stableKey(uri), "Preset 7", uri,
+                "com.salat.gsplit/.PresetLauncherActivity");
+        SettingsBackup.Data base = data(15, null, null);
+        SettingsBackup.Data original = new SettingsBackup.Data(
+                base.autoStart, base.useLaunchProxy, base.showOnlyInAppList,
+                base.appUiScaleTenths, base.freeformHideThresholdPercent,
+                base.positionX, base.positionY,
+                List.of(shortcut.key, "com.example/.MainActivity"), List.of(shortcut),
+                base.content, base.movement, base.systemStatus, base.fuel,
+                base.geometry, base.appearance);
+
+        JSONObject encoded = new JSONObject(SettingsBackup.encode(original, "test"));
+        encoded.getJSONObject("settings").getJSONArray("selectedComponents")
+                .put(ShortcutSpec.KEY_PREFIX + "orphan");
+        SettingsBackup.Data restored = SettingsBackup.decode(encoded.toString());
+
+        assertEquals(List.of(shortcut.key, "com.example/.MainActivity"),
+                restored.selectedComponents);
+        assertEquals(1, restored.shortcuts.size());
+        assertEquals(uri, restored.shortcuts.get(0).intentUri);
     }
 
     @Test public void olderJsonDefaultsMissingFreeformThreshold() throws Exception {

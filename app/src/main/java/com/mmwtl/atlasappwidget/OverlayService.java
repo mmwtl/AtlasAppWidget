@@ -780,7 +780,7 @@ public final class OverlayService extends Service
         panelSuppression.suppress(SystemClock.elapsedRealtime(), 1_500L);
         dismissFuelDetails();
         if (prefs.getBoolean(Prefs.KEY_USE_LAUNCH_PROXY, false)) {
-            Intent proxy = LaunchProxyIntents.proxy(this, entry.componentName, entry.label);
+            Intent proxy = LaunchProxyIntents.proxy(this, entry);
             if (proxy == null) {
                 AppLog.warn("Cannot launch selected activity through proxy: invalid component "
                         + entry.componentKey, new IllegalArgumentException(entry.componentKey));
@@ -798,10 +798,17 @@ public final class OverlayService extends Service
             }
             return;
         }
-        Intent launch = new Intent(Intent.ACTION_MAIN)
+        Intent launch = entry.isShortcut()
+                ? LaunchProxyIntents.targetIntent(entry.intentUri)
+                : new Intent(Intent.ACTION_MAIN)
                 .addCategory(Intent.CATEGORY_LAUNCHER)
                 .setComponent(entry.componentName)
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED);
+        if (launch == null) {
+            Toast.makeText(this, getString(R.string.launch_failed, entry.label),
+                    Toast.LENGTH_SHORT).show();
+            return;
+        }
         try {
             startActivity(launch);
         } catch (ActivityNotFoundException | SecurityException error) {

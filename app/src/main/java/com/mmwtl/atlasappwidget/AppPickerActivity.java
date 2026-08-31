@@ -2,6 +2,8 @@ package com.mmwtl.atlasappwidget;
 
 import android.app.AlertDialog;
 import android.content.Intent;
+import android.content.ComponentName;
+import android.content.pm.ActivityInfo;
 import android.graphics.Color;
 import android.net.Uri;
 import android.os.Bundle;
@@ -37,6 +39,7 @@ import java.util.concurrent.RejectedExecutionException;
 
 public final class AppPickerActivity extends ScaledActivity {
     private static final int REQUEST_ICON = 401;
+    private static final int REQUEST_SHORTCUT = 402;
     private static final String STATE_PENDING_ICON_COMPONENT = "pending_icon_component";
 
     private final ExecutorService loader = Executors.newFixedThreadPool(2);
@@ -113,6 +116,11 @@ public final class AppPickerActivity extends ScaledActivity {
         titleParams.leftMargin = Ui.dp(this, 16);
         toolbar.addView(title, titleParams);
         root.addView(toolbar);
+
+        Button addShortcut = Ui.button(this, R.string.add_shortcut);
+        addShortcut.setOnClickListener(view -> createShortcut());
+        Ui.topMargin(addShortcut, 12);
+        root.addView(addShortcut);
 
         TextView explanation = Ui.text(this,
                 R.string.picker_hint,
@@ -212,10 +220,12 @@ public final class AppPickerActivity extends ScaledActivity {
 
     private void showIconOptions(AppEntry entry) {
         boolean hasCustom = prefs.customIcon(entry.componentKey) != null;
-        String[] options = hasCustom
-                ? new String[]{getString(R.string.choose_image),
-                getString(R.string.restore_system_icon), getString(R.string.cancel)}
-                : new String[]{getString(R.string.choose_image), getString(R.string.cancel)};
+        ArrayList<String> optionList = new ArrayList<>();
+        optionList.add(getString(R.string.choose_image));
+        if (hasCustom) optionList.add(getString(R.string.restore_system_icon));
+        if (entry.isShortcut()) optionList.add(getString(R.string.remove_shortcut));
+        optionList.add(getString(R.string.cancel));
+        String[] options = optionList.toArray(new String[0]);
         AlertDialog dialog = new AlertDialog.Builder(this)
                 .setTitle(entry.label + " — " + entry.activityLabel)
                 .setItems(options, (ignoredDialog, which) -> {
@@ -228,6 +238,13 @@ public final class AppPickerActivity extends ScaledActivity {
                         if (adapter != null) {
                             adapter.notifyDataSetChanged();
                         }
+                    } else if (entry.isShortcut() && which == (hasCustom ? 2 : 1)) {
+                        String custom = prefs.customIcon(entry.componentKey);
+                        if (custom != null) CustomIconStore.delete(this, custom);
+                        prefs.setCustomIcon(entry.componentKey, null);
+                        IconLoader.clearComponent(entry.componentKey);
+                        prefs.removeShortcut(entry.componentKey);
+                        loadApplications();
                     }
                 })
                 .create();
@@ -248,9 +265,21 @@ public final class AppPickerActivity extends ScaledActivity {
         }
     }
 
+    private void createShortcut() {
+        try {
+            startActivityForResult(new Intent(Intent.ACTION_CREATE_SHORTCUT), REQUEST_SHORTCUT);
+        } catch (android.content.ActivityNotFoundException error) {
+            Toast.makeText(this, R.string.shortcut_create_unavailable, Toast.LENGTH_LONG).show();
+        }
+    }
+
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode == REQUEST_SHORTCUT && resultCode == RESULT_OK) {
+            acceptShortcut(data);
+            return;
+        }
         if (requestCode != REQUEST_ICON || resultCode != RESULT_OK
                 || data == null || data.getData() == null || pendingIconComponent == null) {
             return;
@@ -291,6 +320,30 @@ public final class AppPickerActivity extends ScaledActivity {
                 });
             }
         });
+    }
+
+    @SuppressWarnings("deprecation")
+    private void acceptShortcut(Intent result) {
+        if (result == null) return;
+        Intent nested = result.getParcelableExtra(Intent.EXTRA_SHORTCUT_INTENT);
+        String title = result.getStringExtra(Intent.EXTRA_SHORTCUT_NAME);
+        try {
+            Intent safe = ShortcutSpec.sanitize(nested);
+            ComponentName component = safe.getComponent();
+            ActivityInfo info = getPackageManager().getActivityInfo(component, 0);
+            if (!info.exported || !info.enabled || info.applicationInfo == null
+                    || !info.applicationInfo.enabled) {
+                throw new SecurityException("Shortcut target is not exported and enabled");
+            }
+            ShortcutSpec shortcut = ShortcutSpec.create(title, safe);
+            prefs.saveShortcut(shortcut);
+            prefs.setComponentSelected(shortcut.key, true);
+            Toast.makeText(this, R.string.shortcut_saved, Toast.LENGTH_SHORT).show();
+            loadApplications();
+        } catch (Exception error) {
+            AppLog.warn("Rejected legacy shortcut result", error);
+            Toast.makeText(this, R.string.shortcut_invalid, Toast.LENGTH_LONG).show();
+        }
     }
 
     private final class AppAdapter extends BaseAdapter {
