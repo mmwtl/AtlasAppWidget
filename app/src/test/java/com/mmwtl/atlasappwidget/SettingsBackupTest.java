@@ -22,6 +22,7 @@ public final class SettingsBackupTest {
 
         assertTrue(restored.autoStart);
         assertTrue(restored.useLaunchProxy);
+        assertFalse(restored.useDiagnosticLaunchActivity);
         assertTrue(restored.showOnlyInAppList);
         assertEquals(17, restored.appUiScaleTenths);
         assertEquals(80, restored.freeformHideThresholdPercent);
@@ -57,7 +58,35 @@ public final class SettingsBackupTest {
         SettingsBackup.Data restored = SettingsBackup.decode(root.toString());
 
         assertFalse(restored.useLaunchProxy);
+        assertFalse(restored.useDiagnosticLaunchActivity);
         assertFalse(restored.showOnlyInAppList);
+    }
+
+    @Test public void diagnosticLaunchModeRoundTrips() throws Exception {
+        SettingsBackup.Data base = data(15, null, null);
+        SettingsBackup.Data original = new SettingsBackup.Data(
+                base.autoStart, false, true, base.showOnlyInAppList,
+                base.appUiScaleTenths, base.freeformHideThresholdPercent,
+                base.positionX, base.positionY, base.selectedComponents,
+                base.shortcuts, base.customIcons, base.content, base.movement,
+                base.systemStatus, base.fuel, base.geometry, base.appearance);
+
+        SettingsBackup.Data restored = SettingsBackup.decode(
+                SettingsBackup.encode(original, "test"));
+
+        assertTrue(restored.useDiagnosticLaunchActivity);
+        assertFalse(restored.useLaunchProxy);
+    }
+
+    @Test public void rejectsBackupWithBothLaunchModesEnabled() throws Exception {
+        JSONObject root = new JSONObject(SettingsBackup.encode(data(15, null, null), "test"));
+        root.getJSONObject("settings").put("useLaunchProxy", true)
+                .put("useDiagnosticLaunchActivity", true);
+
+        IOException error = assertThrows(IOException.class,
+                () -> SettingsBackup.decode(root.toString()));
+
+        assertTrue(error.getMessage().contains("одновременно"));
     }
 
     @Test public void jsonRoundTripPreservesDefaultPosition() throws Exception {

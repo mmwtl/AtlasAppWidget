@@ -784,7 +784,10 @@ public final class OverlayService extends Service
         panelSuppression.suppress(SystemClock.elapsedRealtime(), 1_500L);
         dismissFuelDetails();
         cancelPendingProxyLaunch();
-        if (prefs.getBoolean(Prefs.KEY_USE_LAUNCH_PROXY, false)) {
+        boolean useDiagnosticLaunchActivity = prefs.getBoolean(
+                Prefs.KEY_USE_DIAGNOSTIC_LAUNCH_ACTIVITY, false);
+        boolean useLaunchProxy = prefs.getBoolean(Prefs.KEY_USE_LAUNCH_PROXY, false);
+        if (useDiagnosticLaunchActivity || useLaunchProxy) {
             Intent launch = LaunchIntents.forEntry(entry);
             if (launch == null) {
                 AppLog.warn("Cannot launch selected activity: invalid target "
@@ -795,7 +798,11 @@ public final class OverlayService extends Service
                         Toast.LENGTH_SHORT).show();
                 return;
             }
-            launchThroughXcapa(launch, entry);
+            if (useDiagnosticLaunchActivity) {
+                launchThroughDiagnosticActivity(launch, entry);
+            } else {
+                launchThroughXcapa(launch, entry);
+            }
             return;
         }
         Intent launch = entry.isShortcut()
@@ -825,13 +832,13 @@ public final class OverlayService extends Service
         } catch (RuntimeException error) {
             AppLog.warn("Cannot resolve xCapa launch intent; launching selected activity immediately",
                     error);
-            launchProxyTargetImmediately(launch, entry);
+            launchTargetImmediately(launch, entry);
             return;
         }
         if (xcapaLaunch == null) {
             AppLog.warn("xCapa is unavailable; launching selected activity immediately",
                     new IllegalStateException("No launch intent for " + XCAPA_PACKAGE));
-            launchProxyTargetImmediately(launch, entry);
+            launchTargetImmediately(launch, entry);
             return;
         }
         xcapaLaunch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
@@ -839,7 +846,7 @@ public final class OverlayService extends Service
             startActivity(xcapaLaunch);
         } catch (RuntimeException error) {
             AppLog.warn("Cannot launch xCapa; launching selected activity immediately", error);
-            launchProxyTargetImmediately(launch, entry);
+            launchTargetImmediately(launch, entry);
             return;
         }
 
@@ -850,11 +857,21 @@ public final class OverlayService extends Service
                     return;
                 }
                 pendingProxyLaunch = null;
-                launchProxyTargetImmediately(launch, entry);
+                launchTargetImmediately(launch, entry);
             }
         };
         pendingProxyLaunch = delayedLaunch;
         handler.postDelayed(delayedLaunch, XCAPA_LAUNCH_DELAY_MS);
+    }
+
+    private void launchThroughDiagnosticActivity(Intent launch, AppEntry entry) {
+        try {
+            startActivity(DiagnosticLaunchActivity.intentFor(this, launch,
+                    entry == null ? getString(R.string.app_name) : entry.label));
+        } catch (RuntimeException error) {
+            AppLog.warn("Cannot launch diagnostic transition activity", error);
+            launchTargetImmediately(launch, entry);
+        }
     }
 
     private void cancelPendingProxyLaunch() {
@@ -864,11 +881,11 @@ public final class OverlayService extends Service
         }
     }
 
-    private void launchProxyTargetImmediately(Intent launch, AppEntry entry) {
+    private void launchTargetImmediately(Intent launch, AppEntry entry) {
         try {
             startActivity(launch);
         } catch (RuntimeException error) {
-            AppLog.warn("Cannot launch selected activity after xCapa transition "
+            AppLog.warn("Cannot launch selected activity "
                     + (entry == null ? "null" : entry.componentKey), error);
             Toast.makeText(this, getString(R.string.launch_failed,
                     entry == null ? getString(R.string.app_name) : entry.label),

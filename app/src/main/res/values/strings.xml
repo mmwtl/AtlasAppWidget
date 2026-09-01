@@ -28,6 +28,9 @@
     <string name="show_app_labels">Показывать названия приложений</string>
     <string name="use_launch_proxy">Переход через xCapa перед запуском</string>
     <string name="use_launch_proxy_hint">Сначала запускается OEM-компонент xCapa, затем через 900 мс — выбранное приложение или ярлык. Это экспериментальный способ дать OEM-компоненту время обработать климатический переход; результат зависит от прошивки, гарантии скрытия климат-панели нет. По умолчанию выключено.</string>
+    <string name="use_diagnostic_launch_activity">Диагностическая полноэкранная Activity</string>
+    <string name="use_diagnostic_launch_activity_hint">Открывает внутренний непрозрачный edge-to-edge экран на 3 секунды, затем запускает выбранное приложение или ярлык. Используйте этот режим для проверки видимого перехода Activity; по умолчанию выключен.</string>
+    <string name="diagnostic_launch_message">Диагностический переход&#10;Подготовка запуска…</string>
     <string name="system_status_title">Элементы и индикаторы</string>
     <string name="show_system_status">Показывать панель графиков</string>
     <string name="system_status_visible_metrics">Какие графики показывать</string>
@@ -104,7 +107,7 @@
     <string name="scale_hint">Меняет размер экранов и элементов приложения без изменения системного масштаба ГУ. Геометрия overlay-панели настраивается отдельно выше.</string>
     <string name="scale">Масштаб</string>
     <string name="settings_backup_title">Импорт и экспорт настроек</string>
-    <string name="settings_backup_hint">JSON содержит выбранные activity и ярлыки, их порядок, иконки ярлыков, внешний вид, положение overlay, порог скрытия, масштаб, автозапуск, переход через xCapa перед запуском и формулу топлива. Разрешения и работа сервиса не переносятся.</string>
+    <string name="settings_backup_hint">JSON содержит выбранные activity и ярлыки, их порядок, иконки ярлыков, внешний вид, положение overlay, порог скрытия, масштаб, автозапуск, переход через xCapa или диагностический экран перед запуском и формулу топлива. Эти два режима взаимоисключающие. Разрешения и работа сервиса не переносятся.</string>
     <string name="export_settings">Экспортировать настройки в JSON</string>
     <string name="import_settings">Импортировать настройки из JSON</string>
     <string name="import_settings_confirm">Импортировать</string>

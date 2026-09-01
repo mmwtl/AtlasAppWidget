@@ -21,6 +21,8 @@ final class Prefs {
     private static volatile boolean credentialMigrationAttempted;
     static final String KEY_AUTO_START = "auto_start";
     static final String KEY_USE_LAUNCH_PROXY = "use_launch_proxy";
+    static final String KEY_USE_DIAGNOSTIC_LAUNCH_ACTIVITY =
+            "use_diagnostic_launch_activity";
     static final String KEY_SHOW_ONLY_IN_APP_LIST = "show_only_in_app_list";
     static final String KEY_SERVICE_ENABLED = "service_enabled";
     static final String KEY_APP_UI_SCALE_TENTHS = "app_ui_scale_tenths";
@@ -106,6 +108,30 @@ final class Prefs {
 
     void putBoolean(String key, boolean value) {
         values.edit().putBoolean(key, value).apply();
+    }
+
+    /** Writes the mutually exclusive launch-mode pair in one SharedPreferences transaction. */
+    void setLaunchModes(boolean useLaunchProxy, boolean useDiagnosticLaunchActivity) {
+        if (useLaunchProxy && useDiagnosticLaunchActivity) {
+            throw new IllegalArgumentException("Launch modes are mutually exclusive");
+        }
+        values.edit()
+                .putBoolean(KEY_USE_LAUNCH_PROXY, useLaunchProxy)
+                .putBoolean(KEY_USE_DIAGNOSTIC_LAUNCH_ACTIVITY,
+                        useDiagnosticLaunchActivity)
+                .apply();
+    }
+
+    void setLaunchProxyEnabled(boolean enabled) {
+        setLaunchModes(enabled, enabled
+                ? false
+                : getBoolean(KEY_USE_DIAGNOSTIC_LAUNCH_ACTIVITY, false));
+    }
+
+    void setDiagnosticLaunchActivityEnabled(boolean enabled) {
+        setLaunchModes(enabled
+                ? false
+                : getBoolean(KEY_USE_LAUNCH_PROXY, false), enabled);
     }
 
     int getInt(String key, int fallback) {
@@ -314,6 +340,8 @@ final class Prefs {
         SharedPreferences.Editor editor = values.edit()
                 .putBoolean(KEY_AUTO_START, data.autoStart)
                 .putBoolean(KEY_USE_LAUNCH_PROXY, data.useLaunchProxy)
+                .putBoolean(KEY_USE_DIAGNOSTIC_LAUNCH_ACTIVITY,
+                        data.useDiagnosticLaunchActivity)
                 .putBoolean(KEY_SHOW_ONLY_IN_APP_LIST, data.showOnlyInAppList)
                 .putInt(KEY_APP_UI_SCALE_TENTHS, data.appUiScaleTenths)
                 .putInt(KEY_FREEFORM_HIDE_THRESHOLD_PERCENT,

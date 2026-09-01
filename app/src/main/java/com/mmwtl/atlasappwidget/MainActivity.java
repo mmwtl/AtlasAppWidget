@@ -56,6 +56,7 @@ public final class MainActivity extends ScaledActivity
     private Switch dragHandleSwitch;
     private Switch appLabelsSwitch;
     private Switch launchProxySwitch;
+    private Switch diagnosticLaunchActivitySwitch;
     private Switch showOnlyInAppListSwitch;
     private Switch systemStatusSwitch;
     private Switch cpuStatusSwitch;
@@ -230,7 +231,12 @@ public final class MainActivity extends ScaledActivity
         launchProxySwitch.setPadding(0, Ui.dp(this, 8), 0, Ui.dp(this, 4));
         launchProxySwitch.setOnCheckedChangeListener((button, checked) -> {
             if (!updatingSwitch) {
-                prefs.putBoolean(Prefs.KEY_USE_LAUNCH_PROXY, checked);
+                prefs.setLaunchProxyEnabled(checked);
+                if (checked) {
+                    updatingSwitch = true;
+                    diagnosticLaunchActivitySwitch.setChecked(false);
+                    updatingSwitch = false;
+                }
             }
         });
         apps.addView(launchProxySwitch);
@@ -242,6 +248,30 @@ public final class MainActivity extends ScaledActivity
         );
         launchProxyHint.setLineSpacing(0, 1.1f);
         apps.addView(launchProxyHint);
+        diagnosticLaunchActivitySwitch = new Switch(this);
+        diagnosticLaunchActivitySwitch.setText(R.string.use_diagnostic_launch_activity);
+        diagnosticLaunchActivitySwitch.setTextColor(Ui.TEXT);
+        diagnosticLaunchActivitySwitch.setTextSize(15);
+        diagnosticLaunchActivitySwitch.setPadding(0, Ui.dp(this, 8), 0, Ui.dp(this, 4));
+        diagnosticLaunchActivitySwitch.setOnCheckedChangeListener((button, checked) -> {
+            if (!updatingSwitch) {
+                prefs.setDiagnosticLaunchActivityEnabled(checked);
+                if (checked) {
+                    updatingSwitch = true;
+                    launchProxySwitch.setChecked(false);
+                    updatingSwitch = false;
+                }
+            }
+        });
+        apps.addView(diagnosticLaunchActivitySwitch);
+        TextView diagnosticLaunchActivityHint = Ui.text(
+                this,
+                R.string.use_diagnostic_launch_activity_hint,
+                13,
+                Ui.TEXT_SECONDARY
+        );
+        diagnosticLaunchActivityHint.setLineSpacing(0, 1.1f);
+        apps.addView(diagnosticLaunchActivityHint);
         LinearLayout systemStatus = Ui.card(this);
         systemStatus.addView(Ui.heading(this, R.string.system_status_title, 20));
 
@@ -988,7 +1018,11 @@ public final class MainActivity extends ScaledActivity
         boolean showDragHandle = prefs.getBoolean(Prefs.KEY_SHOW_DRAG_HANDLE, true);
         dragHandleSwitch.setChecked(showDragHandle);
         appLabelsSwitch.setChecked(prefs.getBoolean(Prefs.KEY_SHOW_APP_LABELS, false));
-        launchProxySwitch.setChecked(prefs.getBoolean(Prefs.KEY_USE_LAUNCH_PROXY, false));
+        boolean useLaunchProxy = prefs.getBoolean(Prefs.KEY_USE_LAUNCH_PROXY, false);
+        boolean useDiagnosticLaunchActivity = prefs.getBoolean(
+                Prefs.KEY_USE_DIAGNOSTIC_LAUNCH_ACTIVITY, false);
+        launchProxySwitch.setChecked(useLaunchProxy && !useDiagnosticLaunchActivity);
+        diagnosticLaunchActivitySwitch.setChecked(useDiagnosticLaunchActivity);
         showOnlyInAppListSwitch.setChecked(
                 prefs.getBoolean(Prefs.KEY_SHOW_ONLY_IN_APP_LIST, false));
         boolean showSystemStatus = prefs.getBoolean(Prefs.KEY_SHOW_SYSTEM_STATUS, false);

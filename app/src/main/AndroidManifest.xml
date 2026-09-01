@@ -37,6 +37,13 @@
             android:exported="false" />
 
         <activity
+            android:name=".DiagnosticLaunchActivity"
+            android:excludeFromRecents="true"
+            android:exported="false"
+            android:taskAffinity=""
+            android:theme="@style/Theme.AtlasWidget.Diagnostic" />
+
+        <activity
             android:name=".MainActivity"
             android:exported="true">
             <intent-filter>

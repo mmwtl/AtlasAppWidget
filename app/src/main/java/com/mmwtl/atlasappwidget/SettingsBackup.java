@@ -40,6 +40,7 @@ final class SettingsBackup {
     static final class Data {
         final boolean autoStart;
         final boolean useLaunchProxy;
+        final boolean useDiagnosticLaunchActivity;
         final boolean showOnlyInAppList;
         final int appUiScaleTenths;
         final int freeformHideThresholdPercent;
@@ -61,7 +62,7 @@ final class SettingsBackup {
                 List<String> selectedComponents, ContentData content, MovementData movement,
                 SystemStatusData systemStatus, FuelData fuel, GeometryData geometry,
                 AppearanceData appearance) throws IOException {
-            this(autoStart, useLaunchProxy, showOnlyInAppList, appUiScaleTenths,
+            this(autoStart, useLaunchProxy, false, showOnlyInAppList, appUiScaleTenths,
                     freeformHideThresholdPercent, positionX, positionY, selectedComponents,
                     List.of(), Map.of(), content, movement, systemStatus, fuel, geometry,
                     appearance);
@@ -73,10 +74,23 @@ final class SettingsBackup {
                 List<String> selectedComponents, List<ShortcutSpec> shortcuts,
                 ContentData content, MovementData movement, SystemStatusData systemStatus,
                 FuelData fuel, GeometryData geometry, AppearanceData appearance) throws IOException {
-            this(autoStart, useLaunchProxy, showOnlyInAppList, appUiScaleTenths,
+            this(autoStart, useLaunchProxy, false, showOnlyInAppList, appUiScaleTenths,
                     freeformHideThresholdPercent, positionX, positionY, selectedComponents,
                     shortcuts, Map.of(), content, movement, systemStatus, fuel, geometry,
                     appearance);
+        }
+
+        Data(boolean autoStart, boolean useLaunchProxy,
+                boolean useDiagnosticLaunchActivity, boolean showOnlyInAppList,
+                int appUiScaleTenths,
+                int freeformHideThresholdPercent, Integer positionX, Integer positionY,
+                List<String> selectedComponents, List<ShortcutSpec> shortcuts,
+                ContentData content, MovementData movement, SystemStatusData systemStatus,
+                FuelData fuel, GeometryData geometry, AppearanceData appearance) throws IOException {
+            this(autoStart, useLaunchProxy, useDiagnosticLaunchActivity, showOnlyInAppList,
+                    appUiScaleTenths, freeformHideThresholdPercent, positionX, positionY,
+                    selectedComponents, shortcuts, Map.of(), content, movement, systemStatus,
+                    fuel, geometry, appearance);
         }
 
         Data(boolean autoStart, boolean useLaunchProxy, boolean showOnlyInAppList,
@@ -86,8 +100,26 @@ final class SettingsBackup {
                 Map<String, byte[]> customIcons, ContentData content, MovementData movement,
                 SystemStatusData systemStatus, FuelData fuel, GeometryData geometry,
                 AppearanceData appearance) throws IOException {
+            this(autoStart, useLaunchProxy, false, showOnlyInAppList, appUiScaleTenths,
+                    freeformHideThresholdPercent, positionX, positionY, selectedComponents,
+                    shortcuts, customIcons, content, movement, systemStatus, fuel, geometry,
+                    appearance);
+        }
+
+        Data(boolean autoStart, boolean useLaunchProxy,
+                boolean useDiagnosticLaunchActivity, boolean showOnlyInAppList,
+                int appUiScaleTenths,
+                int freeformHideThresholdPercent, Integer positionX, Integer positionY,
+                List<String> selectedComponents, List<ShortcutSpec> shortcuts,
+                Map<String, byte[]> customIcons, ContentData content, MovementData movement,
+                SystemStatusData systemStatus, FuelData fuel, GeometryData geometry,
+                AppearanceData appearance) throws IOException {
             this.autoStart = autoStart;
             this.useLaunchProxy = useLaunchProxy;
+            if (useLaunchProxy && useDiagnosticLaunchActivity) {
+                throw invalid("Нельзя одновременно включить xCapa и диагностический запуск");
+            }
+            this.useDiagnosticLaunchActivity = useDiagnosticLaunchActivity;
             this.showOnlyInAppList = showOnlyInAppList;
             this.appUiScaleTenths = requireRange("settings.uiScaleTenths", appUiScaleTenths,
                     ScaledActivity.MIN_SCALE_TENTHS, ScaledActivity.MAX_SCALE_TENTHS);
@@ -291,6 +323,7 @@ final class SettingsBackup {
         return new Data(
                 prefs.getBoolean(Prefs.KEY_AUTO_START, false),
                 prefs.getBoolean(Prefs.KEY_USE_LAUNCH_PROXY, false),
+                prefs.getBoolean(Prefs.KEY_USE_DIAGNOSTIC_LAUNCH_ACTIVITY, false),
                 prefs.getBoolean(Prefs.KEY_SHOW_ONLY_IN_APP_LIST, false),
                 clamp(prefs.getInt(Prefs.KEY_APP_UI_SCALE_TENTHS,
                                 ScaledActivity.DEFAULT_SCALE_TENTHS),
@@ -473,6 +506,7 @@ final class SettingsBackup {
             JSONObject settings = new JSONObject()
                     .put("autoStart", data.autoStart)
                     .put("useLaunchProxy", data.useLaunchProxy)
+                    .put("useDiagnosticLaunchActivity", data.useDiagnosticLaunchActivity)
                     .put("showOnlyInAppList", data.showOnlyInAppList)
                     .put("uiScaleTenths", data.appUiScaleTenths)
                     .put("freeformHideThresholdPercent",
@@ -576,6 +610,9 @@ final class SettingsBackup {
                     settings.has("useLaunchProxy")
                             && requireBoolean(settings, "useLaunchProxy",
                                     "settings.useLaunchProxy"),
+                    settings.has("useDiagnosticLaunchActivity")
+                            && requireBoolean(settings, "useDiagnosticLaunchActivity",
+                                    "settings.useDiagnosticLaunchActivity"),
                     settings.has("showOnlyInAppList")
                             && requireBoolean(settings, "showOnlyInAppList",
                                     "settings.showOnlyInAppList"),
