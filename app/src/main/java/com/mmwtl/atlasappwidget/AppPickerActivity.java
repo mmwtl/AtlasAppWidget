@@ -6,6 +6,7 @@ import android.content.ComponentName;
 import android.content.pm.ActivityInfo;
 import android.graphics.Color;
 import android.graphics.Bitmap;
+import android.graphics.drawable.Drawable;
 import android.net.Uri;
 import android.os.Bundle;
 import android.text.Editable;
@@ -338,7 +339,7 @@ public final class AppPickerActivity extends ScaledActivity {
             }
             ShortcutSpec shortcut = ShortcutSpec.create(title, safe);
             prefs.saveShortcut(shortcut);
-            saveShortcutIcon(result, shortcut);
+            saveShortcutIcon(result, shortcut, info.applicationInfo.loadIcon(getPackageManager()));
             prefs.setComponentSelected(shortcut.key, true);
             Toast.makeText(this, R.string.shortcut_saved, Toast.LENGTH_SHORT).show();
             loadApplications();
@@ -349,7 +350,7 @@ public final class AppPickerActivity extends ScaledActivity {
     }
 
     @SuppressWarnings("deprecation")
-    private void saveShortcutIcon(Intent result, ShortcutSpec shortcut) {
+    private void saveShortcutIcon(Intent result, ShortcutSpec shortcut, Drawable applicationIcon) {
         String componentKey = shortcut.key;
         String previous = prefs.customIcon(componentKey);
         try {
@@ -363,11 +364,23 @@ public final class AppPickerActivity extends ScaledActivity {
                     Intent.EXTRA_SHORTCUT_ICON_RESOURCE);
             String stored;
             try {
-                stored = bitmap == null
-                        ? CustomIconStore.importIcon(
-                        getApplicationContext(), resource, componentKey)
-                        : CustomIconStore.importIcon(
-                        getApplicationContext(), bitmap, componentKey);
+                if (bitmap != null) {
+                    stored = CustomIconStore.importIcon(
+                            getApplicationContext(), bitmap, componentKey);
+                } else if (resource != null) {
+                    try {
+                        stored = CustomIconStore.importIcon(
+                                getApplicationContext(), resource, componentKey);
+                    } catch (IOException invalidProviderIcon) {
+                        AppLog.warn("Cannot import provider shortcut icon; using application icon",
+                                invalidProviderIcon);
+                        stored = CustomIconStore.importIcon(
+                                getApplicationContext(), applicationIcon, componentKey);
+                    }
+                } else {
+                    stored = CustomIconStore.importIcon(
+                            getApplicationContext(), applicationIcon, componentKey);
+                }
             } finally {
                 if (ownsBitmap) bitmap.recycle();
             }
