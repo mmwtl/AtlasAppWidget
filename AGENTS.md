@@ -38,7 +38,7 @@ migration request.
 - A single user-requested batch is one version increment even when it contains several related
   files or commits.
 - Use the effective version for the visible version and, whenever the project generates an APK or
-  archive, its name: `<effectiveVersionName>[<versionCode>]AtlasMediaWidget`. This keeps the branch
+  archive, its name: `<effectiveVersionName>[<versionCode>]AtlasAppWidget`. This keeps the branch
   suffix in non-main artifact names; do not allow Gradle to fall back to the module-derived
   `app-*.apk` name.
 

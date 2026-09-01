@@ -71,6 +71,7 @@ public final class OverlayService extends Service
     private SystemMetricsSampler systemMetricsSampler;
     private PanelView panel;
     private WindowManager.LayoutParams panelParams;
+    private LaunchTransitionOverlay launchTransitionOverlay;
     private int panelBoundsWidth;
     private int panelBoundsHeight;
     private List<AppEntry> selectedEntriesCache;
@@ -161,6 +162,7 @@ public final class OverlayService extends Service
         createdAt = SystemClock.elapsedRealtime();
         prefs = new Prefs(this);
         windowManager = getSystemService(WindowManager.class);
+        launchTransitionOverlay = new LaunchTransitionOverlay(this, windowManager);
         fuelLevelProvider = new FuelLevelProvider(this, prefs);
         systemMetricsSampler = new SystemMetricsSampler(this, fuelLevelProvider);
         prefs.raw().registerOnSharedPreferenceChangeListener(this);
@@ -205,6 +207,10 @@ public final class OverlayService extends Service
         unregisterVisibilityWakeReceiver();
         unregisterPackageChangeReceiver();
         unregisterLocaleChangeReceiver();
+        if (launchTransitionOverlay != null) {
+            launchTransitionOverlay.clear();
+            launchTransitionOverlay = null;
+        }
         hidePanel();
         foregroundExecutor.shutdownNow();
         systemStatusExecutor.shutdownNow();
@@ -780,26 +786,29 @@ public final class OverlayService extends Service
         panelSuppression.suppress(SystemClock.elapsedRealtime(), 1_500L);
         dismissFuelDetails();
         if (prefs.getBoolean(Prefs.KEY_USE_LAUNCH_PROXY, false)) {
-            Intent proxy = LaunchProxyIntents.proxy(this, entry);
-            if (proxy == null) {
-                AppLog.warn("Cannot launch selected activity through proxy: invalid component "
-                        + entry.componentKey, new IllegalArgumentException(entry.componentKey));
-                Toast.makeText(this, getString(R.string.launch_failed, entry.label),
+            Intent launch = LaunchIntents.forEntry(entry);
+            if (launch == null) {
+                AppLog.warn("Cannot launch selected activity: invalid target "
+                        + (entry == null ? "null" : entry.componentKey),
+                        new IllegalArgumentException("Invalid launch target"));
+                Toast.makeText(this, getString(R.string.launch_failed,
+                        entry == null ? getString(R.string.app_name) : entry.label),
                         Toast.LENGTH_SHORT).show();
                 return;
             }
-            try {
-                startActivity(proxy);
-            } catch (ActivityNotFoundException | SecurityException error) {
-                AppLog.warn("Cannot launch selected activity through proxy "
-                        + entry.componentKey, error);
+            if (launchTransitionOverlay == null) {
+                launchTransitionOverlay = new LaunchTransitionOverlay(this, windowManager);
+            }
+            boolean attached = launchTransitionOverlay.start(
+                    () -> launchActivityThroughTransition(launch, entry));
+            if (!attached) {
                 Toast.makeText(this, getString(R.string.launch_failed, entry.label),
                         Toast.LENGTH_SHORT).show();
             }
             return;
         }
         Intent launch = entry.isShortcut()
-                ? LaunchProxyIntents.targetIntent(entry.intentUri)
+                ? LaunchIntents.targetIntent(entry.intentUri)
                 : new Intent(Intent.ACTION_MAIN)
                 .addCategory(Intent.CATEGORY_LAUNCHER)
                 .setComponent(entry.componentName)
@@ -814,6 +823,18 @@ public final class OverlayService extends Service
         } catch (ActivityNotFoundException | SecurityException error) {
             AppLog.warn("Cannot launch selected activity " + entry.componentKey, error);
             Toast.makeText(this, getString(R.string.launch_failed, entry.label),
+                    Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    private void launchActivityThroughTransition(Intent launch, AppEntry entry) {
+        try {
+            startActivity(launch);
+        } catch (RuntimeException error) {
+            AppLog.warn("Cannot launch selected activity through fullscreen overlay "
+                    + (entry == null ? "null" : entry.componentKey), error);
+            Toast.makeText(this, getString(R.string.launch_failed,
+                    entry == null ? getString(R.string.app_name) : entry.label),
                     Toast.LENGTH_SHORT).show();
         }
     }
