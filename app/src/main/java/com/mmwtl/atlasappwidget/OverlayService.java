@@ -47,6 +47,8 @@ public final class OverlayService extends Service
     private static final int NOTIFICATION_HIDDEN = 2;
     private static final int NOTIFICATION_PERMISSION_ERROR = 3;
     private static final int NOTIFICATION_NO_APPS = 5;
+    private static final String XCAPA_PACKAGE = "com.ecarx.xcapa";
+    private static final long XCAPA_LAUNCH_DELAY_MS = 900L;
     static final long FUEL_DETAILS_AUTO_HIDE_DELAY_MS = 10_000L;
     private static volatile boolean running;
     private static volatile OverlayService instance;
@@ -71,7 +73,7 @@ public final class OverlayService extends Service
     private SystemMetricsSampler systemMetricsSampler;
     private PanelView panel;
     private WindowManager.LayoutParams panelParams;
-    private LaunchTransitionOverlay launchTransitionOverlay;
+    private Runnable pendingProxyLaunch;
     private int panelBoundsWidth;
     private int panelBoundsHeight;
     private List<AppEntry> selectedEntriesCache;
@@ -162,7 +164,6 @@ public final class OverlayService extends Service
         createdAt = SystemClock.elapsedRealtime();
         prefs = new Prefs(this);
         windowManager = getSystemService(WindowManager.class);
-        launchTransitionOverlay = new LaunchTransitionOverlay(this, windowManager);
         fuelLevelProvider = new FuelLevelProvider(this, prefs);
         systemMetricsSampler = new SystemMetricsSampler(this, fuelLevelProvider);
         prefs.raw().registerOnSharedPreferenceChangeListener(this);
@@ -203,14 +204,11 @@ public final class OverlayService extends Service
     @Override
     public void onDestroy() {
         destroyed = true;
+        cancelPendingProxyLaunch();
         handler.removeCallbacksAndMessages(null);
         unregisterVisibilityWakeReceiver();
         unregisterPackageChangeReceiver();
         unregisterLocaleChangeReceiver();
-        if (launchTransitionOverlay != null) {
-            launchTransitionOverlay.clear();
-            launchTransitionOverlay = null;
-        }
         hidePanel();
         foregroundExecutor.shutdownNow();
         systemStatusExecutor.shutdownNow();
@@ -785,6 +783,7 @@ public final class OverlayService extends Service
     public void onAppClicked(AppEntry entry) {
         panelSuppression.suppress(SystemClock.elapsedRealtime(), 1_500L);
         dismissFuelDetails();
+        cancelPendingProxyLaunch();
         if (prefs.getBoolean(Prefs.KEY_USE_LAUNCH_PROXY, false)) {
             Intent launch = LaunchIntents.forEntry(entry);
             if (launch == null) {
@@ -796,15 +795,7 @@ public final class OverlayService extends Service
                         Toast.LENGTH_SHORT).show();
                 return;
             }
-            if (launchTransitionOverlay == null) {
-                launchTransitionOverlay = new LaunchTransitionOverlay(this, windowManager);
-            }
-            boolean attached = launchTransitionOverlay.start(
-                    () -> launchActivityThroughTransition(launch, entry));
-            if (!attached) {
-                Toast.makeText(this, getString(R.string.launch_failed, entry.label),
-                        Toast.LENGTH_SHORT).show();
-            }
+            launchThroughXcapa(launch, entry);
             return;
         }
         Intent launch = entry.isShortcut()
@@ -827,11 +818,57 @@ public final class OverlayService extends Service
         }
     }
 
-    private void launchActivityThroughTransition(Intent launch, AppEntry entry) {
+    private void launchThroughXcapa(Intent launch, AppEntry entry) {
+        Intent xcapaLaunch;
+        try {
+            xcapaLaunch = getPackageManager().getLaunchIntentForPackage(XCAPA_PACKAGE);
+        } catch (RuntimeException error) {
+            AppLog.warn("Cannot resolve xCapa launch intent; launching selected activity immediately",
+                    error);
+            launchProxyTargetImmediately(launch, entry);
+            return;
+        }
+        if (xcapaLaunch == null) {
+            AppLog.warn("xCapa is unavailable; launching selected activity immediately",
+                    new IllegalStateException("No launch intent for " + XCAPA_PACKAGE));
+            launchProxyTargetImmediately(launch, entry);
+            return;
+        }
+        xcapaLaunch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+        try {
+            startActivity(xcapaLaunch);
+        } catch (RuntimeException error) {
+            AppLog.warn("Cannot launch xCapa; launching selected activity immediately", error);
+            launchProxyTargetImmediately(launch, entry);
+            return;
+        }
+
+        Runnable delayedLaunch = new Runnable() {
+            @Override
+            public void run() {
+                if (pendingProxyLaunch != this) {
+                    return;
+                }
+                pendingProxyLaunch = null;
+                launchProxyTargetImmediately(launch, entry);
+            }
+        };
+        pendingProxyLaunch = delayedLaunch;
+        handler.postDelayed(delayedLaunch, XCAPA_LAUNCH_DELAY_MS);
+    }
+
+    private void cancelPendingProxyLaunch() {
+        if (pendingProxyLaunch != null) {
+            handler.removeCallbacks(pendingProxyLaunch);
+            pendingProxyLaunch = null;
+        }
+    }
+
+    private void launchProxyTargetImmediately(Intent launch, AppEntry entry) {
         try {
             startActivity(launch);
         } catch (RuntimeException error) {
-            AppLog.warn("Cannot launch selected activity through fullscreen overlay "
+            AppLog.warn("Cannot launch selected activity after xCapa transition "
                     + (entry == null ? "null" : entry.componentKey), error);
             Toast.makeText(this, getString(R.string.launch_failed,
                     entry == null ? getString(R.string.app_name) : entry.label),
