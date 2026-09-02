@@ -925,15 +925,22 @@ public final class MainActivity extends ScaledActivity
         parent.addView(header);
 
         climateTransitionDurationSlider = new SeekBar(this);
-        climateTransitionDurationSlider.setMin(Prefs.CLIMATE_TRANSITION_DURATION_MIN_MS);
-        climateTransitionDurationSlider.setMax(Prefs.CLIMATE_TRANSITION_DURATION_MAX_MS);
-        climateTransitionDurationSlider.setProgress(prefs.climateTransitionDurationMs());
+        climateTransitionDurationSlider.setMin(
+                Prefs.CLIMATE_TRANSITION_DURATION_MIN_MS
+                        / Prefs.CLIMATE_TRANSITION_DURATION_STEP_MS);
+        climateTransitionDurationSlider.setMax(
+                Prefs.CLIMATE_TRANSITION_DURATION_MAX_MS
+                        / Prefs.CLIMATE_TRANSITION_DURATION_STEP_MS);
+        climateTransitionDurationSlider.setProgress(
+                prefs.climateTransitionDurationMs()
+                        / Prefs.CLIMATE_TRANSITION_DURATION_STEP_MS);
         climateTransitionDurationSlider.setOnSeekBarChangeListener(
                 new SeekBar.OnSeekBarChangeListener() {
                     @Override
                     public void onProgressChanged(SeekBar bar, int value, boolean fromUser) {
                         climateTransitionDurationValue.setText(getString(
-                                R.string.milliseconds_value, value));
+                                R.string.milliseconds_value,
+                                value * Prefs.CLIMATE_TRANSITION_DURATION_STEP_MS));
                     }
 
                     @Override
@@ -942,11 +949,14 @@ public final class MainActivity extends ScaledActivity
 
                     @Override
                     public void onStopTrackingTouch(SeekBar bar) {
-                        prefs.setClimateTransitionDurationMs(bar.getProgress());
+                        prefs.setClimateTransitionDurationMs(bar.getProgress()
+                                * Prefs.CLIMATE_TRANSITION_DURATION_STEP_MS);
                     }
                 });
         climateTransitionDurationValue.setText(getString(
-                R.string.milliseconds_value, climateTransitionDurationSlider.getProgress()));
+                R.string.milliseconds_value,
+                climateTransitionDurationSlider.getProgress()
+                        * Prefs.CLIMATE_TRANSITION_DURATION_STEP_MS));
         parent.addView(climateTransitionDurationSlider, new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
     }
@@ -1012,7 +1022,9 @@ public final class MainActivity extends ScaledActivity
         dragHandleSwitch.setChecked(showDragHandle);
         appLabelsSwitch.setChecked(prefs.getBoolean(Prefs.KEY_SHOW_APP_LABELS, false));
         if (climateTransitionDurationSlider != null) {
-            climateTransitionDurationSlider.setProgress(prefs.climateTransitionDurationMs());
+            climateTransitionDurationSlider.setProgress(
+                    prefs.climateTransitionDurationMs()
+                            / Prefs.CLIMATE_TRANSITION_DURATION_STEP_MS);
         }
         showOnlyInAppListSwitch.setChecked(
                 prefs.getBoolean(Prefs.KEY_SHOW_ONLY_IN_APP_LIST, false));

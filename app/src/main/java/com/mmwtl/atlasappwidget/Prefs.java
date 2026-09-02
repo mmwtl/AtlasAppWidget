@@ -74,6 +74,7 @@ final class Prefs {
 
     static final int CLIMATE_TRANSITION_DURATION_MIN_MS = 10;
     static final int CLIMATE_TRANSITION_DURATION_MAX_MS = 1_000;
+    static final int CLIMATE_TRANSITION_DURATION_STEP_MS = 10;
     static final int CLIMATE_TRANSITION_DURATION_DEFAULT_MS = 1_000;
 
     static final int POSITION_UNSET = Integer.MIN_VALUE;
@@ -282,16 +283,22 @@ final class Prefs {
     }
 
     synchronized int climateTransitionDurationMs() {
-        return Math.max(CLIMATE_TRANSITION_DURATION_MIN_MS, Math.min(
-                CLIMATE_TRANSITION_DURATION_MAX_MS,
-                getInt(KEY_CLIMATE_TRANSITION_DURATION_MS,
-                        CLIMATE_TRANSITION_DURATION_DEFAULT_MS)));
+        return normalizeClimateTransitionDuration(getInt(
+                KEY_CLIMATE_TRANSITION_DURATION_MS,
+                CLIMATE_TRANSITION_DURATION_DEFAULT_MS));
     }
 
     void setClimateTransitionDurationMs(int durationMs) {
-        putInt(KEY_CLIMATE_TRANSITION_DURATION_MS, Math.max(
-                CLIMATE_TRANSITION_DURATION_MIN_MS,
-                Math.min(CLIMATE_TRANSITION_DURATION_MAX_MS, durationMs)));
+        putInt(KEY_CLIMATE_TRANSITION_DURATION_MS,
+                normalizeClimateTransitionDuration(durationMs));
+    }
+
+    private static int normalizeClimateTransitionDuration(int durationMs) {
+        int clamped = Math.max(CLIMATE_TRANSITION_DURATION_MIN_MS,
+                Math.min(CLIMATE_TRANSITION_DURATION_MAX_MS, durationMs));
+        return ((clamped + CLIMATE_TRANSITION_DURATION_STEP_MS / 2)
+                / CLIMATE_TRANSITION_DURATION_STEP_MS)
+                * CLIMATE_TRANSITION_DURATION_STEP_MS;
     }
 
     private void removeClimateTransitionComponent(String component) {
