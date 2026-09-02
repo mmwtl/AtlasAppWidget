@@ -55,8 +55,6 @@ public final class MainActivity extends ScaledActivity
     private Switch autoStartSwitch;
     private Switch dragHandleSwitch;
     private Switch appLabelsSwitch;
-    private Switch launchProxySwitch;
-    private Switch diagnosticLaunchActivitySwitch;
     private Switch showOnlyInAppListSwitch;
     private Switch systemStatusSwitch;
     private Switch cpuStatusSwitch;
@@ -76,6 +74,8 @@ public final class MainActivity extends ScaledActivity
     private Button backgroundStrokeColorButton;
     private Button exportSettingsButton;
     private Button importSettingsButton;
+    private SeekBar climateTransitionDurationSlider;
+    private TextView climateTransitionDurationValue;
     private boolean updatingSwitch;
     private volatile boolean applyingSettings;
 
@@ -213,6 +213,7 @@ public final class MainActivity extends ScaledActivity
         Ui.topMargin(appsButton, 12);
         appsButton.setOnClickListener(view -> startActivity(new Intent(this, AppPickerActivity.class)));
         apps.addView(appsButton);
+        addClimateTransitionDurationSlider(apps);
 
         appLabelsSwitch = new Switch(this);
         appLabelsSwitch.setText(R.string.show_app_labels);
@@ -224,54 +225,6 @@ public final class MainActivity extends ScaledActivity
                 prefs.putBoolean(Prefs.KEY_SHOW_APP_LABELS, checked);
             }
         });
-        launchProxySwitch = new Switch(this);
-        launchProxySwitch.setText(R.string.use_launch_proxy);
-        launchProxySwitch.setTextColor(Ui.TEXT);
-        launchProxySwitch.setTextSize(15);
-        launchProxySwitch.setPadding(0, Ui.dp(this, 8), 0, Ui.dp(this, 4));
-        launchProxySwitch.setOnCheckedChangeListener((button, checked) -> {
-            if (!updatingSwitch) {
-                prefs.setLaunchProxyEnabled(checked);
-                if (checked) {
-                    updatingSwitch = true;
-                    diagnosticLaunchActivitySwitch.setChecked(false);
-                    updatingSwitch = false;
-                }
-            }
-        });
-        apps.addView(launchProxySwitch);
-        TextView launchProxyHint = Ui.text(
-                this,
-                R.string.use_launch_proxy_hint,
-                13,
-                Ui.TEXT_SECONDARY
-        );
-        launchProxyHint.setLineSpacing(0, 1.1f);
-        apps.addView(launchProxyHint);
-        diagnosticLaunchActivitySwitch = new Switch(this);
-        diagnosticLaunchActivitySwitch.setText(R.string.use_diagnostic_launch_activity);
-        diagnosticLaunchActivitySwitch.setTextColor(Ui.TEXT);
-        diagnosticLaunchActivitySwitch.setTextSize(15);
-        diagnosticLaunchActivitySwitch.setPadding(0, Ui.dp(this, 8), 0, Ui.dp(this, 4));
-        diagnosticLaunchActivitySwitch.setOnCheckedChangeListener((button, checked) -> {
-            if (!updatingSwitch) {
-                prefs.setDiagnosticLaunchActivityEnabled(checked);
-                if (checked) {
-                    updatingSwitch = true;
-                    launchProxySwitch.setChecked(false);
-                    updatingSwitch = false;
-                }
-            }
-        });
-        apps.addView(diagnosticLaunchActivitySwitch);
-        TextView diagnosticLaunchActivityHint = Ui.text(
-                this,
-                R.string.use_diagnostic_launch_activity_hint,
-                13,
-                Ui.TEXT_SECONDARY
-        );
-        diagnosticLaunchActivityHint.setLineSpacing(0, 1.1f);
-        apps.addView(diagnosticLaunchActivityHint);
         LinearLayout systemStatus = Ui.card(this);
         systemStatus.addView(Ui.heading(this, R.string.system_status_title, 20));
 
@@ -958,6 +911,46 @@ public final class MainActivity extends ScaledActivity
         ));
     }
 
+    private void addClimateTransitionDurationSlider(LinearLayout parent) {
+        LinearLayout header = new LinearLayout(this);
+        header.setOrientation(LinearLayout.HORIZONTAL);
+        header.setGravity(Gravity.CENTER_VERTICAL);
+        Ui.topMargin(header, 15);
+        TextView name = Ui.text(this, R.string.climate_transition_duration, 14, Ui.TEXT);
+        header.addView(name, new LinearLayout.LayoutParams(
+                0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+        climateTransitionDurationValue = Ui.text(this, "", 14, Ui.TEXT_SECONDARY);
+        climateTransitionDurationValue.setGravity(Gravity.END | Gravity.CENTER_VERTICAL);
+        header.addView(climateTransitionDurationValue);
+        parent.addView(header);
+
+        climateTransitionDurationSlider = new SeekBar(this);
+        climateTransitionDurationSlider.setMin(Prefs.CLIMATE_TRANSITION_DURATION_MIN_MS);
+        climateTransitionDurationSlider.setMax(Prefs.CLIMATE_TRANSITION_DURATION_MAX_MS);
+        climateTransitionDurationSlider.setProgress(prefs.climateTransitionDurationMs());
+        climateTransitionDurationSlider.setOnSeekBarChangeListener(
+                new SeekBar.OnSeekBarChangeListener() {
+                    @Override
+                    public void onProgressChanged(SeekBar bar, int value, boolean fromUser) {
+                        climateTransitionDurationValue.setText(getString(
+                                R.string.milliseconds_value, value));
+                    }
+
+                    @Override
+                    public void onStartTrackingTouch(SeekBar bar) {
+                    }
+
+                    @Override
+                    public void onStopTrackingTouch(SeekBar bar) {
+                        prefs.setClimateTransitionDurationMs(bar.getProgress());
+                    }
+                });
+        climateTransitionDurationValue.setText(getString(
+                R.string.milliseconds_value, climateTransitionDurationSlider.getProgress()));
+        parent.addView(climateTransitionDurationSlider, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+    }
+
     private String formatScale(int tenths) {
         return tenths % 10 == 0
                 ? tenths / 10 + "×"
@@ -1018,11 +1011,9 @@ public final class MainActivity extends ScaledActivity
         boolean showDragHandle = prefs.getBoolean(Prefs.KEY_SHOW_DRAG_HANDLE, true);
         dragHandleSwitch.setChecked(showDragHandle);
         appLabelsSwitch.setChecked(prefs.getBoolean(Prefs.KEY_SHOW_APP_LABELS, false));
-        boolean useLaunchProxy = prefs.getBoolean(Prefs.KEY_USE_LAUNCH_PROXY, false);
-        boolean useDiagnosticLaunchActivity = prefs.getBoolean(
-                Prefs.KEY_USE_DIAGNOSTIC_LAUNCH_ACTIVITY, false);
-        launchProxySwitch.setChecked(useLaunchProxy && !useDiagnosticLaunchActivity);
-        diagnosticLaunchActivitySwitch.setChecked(useDiagnosticLaunchActivity);
+        if (climateTransitionDurationSlider != null) {
+            climateTransitionDurationSlider.setProgress(prefs.climateTransitionDurationMs());
+        }
         showOnlyInAppListSwitch.setChecked(
                 prefs.getBoolean(Prefs.KEY_SHOW_ONLY_IN_APP_LIST, false));
         boolean showSystemStatus = prefs.getBoolean(Prefs.KEY_SHOW_SYSTEM_STATUS, false);

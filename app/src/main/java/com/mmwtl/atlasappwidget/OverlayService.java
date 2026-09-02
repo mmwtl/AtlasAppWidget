@@ -47,8 +47,6 @@ public final class OverlayService extends Service
     private static final int NOTIFICATION_HIDDEN = 2;
     private static final int NOTIFICATION_PERMISSION_ERROR = 3;
     private static final int NOTIFICATION_NO_APPS = 5;
-    private static final String XCAPA_PACKAGE = "com.ecarx.xcapa";
-    private static final long XCAPA_LAUNCH_DELAY_MS = 900L;
     static final long FUEL_DETAILS_AUTO_HIDE_DELAY_MS = 10_000L;
     private static volatile boolean running;
     private static volatile OverlayService instance;
@@ -73,7 +71,6 @@ public final class OverlayService extends Service
     private SystemMetricsSampler systemMetricsSampler;
     private PanelView panel;
     private WindowManager.LayoutParams panelParams;
-    private Runnable pendingProxyLaunch;
     private int panelBoundsWidth;
     private int panelBoundsHeight;
     private List<AppEntry> selectedEntriesCache;
@@ -204,7 +201,6 @@ public final class OverlayService extends Service
     @Override
     public void onDestroy() {
         destroyed = true;
-        cancelPendingProxyLaunch();
         handler.removeCallbacksAndMessages(null);
         unregisterVisibilityWakeReceiver();
         unregisterPackageChangeReceiver();
@@ -783,11 +779,8 @@ public final class OverlayService extends Service
     public void onAppClicked(AppEntry entry) {
         panelSuppression.suppress(SystemClock.elapsedRealtime(), 1_500L);
         dismissFuelDetails();
-        cancelPendingProxyLaunch();
-        boolean useDiagnosticLaunchActivity = prefs.getBoolean(
-                Prefs.KEY_USE_DIAGNOSTIC_LAUNCH_ACTIVITY, false);
-        boolean useLaunchProxy = prefs.getBoolean(Prefs.KEY_USE_LAUNCH_PROXY, false);
-        if (useDiagnosticLaunchActivity || useLaunchProxy) {
+        if (entry != null && !entry.isFuel()
+                && prefs.isClimateTransitionEnabled(entry.componentKey)) {
             Intent launch = LaunchIntents.forEntry(entry);
             if (launch == null) {
                 AppLog.warn("Cannot launch selected activity: invalid target "
@@ -798,11 +791,7 @@ public final class OverlayService extends Service
                         Toast.LENGTH_SHORT).show();
                 return;
             }
-            if (useDiagnosticLaunchActivity) {
-                launchThroughDiagnosticActivity(launch, entry);
-            } else {
-                launchThroughXcapa(launch, entry);
-            }
+            launchThroughDiagnosticActivity(launch, entry);
             return;
         }
         Intent launch = entry.isShortcut()
@@ -825,59 +814,14 @@ public final class OverlayService extends Service
         }
     }
 
-    private void launchThroughXcapa(Intent launch, AppEntry entry) {
-        Intent xcapaLaunch;
-        try {
-            xcapaLaunch = getPackageManager().getLaunchIntentForPackage(XCAPA_PACKAGE);
-        } catch (RuntimeException error) {
-            AppLog.warn("Cannot resolve xCapa launch intent; launching selected activity immediately",
-                    error);
-            launchTargetImmediately(launch, entry);
-            return;
-        }
-        if (xcapaLaunch == null) {
-            AppLog.warn("xCapa is unavailable; launching selected activity immediately",
-                    new IllegalStateException("No launch intent for " + XCAPA_PACKAGE));
-            launchTargetImmediately(launch, entry);
-            return;
-        }
-        xcapaLaunch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
-        try {
-            startActivity(xcapaLaunch);
-        } catch (RuntimeException error) {
-            AppLog.warn("Cannot launch xCapa; launching selected activity immediately", error);
-            launchTargetImmediately(launch, entry);
-            return;
-        }
-
-        Runnable delayedLaunch = new Runnable() {
-            @Override
-            public void run() {
-                if (pendingProxyLaunch != this) {
-                    return;
-                }
-                pendingProxyLaunch = null;
-                launchTargetImmediately(launch, entry);
-            }
-        };
-        pendingProxyLaunch = delayedLaunch;
-        handler.postDelayed(delayedLaunch, XCAPA_LAUNCH_DELAY_MS);
-    }
-
     private void launchThroughDiagnosticActivity(Intent launch, AppEntry entry) {
         try {
             startActivity(DiagnosticLaunchActivity.intentFor(this, launch,
-                    entry == null ? getString(R.string.app_name) : entry.label));
+                    entry == null ? getString(R.string.app_name) : entry.label,
+                    prefs.climateTransitionDurationMs()));
         } catch (RuntimeException error) {
             AppLog.warn("Cannot launch diagnostic transition activity", error);
             launchTargetImmediately(launch, entry);
-        }
-    }
-
-    private void cancelPendingProxyLaunch() {
-        if (pendingProxyLaunch != null) {
-            handler.removeCallbacks(pendingProxyLaunch);
-            pendingProxyLaunch = null;
         }
     }
 

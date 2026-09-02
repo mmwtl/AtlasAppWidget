@@ -21,8 +21,9 @@ public final class SettingsBackupTest {
         SettingsBackup.Data restored = SettingsBackup.decode(json);
 
         assertTrue(restored.autoStart);
-        assertTrue(restored.useLaunchProxy);
-        assertFalse(restored.useDiagnosticLaunchActivity);
+        assertEquals(List.of("com.example/.MainActivity"),
+                restored.climateTransitionComponents);
+        assertEquals(1_000, restored.climateTransitionDurationMs);
         assertTrue(restored.showOnlyInAppList);
         assertEquals(17, restored.appUiScaleTenths);
         assertEquals(80, restored.freeformHideThresholdPercent);
@@ -44,49 +45,83 @@ public final class SettingsBackupTest {
         assertEquals(0.466, settings.getJSONObject("fuel").getDouble("multiplier"), 0d);
         assertEquals(80, settings.getInt("freeformHideThresholdPercent"));
         assertTrue(settings.getBoolean("showOnlyInAppList"));
+        assertFalse(settings.has("useLaunchProxy"));
+        assertFalse(settings.has("useDiagnosticLaunchActivity"));
         assertFalse(settings.has("serviceEnabled"));
         assertTrue(settings.has("customIcons"));
         assertTrue(settings.getJSONObject("customIcons").length() == 0);
     }
 
-    @Test public void olderJsonDefaultsMissingLaunchProxyToFalse() throws Exception {
+    @Test public void schema3LegacyLaunchModeMigratesToSelectedComponents() throws Exception {
         JSONObject root = new JSONObject(SettingsBackup.encode(data(false, 15, null, null), "test"));
-        root.getJSONObject("settings").remove("useLaunchProxy");
+        root.getJSONObject("settings").put("useLaunchProxy", true);
         root.getJSONObject("settings").remove("showOnlyInAppList");
-        root.put("schemaVersion", 1);
+        root.getJSONObject("settings").remove("climateTransitionComponents");
+        root.getJSONObject("settings").remove("climateTransitionDurationMs");
+        root.put("schemaVersion", 3);
 
         SettingsBackup.Data restored = SettingsBackup.decode(root.toString());
 
-        assertFalse(restored.useLaunchProxy);
-        assertFalse(restored.useDiagnosticLaunchActivity);
+        assertEquals(List.of("com.example/.MainActivity"),
+                restored.climateTransitionComponents);
+        assertEquals(1_000, restored.climateTransitionDurationMs);
         assertFalse(restored.showOnlyInAppList);
     }
 
-    @Test public void diagnosticLaunchModeRoundTrips() throws Exception {
+    @Test public void climateTransitionSettingsRoundTrip() throws Exception {
         SettingsBackup.Data base = data(15, null, null);
         SettingsBackup.Data original = new SettingsBackup.Data(
-                base.autoStart, false, true, base.showOnlyInAppList,
-                base.appUiScaleTenths, base.freeformHideThresholdPercent,
-                base.positionX, base.positionY, base.selectedComponents,
-                base.shortcuts, base.customIcons, base.content, base.movement,
+                base.autoStart, base.showOnlyInAppList, base.appUiScaleTenths,
+                base.freeformHideThresholdPercent,
+                base.positionX, base.positionY, base.selectedComponents, base.shortcuts,
+                List.of("com.example/.MainActivity"), 725, base.customIcons,
+                base.content, base.movement,
                 base.systemStatus, base.fuel, base.geometry, base.appearance);
 
         SettingsBackup.Data restored = SettingsBackup.decode(
                 SettingsBackup.encode(original, "test"));
 
-        assertTrue(restored.useDiagnosticLaunchActivity);
-        assertFalse(restored.useLaunchProxy);
+        assertEquals(List.of("com.example/.MainActivity"),
+                restored.climateTransitionComponents);
+        assertEquals(725, restored.climateTransitionDurationMs);
     }
 
-    @Test public void rejectsBackupWithBothLaunchModesEnabled() throws Exception {
+    @Test public void schema4RejectsClimateTransitionOutsideSelectedComponents() throws Exception {
         JSONObject root = new JSONObject(SettingsBackup.encode(data(15, null, null), "test"));
-        root.getJSONObject("settings").put("useLaunchProxy", true)
-                .put("useDiagnosticLaunchActivity", true);
+        root.getJSONObject("settings").getJSONArray("climateTransitionComponents")
+                .put("com.other/.Activity");
 
         IOException error = assertThrows(IOException.class,
                 () -> SettingsBackup.decode(root.toString()));
 
-        assertTrue(error.getMessage().contains("одновременно"));
+        assertTrue(error.getMessage().contains("climateTransitionComponents"));
+    }
+
+    @Test public void schema4RejectsClimateTransitionDurationOutsideRange() throws Exception {
+        JSONObject root = new JSONObject(SettingsBackup.encode(data(15, null, null), "test"));
+        root.getJSONObject("settings").put("climateTransitionDurationMs", 1_001);
+
+        IOException error = assertThrows(IOException.class,
+                () -> SettingsBackup.decode(root.toString()));
+
+        assertTrue(error.getMessage().contains("climateTransitionDurationMs"));
+    }
+
+    @Test public void schema4RequiresClimateTransitionFields() throws Exception {
+        JSONObject root = new JSONObject(SettingsBackup.encode(data(15, null, null), "test"));
+        root.getJSONObject("settings").remove("climateTransitionComponents");
+
+        IOException error = assertThrows(IOException.class,
+                () -> SettingsBackup.decode(root.toString()));
+
+        assertTrue(error.getMessage().contains("скрытия климат"));
+    }
+
+    @Test public void oldLegacyFlagsAreNotExported() throws Exception {
+        JSONObject root = new JSONObject(SettingsBackup.encode(data(true, 15, null, null), "test"));
+        JSONObject settings = root.getJSONObject("settings");
+        assertFalse(settings.has("useLaunchProxy"));
+        assertFalse(settings.has("useDiagnosticLaunchActivity"));
     }
 
     @Test public void jsonRoundTripPreservesDefaultPosition() throws Exception {
@@ -99,7 +134,7 @@ public final class SettingsBackupTest {
 
     @Test public void rejectsUnsupportedSchemaVersion() throws Exception {
         JSONObject root = new JSONObject(SettingsBackup.encode(data(15, null, null), "test"));
-        root.put("schemaVersion", 4);
+        root.put("schemaVersion", 5);
 
         IOException error = assertThrows(IOException.class,
                 () -> SettingsBackup.decode(root.toString()));
@@ -115,12 +150,13 @@ public final class SettingsBackupTest {
                 "com.salat.gsplit/.PresetLauncherActivity");
         SettingsBackup.Data base = data(15, null, null);
         SettingsBackup.Data original = new SettingsBackup.Data(
-                base.autoStart, base.useLaunchProxy, base.showOnlyInAppList,
+                base.autoStart, base.showOnlyInAppList,
                 base.appUiScaleTenths, base.freeformHideThresholdPercent,
                 base.positionX, base.positionY,
                 List.of(shortcut.key, "com.example/.MainActivity"), List.of(shortcut),
-                base.content, base.movement, base.systemStatus, base.fuel,
-                base.geometry, base.appearance);
+                List.of(), Prefs.CLIMATE_TRANSITION_DURATION_DEFAULT_MS, Map.of(),
+                base.content, base.movement, base.systemStatus, base.fuel, base.geometry,
+                base.appearance);
 
         JSONObject encoded = new JSONObject(SettingsBackup.encode(original, "test"));
         encoded.getJSONObject("settings").getJSONArray("selectedComponents")
@@ -142,9 +178,10 @@ public final class SettingsBackupTest {
                 ShortcutSpec.stableKey(uri), "Preset", uri,
                 "com.salat.gsplit/.PresetLauncherActivity");
         SettingsBackup.Data original = new SettingsBackup.Data(
-                base.autoStart, base.useLaunchProxy, base.showOnlyInAppList,
+                base.autoStart, base.showOnlyInAppList,
                 base.appUiScaleTenths, base.freeformHideThresholdPercent,
                 base.positionX, base.positionY, List.of(shortcut.key), List.of(shortcut),
+                List.of(), Prefs.CLIMATE_TRANSITION_DURATION_DEFAULT_MS,
                 Map.of(shortcut.key, icon), base.content, base.movement,
                 base.systemStatus, base.fuel, base.geometry, base.appearance);
 
@@ -219,22 +256,25 @@ public final class SettingsBackupTest {
         return data(false, scale, x, y);
     }
 
-    private static SettingsBackup.Data data(boolean useLaunchProxy, int scale, Integer x,
+    private static SettingsBackup.Data data(boolean climateTransitionEnabled, int scale, Integer x,
             Integer y) throws IOException {
-        return data(useLaunchProxy, false, scale, x, y);
+        return data(climateTransitionEnabled, false, scale, x, y);
     }
 
-    private static SettingsBackup.Data data(boolean useLaunchProxy, boolean showOnlyInAppList,
-            int scale, Integer x, Integer y) throws IOException {
+    private static SettingsBackup.Data data(boolean climateTransitionEnabled,
+            boolean showOnlyInAppList, int scale, Integer x, Integer y) throws IOException {
         return new SettingsBackup.Data(
                 true,
-                useLaunchProxy,
                 showOnlyInAppList,
                 scale,
                 80,
                 x,
                 y,
                 List.of("com.example/.MainActivity", AppEntry.FUEL_COMPONENT_KEY),
+                List.of(),
+                climateTransitionEnabled ? List.of("com.example/.MainActivity") : List.of(),
+                Prefs.CLIMATE_TRANSITION_DURATION_DEFAULT_MS,
+                Map.of(),
                 new SettingsBackup.ContentData(true),
                 new SettingsBackup.MovementData(false, PanelConfig.HANDLE_BOTTOM),
                 new SettingsBackup.SystemStatusData(

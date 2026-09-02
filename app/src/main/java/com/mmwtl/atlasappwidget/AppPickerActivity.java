@@ -523,6 +523,17 @@ public final class AppPickerActivity extends ScaledActivity {
             } else {
                 holder.iconButton.setOnClickListener(null);
             }
+            holder.climateTransition.setOnCheckedChangeListener(null);
+            boolean climateVisible = isSelected && !entry.isFuel();
+            holder.climateTransition.setVisibility(climateVisible ? View.VISIBLE : View.GONE);
+            holder.climateTransition.setEnabled(isSelected && !entry.isFuel());
+            holder.climateTransition.setChecked(
+                    climateVisible && prefs.isClimateTransitionEnabled(entry.componentKey));
+            holder.climateTransition.setOnCheckedChangeListener((button, checked) -> {
+                if (isSelected) {
+                    prefs.setClimateTransitionEnabled(entry.componentKey, checked);
+                }
+            });
             return convertView;
         }
 
@@ -682,6 +693,15 @@ public final class AppPickerActivity extends ScaledActivity {
             );
             iconButtonParams.leftMargin = Ui.dp(AppPickerActivity.this, 7);
             actions.addView(holder.iconButton, iconButtonParams);
+            holder.climateTransition = new CheckBox(AppPickerActivity.this);
+            holder.climateTransition.setText(R.string.climate_transition_enabled);
+            holder.climateTransition.setTextColor(Ui.TEXT_SECONDARY);
+            holder.climateTransition.setTextSize(12);
+            holder.climateTransition.setSingleLine(true);
+            holder.climateTransition.setPadding(Ui.dp(AppPickerActivity.this, 8), 0,
+                    Ui.dp(AppPickerActivity.this, 0), 0);
+            actions.addView(holder.climateTransition, new LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.WRAP_CONTENT, Ui.dp(AppPickerActivity.this, 38)));
             return holder;
         }
 
@@ -714,5 +734,6 @@ public final class AppPickerActivity extends ScaledActivity {
         Button up;
         Button down;
         Button iconButton;
+        CheckBox climateTransition;
     }
 }
