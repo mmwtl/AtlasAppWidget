@@ -228,6 +228,14 @@ public final class MainActivity extends ScaledActivity
         LinearLayout systemStatus = Ui.card(this);
         systemStatus.addView(Ui.heading(this, R.string.system_status_title, 20));
 
+        Button oneOsPresetButton = Ui.button(this, R.string.apply_oneos_preset);
+        Ui.topMargin(oneOsPresetButton, 12);
+        oneOsPresetButton.setOnClickListener(view -> {
+            prefs.applyOneOsPreset();
+            recreate();
+        });
+        systemStatus.addView(oneOsPresetButton);
+
         systemStatus.addView(appLabelsSwitch);
         addSlider(systemStatus, getString(R.string.app_label_text_size),
                 PanelConfig.APP_LABEL_TEXT_SIZE_MIN_SP,
@@ -236,6 +244,13 @@ public final class MainActivity extends ScaledActivity
                         PanelConfig.APP_LABEL_TEXT_SIZE_DEFAULT_SP),
                 value -> getString(R.string.sp_value, value),
                 value -> prefs.putInt(Prefs.KEY_APP_LABEL_TEXT_SIZE_SP, value));
+        addSlider(systemStatus, getString(R.string.app_label_gap),
+                PanelConfig.APP_LABEL_GAP_MIN_DP,
+                PanelConfig.APP_LABEL_GAP_MAX_DP,
+                prefs.getInt(Prefs.KEY_APP_LABEL_GAP_DP,
+                        PanelConfig.APP_LABEL_GAP_DEFAULT_DP),
+                value -> getString(R.string.dp_value, value),
+                value -> prefs.putInt(Prefs.KEY_APP_LABEL_GAP_DP, value));
 
         systemStatusSwitch = new Switch(this);
         systemStatusSwitch.setText(R.string.show_system_status);

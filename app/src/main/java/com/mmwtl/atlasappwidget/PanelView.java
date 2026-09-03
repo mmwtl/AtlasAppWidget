@@ -113,7 +113,7 @@ final class PanelView extends LinearLayout {
         int configuredIconSize = Ui.dp(context, config.iconSizeDp);
         labelHeight = config.showAppLabels
                 ? PanelConfig.appLabelHeightPixels(context, config.appLabelTextSizeSp) : 0;
-        int labelGap = config.showAppLabels ? Ui.dp(context, 4) : 0;
+        int labelGap = config.showAppLabels ? Ui.dp(context, config.appLabelGapDp) : 0;
         int systemStatusHeight = SystemStatusView.heightPixels(
                 context,
                 config.systemStatusTextSizeSp,

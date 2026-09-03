@@ -31,7 +31,7 @@ import java.util.Set;
 final class SettingsBackup {
     static final String FILE_NAME = "AtlasAppWidget-settings.json";
     private static final String FORMAT = "atlas-app-widget-settings";
-    private static final int SCHEMA_VERSION = 5;
+    private static final int SCHEMA_VERSION = 6;
     private static final int MAX_FILE_BYTES = 256 * 1024;
     private static final int MAX_BACKUP_ICON_BYTES = 128 * 1024;
     private static final int MAX_SELECTED_COMPONENTS = 200;
@@ -106,20 +106,29 @@ final class SettingsBackup {
     static final class ContentData {
         final boolean showAppLabels;
         final int appLabelTextSizeSp;
+        final int appLabelGapDp;
 
         ContentData(boolean showAppLabels) {
-            this(showAppLabels, PanelConfig.APP_LABEL_TEXT_SIZE_DEFAULT_SP);
+            this(showAppLabels, PanelConfig.APP_LABEL_TEXT_SIZE_DEFAULT_SP,
+                    PanelConfig.APP_LABEL_GAP_DEFAULT_DP);
         }
 
         ContentData(boolean showAppLabels, int appLabelTextSizeSp) {
+            this(showAppLabels, appLabelTextSizeSp, PanelConfig.APP_LABEL_GAP_DEFAULT_DP);
+        }
+
+        ContentData(boolean showAppLabels, int appLabelTextSizeSp, int appLabelGapDp) {
             this.showAppLabels = showAppLabels;
             this.appLabelTextSizeSp = appLabelTextSizeSp;
+            this.appLabelGapDp = appLabelGapDp;
         }
 
         private ContentData validated() throws IOException {
             requireRange("settings.content.appLabelTextSizeSp", appLabelTextSizeSp,
                     PanelConfig.APP_LABEL_TEXT_SIZE_MIN_SP,
                     PanelConfig.APP_LABEL_TEXT_SIZE_MAX_SP);
+            requireRange("settings.content.appLabelGapDp", appLabelGapDp,
+                    PanelConfig.APP_LABEL_GAP_MIN_DP, PanelConfig.APP_LABEL_GAP_MAX_DP);
             return this;
         }
     }
@@ -315,7 +324,11 @@ final class SettingsBackup {
                         clamp(prefs.getInt(Prefs.KEY_APP_LABEL_TEXT_SIZE_SP,
                                         PanelConfig.APP_LABEL_TEXT_SIZE_DEFAULT_SP),
                                 PanelConfig.APP_LABEL_TEXT_SIZE_MIN_SP,
-                                PanelConfig.APP_LABEL_TEXT_SIZE_MAX_SP)),
+                                PanelConfig.APP_LABEL_TEXT_SIZE_MAX_SP),
+                        clamp(prefs.getInt(Prefs.KEY_APP_LABEL_GAP_DP,
+                                        PanelConfig.APP_LABEL_GAP_DEFAULT_DP),
+                                PanelConfig.APP_LABEL_GAP_MIN_DP,
+                                PanelConfig.APP_LABEL_GAP_MAX_DP)),
                 new MovementData(
                         prefs.getBoolean(Prefs.KEY_SHOW_DRAG_HANDLE, true),
                         clamp(prefs.getInt(Prefs.KEY_DRAG_HANDLE_POSITION,
@@ -498,7 +511,8 @@ final class SettingsBackup {
                     .put("customIcons", customIconObject(data.customIcons))
                     .put("content", new JSONObject()
                             .put("showAppLabels", data.content.showAppLabels)
-                            .put("appLabelTextSizeSp", data.content.appLabelTextSizeSp))
+                            .put("appLabelTextSizeSp", data.content.appLabelTextSizeSp)
+                            .put("appLabelGapDp", data.content.appLabelGapDp))
                     .put("movement", new JSONObject()
                             .put("showDragHandle", data.movement.showDragHandle)
                             .put("dragHandlePosition", data.movement.dragHandlePosition))
@@ -576,6 +590,9 @@ final class SettingsBackup {
             if (version >= 5 && !content.has("appLabelTextSizeSp")) {
                 throw invalid("В JSON отсутствует размер названий приложений");
             }
+            if (version >= 6 && !content.has("appLabelGapDp")) {
+                throw invalid("В JSON отсутствует интервал до названий приложений");
+            }
             Object positionValue = requireValue(settings, "overlayPosition",
                     "settings.overlayPosition");
             Integer x = null;
@@ -636,7 +653,11 @@ final class SettingsBackup {
                             version >= 5
                                     ? requireInt(content, "appLabelTextSizeSp",
                                     "settings.content.appLabelTextSizeSp")
-                                    : PanelConfig.APP_LABEL_TEXT_SIZE_DEFAULT_SP),
+                                    : PanelConfig.APP_LABEL_TEXT_SIZE_DEFAULT_SP,
+                            version >= 6
+                                    ? requireInt(content, "appLabelGapDp",
+                                    "settings.content.appLabelGapDp")
+                                    : PanelConfig.APP_LABEL_GAP_DEFAULT_DP),
                     new MovementData(
                             requireBoolean(movement, "showDragHandle",
                                     "settings.movement.showDragHandle"),

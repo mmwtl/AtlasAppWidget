@@ -27,6 +27,8 @@
     <string name="choose_apps">Выбрать приложения, activity, ярлыки и иконки</string>
     <string name="show_app_labels">Показывать названия приложений</string>
     <string name="app_label_text_size">Размер названий приложений</string>
+    <string name="app_label_gap">Интервал до названия</string>
+    <string name="apply_oneos_preset">Применить стиль OneOS</string>
     <string name="climate_transition_duration">Длительность экрана скрытия климата</string>
     <string name="milliseconds_value">%1$d мс</string>
     <string name="climate_transition_enabled">Скрывать климат при запуске</string>

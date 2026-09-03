@@ -41,6 +41,7 @@ final class Prefs {
     static final String KEY_DRAG_HANDLE_POSITION = "drag_handle_position";
     static final String KEY_SHOW_APP_LABELS = "show_app_labels";
     static final String KEY_APP_LABEL_TEXT_SIZE_SP = "app_label_text_size_sp";
+    static final String KEY_APP_LABEL_GAP_DP = "app_label_gap_dp";
     static final String KEY_SHOW_SYSTEM_STATUS = "show_system_status";
     static final String KEY_SHOW_CPU_STATUS = "show_cpu_status";
     static final String KEY_SHOW_RAM_STATUS = "show_ram_status";
@@ -140,6 +141,16 @@ final class Prefs {
 
     void putFloat(String key, float value) {
         values.edit().putFloat(key, value).apply();
+    }
+
+    void applyOneOsPreset() {
+        values.edit()
+                .putBoolean(KEY_SHOW_APP_LABELS, true)
+                .putInt(KEY_APP_LABEL_TEXT_SIZE_SP, PanelConfig.ONEOS_APP_LABEL_TEXT_SIZE_SP)
+                .putInt(KEY_APP_LABEL_GAP_DP, PanelConfig.ONEOS_APP_LABEL_GAP_DP)
+                .putInt(KEY_ICON_SIZE_DP, PanelConfig.ONEOS_ICON_SIZE_DP)
+                .putInt(KEY_ICON_CORNER_PERCENT, PanelConfig.ONEOS_ICON_CORNER_PERCENT)
+                .apply();
     }
 
     void putFuelFormula(float multiplier, float offset) {
@@ -452,6 +463,7 @@ final class Prefs {
                 .putInt(KEY_DRAG_HANDLE_POSITION, data.movement.dragHandlePosition)
                 .putBoolean(KEY_SHOW_APP_LABELS, data.content.showAppLabels)
                 .putInt(KEY_APP_LABEL_TEXT_SIZE_SP, data.content.appLabelTextSizeSp)
+                .putInt(KEY_APP_LABEL_GAP_DP, data.content.appLabelGapDp)
                 .putBoolean(KEY_SHOW_SYSTEM_STATUS, data.systemStatus.enabled)
                 .putBoolean(KEY_SHOW_CPU_STATUS, data.systemStatus.showCpu)
                 .putBoolean(KEY_SHOW_RAM_STATUS, data.systemStatus.showRam)

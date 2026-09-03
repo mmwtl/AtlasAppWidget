@@ -24,13 +24,21 @@ final class PanelConfig {
     static final int STATUS_TEXT_WEIGHT_MAX = 900;
     static final int STATUS_TEXT_WEIGHT_DEFAULT = 700;
     static final int APP_LABEL_TEXT_SIZE_MIN_SP = 8;
-    static final int APP_LABEL_TEXT_SIZE_MAX_SP = 20;
+    static final int APP_LABEL_TEXT_SIZE_MAX_SP = 24;
     static final int APP_LABEL_TEXT_SIZE_DEFAULT_SP = 12;
+    static final int APP_LABEL_GAP_MIN_DP = 0;
+    static final int APP_LABEL_GAP_MAX_DP = 40;
+    static final int APP_LABEL_GAP_DEFAULT_DP = 4;
+    static final int ONEOS_ICON_SIZE_DP = 104;
+    static final int ONEOS_ICON_CORNER_PERCENT = 23;
+    static final int ONEOS_APP_LABEL_TEXT_SIZE_SP = 24;
+    static final int ONEOS_APP_LABEL_GAP_DP = 16;
 
     final boolean showDragHandle;
     final int dragHandlePosition;
     final boolean showAppLabels;
     final int appLabelTextSizeSp;
+    final int appLabelGapDp;
     final boolean showSystemStatus;
     final boolean showCpuStatus;
     final boolean showRamStatus;
@@ -63,6 +71,11 @@ final class PanelConfig {
                 prefs.getInt(Prefs.KEY_APP_LABEL_TEXT_SIZE_SP, APP_LABEL_TEXT_SIZE_DEFAULT_SP),
                 APP_LABEL_TEXT_SIZE_MIN_SP,
                 APP_LABEL_TEXT_SIZE_MAX_SP
+        );
+        appLabelGapDp = clamp(
+                prefs.getInt(Prefs.KEY_APP_LABEL_GAP_DP, APP_LABEL_GAP_DEFAULT_DP),
+                APP_LABEL_GAP_MIN_DP,
+                APP_LABEL_GAP_MAX_DP
         );
         showCpuStatus = prefs.getBoolean(Prefs.KEY_SHOW_CPU_STATUS, true);
         showRamStatus = prefs.getBoolean(Prefs.KEY_SHOW_RAM_STATUS, true);

@@ -34,6 +34,8 @@ public final class SettingsBackupTest {
         assertTrue(restored.content.showAppLabels);
         assertEquals(PanelConfig.APP_LABEL_TEXT_SIZE_DEFAULT_SP,
                 restored.content.appLabelTextSizeSp);
+        assertEquals(PanelConfig.APP_LABEL_GAP_DEFAULT_DP,
+                restored.content.appLabelGapDp);
         assertEquals(PanelConfig.HANDLE_BOTTOM, restored.movement.dragHandlePosition);
         assertFalse(restored.systemStatus.showRam);
         assertEquals(800, restored.systemStatus.textWeight);
@@ -136,7 +138,7 @@ public final class SettingsBackupTest {
 
     @Test public void rejectsUnsupportedSchemaVersion() throws Exception {
         JSONObject root = new JSONObject(SettingsBackup.encode(data(15, null, null), "test"));
-        root.put("schemaVersion", 6);
+        root.put("schemaVersion", 7);
 
         IOException error = assertThrows(IOException.class,
                 () -> SettingsBackup.decode(root.toString()));
@@ -174,6 +176,57 @@ public final class SettingsBackupTest {
 
         assertEquals(PanelConfig.APP_LABEL_TEXT_SIZE_DEFAULT_SP,
                 restored.content.appLabelTextSizeSp);
+    }
+
+    @Test public void appLabelGapRoundTrips() throws Exception {
+        SettingsBackup.Data base = data(15, null, null);
+        SettingsBackup.Data original = new SettingsBackup.Data(
+                base.autoStart, base.showOnlyInAppList, base.appUiScaleTenths,
+                base.freeformHideThresholdPercent, base.positionX, base.positionY,
+                base.selectedComponents, base.shortcuts, base.climateTransitionComponents,
+                base.climateTransitionDurationMs, base.customIcons,
+                new SettingsBackup.ContentData(true, PanelConfig.APP_LABEL_TEXT_SIZE_MAX_SP,
+                        PanelConfig.ONEOS_APP_LABEL_GAP_DP),
+                base.movement, base.systemStatus, base.fuel, base.geometry, base.appearance);
+
+        String json = SettingsBackup.encode(original, "test");
+        SettingsBackup.Data restored = SettingsBackup.decode(json);
+
+        assertEquals(PanelConfig.ONEOS_APP_LABEL_GAP_DP, restored.content.appLabelGapDp);
+        assertEquals(PanelConfig.ONEOS_APP_LABEL_GAP_DP,
+                new JSONObject(json).getJSONObject("settings").getJSONObject("content")
+                        .getInt("appLabelGapDp"));
+    }
+
+    @Test public void olderBackupDefaultsMissingAppLabelGap() throws Exception {
+        JSONObject root = new JSONObject(SettingsBackup.encode(data(15, null, null), "test"));
+        root.put("schemaVersion", 5);
+        root.getJSONObject("settings").getJSONObject("content").remove("appLabelGapDp");
+
+        SettingsBackup.Data restored = SettingsBackup.decode(root.toString());
+
+        assertEquals(PanelConfig.APP_LABEL_GAP_DEFAULT_DP, restored.content.appLabelGapDp);
+    }
+
+    @Test public void currentBackupRequiresAppLabelGap() throws Exception {
+        JSONObject root = new JSONObject(SettingsBackup.encode(data(15, null, null), "test"));
+        root.getJSONObject("settings").getJSONObject("content").remove("appLabelGapDp");
+
+        IOException error = assertThrows(IOException.class,
+                () -> SettingsBackup.decode(root.toString()));
+
+        assertTrue(error.getMessage().contains("интервал до названий"));
+    }
+
+    @Test public void rejectsAppLabelGapOutsideRange() throws Exception {
+        JSONObject root = new JSONObject(SettingsBackup.encode(data(15, null, null), "test"));
+        root.getJSONObject("settings").getJSONObject("content")
+                .put("appLabelGapDp", PanelConfig.APP_LABEL_GAP_MAX_DP + 1);
+
+        IOException error = assertThrows(IOException.class,
+                () -> SettingsBackup.decode(root.toString()));
+
+        assertTrue(error.getMessage().contains("appLabelGapDp"));
     }
 
     @Test public void currentBackupRequiresAppLabelTextSize() throws Exception {
