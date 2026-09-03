@@ -2,8 +2,8 @@ plugins {
     id 'com.android.application'
 }
 
-def appVersionCode = 45
-def appVersionName = '1.3.3'
+def appVersionCode = 47
+def appVersionName = '1.4.1'
 def currentBranch = providers.exec {
     workingDir rootDir
     commandLine 'git', 'branch', '--show-current'
