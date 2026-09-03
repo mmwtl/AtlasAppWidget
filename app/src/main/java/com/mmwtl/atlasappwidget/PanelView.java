@@ -491,7 +491,7 @@ final class PanelView extends LinearLayout {
 
         if (config.showAppLabels) {
             TextView label = Ui.text(getContext(), entry.label,
-                    panelConfig.appLabelTextSizeSp, Ui.TEXT_SECONDARY);
+                    panelConfig.appLabelTextSizeSp, Color.WHITE);
             label.setGravity(Gravity.CENTER);
             label.setSingleLine(true);
             label.setEllipsize(TextUtils.TruncateAt.END);
@@ -556,7 +556,7 @@ final class PanelView extends LinearLayout {
 
     private TextView appLabel(String text, int labelHeight) {
         TextView label = Ui.text(getContext(), text,
-                panelConfig.appLabelTextSizeSp, Ui.TEXT_SECONDARY);
+                panelConfig.appLabelTextSizeSp, Color.WHITE);
         label.setGravity(Gravity.CENTER);
         label.setSingleLine(true);
         label.setEllipsize(TextUtils.TruncateAt.END);
