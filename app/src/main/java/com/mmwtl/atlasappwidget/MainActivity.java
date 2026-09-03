@@ -229,6 +229,13 @@ public final class MainActivity extends ScaledActivity
         systemStatus.addView(Ui.heading(this, R.string.system_status_title, 20));
 
         systemStatus.addView(appLabelsSwitch);
+        addSlider(systemStatus, getString(R.string.app_label_text_size),
+                PanelConfig.APP_LABEL_TEXT_SIZE_MIN_SP,
+                PanelConfig.APP_LABEL_TEXT_SIZE_MAX_SP,
+                prefs.getInt(Prefs.KEY_APP_LABEL_TEXT_SIZE_SP,
+                        PanelConfig.APP_LABEL_TEXT_SIZE_DEFAULT_SP),
+                value -> getString(R.string.sp_value, value),
+                value -> prefs.putInt(Prefs.KEY_APP_LABEL_TEXT_SIZE_SP, value));
 
         systemStatusSwitch = new Switch(this);
         systemStatusSwitch.setText(R.string.show_system_status);

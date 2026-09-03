@@ -31,7 +31,7 @@ import java.util.Set;
 final class SettingsBackup {
     static final String FILE_NAME = "AtlasAppWidget-settings.json";
     private static final String FORMAT = "atlas-app-widget-settings";
-    private static final int SCHEMA_VERSION = 4;
+    private static final int SCHEMA_VERSION = 5;
     private static final int MAX_FILE_BYTES = 256 * 1024;
     private static final int MAX_BACKUP_ICON_BYTES = 128 * 1024;
     private static final int MAX_SELECTED_COMPONENTS = 200;
@@ -94,7 +94,7 @@ final class SettingsBackup {
                     || geometry == null || appearance == null) {
                 throw invalid("В JSON отсутствует раздел настроек");
             }
-            this.content = content;
+            this.content = content.validated();
             this.movement = movement.validated();
             this.systemStatus = systemStatus.validated();
             this.fuel = fuel.validated();
@@ -105,9 +105,22 @@ final class SettingsBackup {
 
     static final class ContentData {
         final boolean showAppLabels;
+        final int appLabelTextSizeSp;
 
         ContentData(boolean showAppLabels) {
+            this(showAppLabels, PanelConfig.APP_LABEL_TEXT_SIZE_DEFAULT_SP);
+        }
+
+        ContentData(boolean showAppLabels, int appLabelTextSizeSp) {
             this.showAppLabels = showAppLabels;
+            this.appLabelTextSizeSp = appLabelTextSizeSp;
+        }
+
+        private ContentData validated() throws IOException {
+            requireRange("settings.content.appLabelTextSizeSp", appLabelTextSizeSp,
+                    PanelConfig.APP_LABEL_TEXT_SIZE_MIN_SP,
+                    PanelConfig.APP_LABEL_TEXT_SIZE_MAX_SP);
+            return this;
         }
     }
 
@@ -297,7 +310,12 @@ final class SettingsBackup {
                 climateComponents,
                 prefs.climateTransitionDurationMs(),
                 captureCustomIcons(context, prefs),
-                new ContentData(prefs.getBoolean(Prefs.KEY_SHOW_APP_LABELS, false)),
+                new ContentData(
+                        prefs.getBoolean(Prefs.KEY_SHOW_APP_LABELS, false),
+                        clamp(prefs.getInt(Prefs.KEY_APP_LABEL_TEXT_SIZE_SP,
+                                        PanelConfig.APP_LABEL_TEXT_SIZE_DEFAULT_SP),
+                                PanelConfig.APP_LABEL_TEXT_SIZE_MIN_SP,
+                                PanelConfig.APP_LABEL_TEXT_SIZE_MAX_SP)),
                 new MovementData(
                         prefs.getBoolean(Prefs.KEY_SHOW_DRAG_HANDLE, true),
                         clamp(prefs.getInt(Prefs.KEY_DRAG_HANDLE_POSITION,
@@ -479,7 +497,8 @@ final class SettingsBackup {
                     .put("climateTransitionDurationMs", data.climateTransitionDurationMs)
                     .put("customIcons", customIconObject(data.customIcons))
                     .put("content", new JSONObject()
-                            .put("showAppLabels", data.content.showAppLabels))
+                            .put("showAppLabels", data.content.showAppLabels)
+                            .put("appLabelTextSizeSp", data.content.appLabelTextSizeSp))
                     .put("movement", new JSONObject()
                             .put("showDragHandle", data.movement.showDragHandle)
                             .put("dragHandlePosition", data.movement.dragHandlePosition))
@@ -554,6 +573,9 @@ final class SettingsBackup {
             JSONObject fuel = requireObject(settings, "fuel", "settings.fuel");
             JSONObject geometry = requireObject(settings, "geometry", "settings.geometry");
             JSONObject appearance = requireObject(settings, "appearance", "settings.appearance");
+            if (version >= 5 && !content.has("appLabelTextSizeSp")) {
+                throw invalid("В JSON отсутствует размер названий приложений");
+            }
             Object positionValue = requireValue(settings, "overlayPosition",
                     "settings.overlayPosition");
             Integer x = null;
@@ -610,7 +632,11 @@ final class SettingsBackup {
                     climateDuration,
                     customIcons,
                     new ContentData(requireBoolean(content, "showAppLabels",
-                            "settings.content.showAppLabels")),
+                            "settings.content.showAppLabels"),
+                            version >= 5
+                                    ? requireInt(content, "appLabelTextSizeSp",
+                                    "settings.content.appLabelTextSizeSp")
+                                    : PanelConfig.APP_LABEL_TEXT_SIZE_DEFAULT_SP),
                     new MovementData(
                             requireBoolean(movement, "showDragHandle",
                                     "settings.movement.showDragHandle"),

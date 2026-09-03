@@ -40,6 +40,7 @@ final class Prefs {
     static final String KEY_SHOW_DRAG_HANDLE = "show_drag_handle";
     static final String KEY_DRAG_HANDLE_POSITION = "drag_handle_position";
     static final String KEY_SHOW_APP_LABELS = "show_app_labels";
+    static final String KEY_APP_LABEL_TEXT_SIZE_SP = "app_label_text_size_sp";
     static final String KEY_SHOW_SYSTEM_STATUS = "show_system_status";
     static final String KEY_SHOW_CPU_STATUS = "show_cpu_status";
     static final String KEY_SHOW_RAM_STATUS = "show_ram_status";
@@ -450,6 +451,7 @@ final class Prefs {
                 .putBoolean(KEY_SHOW_DRAG_HANDLE, data.movement.showDragHandle)
                 .putInt(KEY_DRAG_HANDLE_POSITION, data.movement.dragHandlePosition)
                 .putBoolean(KEY_SHOW_APP_LABELS, data.content.showAppLabels)
+                .putInt(KEY_APP_LABEL_TEXT_SIZE_SP, data.content.appLabelTextSizeSp)
                 .putBoolean(KEY_SHOW_SYSTEM_STATUS, data.systemStatus.enabled)
                 .putBoolean(KEY_SHOW_CPU_STATUS, data.systemStatus.showCpu)
                 .putBoolean(KEY_SHOW_RAM_STATUS, data.systemStatus.showRam)

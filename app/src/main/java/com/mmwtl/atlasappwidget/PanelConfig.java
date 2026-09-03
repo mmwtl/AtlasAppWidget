@@ -1,5 +1,9 @@
 package com.mmwtl.atlasappwidget;
 
+import android.content.Context;
+import android.graphics.Paint;
+import android.util.TypedValue;
+
 final class PanelConfig {
     static final int PANEL_RADIUS_FULLY_ROUNDED = 80;
     static final int HANDLE_LEFT = 0;
@@ -19,10 +23,14 @@ final class PanelConfig {
     static final int STATUS_TEXT_WEIGHT_MIN = 100;
     static final int STATUS_TEXT_WEIGHT_MAX = 900;
     static final int STATUS_TEXT_WEIGHT_DEFAULT = 700;
+    static final int APP_LABEL_TEXT_SIZE_MIN_SP = 8;
+    static final int APP_LABEL_TEXT_SIZE_MAX_SP = 20;
+    static final int APP_LABEL_TEXT_SIZE_DEFAULT_SP = 12;
 
     final boolean showDragHandle;
     final int dragHandlePosition;
     final boolean showAppLabels;
+    final int appLabelTextSizeSp;
     final boolean showSystemStatus;
     final boolean showCpuStatus;
     final boolean showRamStatus;
@@ -51,6 +59,11 @@ final class PanelConfig {
         dragHandlePosition = Math.max(HANDLE_LEFT, Math.min(HANDLE_BOTTOM,
                 prefs.getInt(Prefs.KEY_DRAG_HANDLE_POSITION, HANDLE_LEFT)));
         showAppLabels = prefs.getBoolean(Prefs.KEY_SHOW_APP_LABELS, false);
+        appLabelTextSizeSp = clamp(
+                prefs.getInt(Prefs.KEY_APP_LABEL_TEXT_SIZE_SP, APP_LABEL_TEXT_SIZE_DEFAULT_SP),
+                APP_LABEL_TEXT_SIZE_MIN_SP,
+                APP_LABEL_TEXT_SIZE_MAX_SP
+        );
         showCpuStatus = prefs.getBoolean(Prefs.KEY_SHOW_CPU_STATUS, true);
         showRamStatus = prefs.getBoolean(Prefs.KEY_SHOW_RAM_STATUS, true);
         showFuelStatus = prefs.getBoolean(Prefs.KEY_SHOW_FUEL_STATUS, true);
@@ -108,5 +121,21 @@ final class PanelConfig {
 
     private static int clamp(int value, int minimum, int maximum) {
         return Math.max(minimum, Math.min(maximum, value));
+    }
+
+    static int appLabelHeightPixels(Context context, int textSizeSp) {
+        float textSizePixels = TypedValue.applyDimension(
+                TypedValue.COMPLEX_UNIT_SP,
+                textSizeSp,
+                context.getResources().getDisplayMetrics()
+        );
+        Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        paint.setTextSize(textSizePixels);
+        Paint.FontMetrics fontMetrics = paint.getFontMetrics();
+        int fontHeight = (int) Math.ceil(fontMetrics.descent - fontMetrics.ascent);
+        int shadowRadius = Ui.dp(context, 2);
+        int shadowOffset = Ui.dp(context, 1);
+        int measuredHeight = fontHeight + shadowRadius * 2 + shadowOffset;
+        return Math.max(Ui.dp(context, 20), measuredHeight);
     }
 }

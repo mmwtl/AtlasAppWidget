@@ -102,6 +102,16 @@ public final class PanelLayoutTest {
         assertEquals(22, withoutStatus.gridWidth - sideStatus.gridWidth);
     }
 
+    @Test
+    public void largerLabelHeightIsReservedByEachCell() {
+        PanelLayout smallLabels = layoutWithLabelHeight(20);
+        PanelLayout largeLabels = layoutWithLabelHeight(40);
+
+        assertEquals(smallLabels.iconSize, largeLabels.iconSize);
+        assertEquals(20, largeLabels.cellHeight - smallLabels.cellHeight);
+        assertEquals(20, largeLabels.gridHeight - smallLabels.gridHeight);
+    }
+
     private static PanelLayout layout(
             int width,
             int height,
@@ -135,6 +145,14 @@ public final class PanelLayoutTest {
                 30,
                 16,
                 outline
+        );
+    }
+
+    private static PanelLayout layoutWithLabelHeight(int labelHeight) {
+        return PanelLayout.calculate(
+                1440, 1920, 72, 180, 54, 72, labelHeight, 4,
+                1, 5, 14, 12, true, false, 34, 4,
+                false, false, 30, 16, 0
         );
     }
 
