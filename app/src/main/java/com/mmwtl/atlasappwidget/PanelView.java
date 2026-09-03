@@ -496,8 +496,10 @@ final class PanelView extends LinearLayout {
             label.setSingleLine(true);
             label.setEllipsize(TextUtils.TruncateAt.END);
             label.setIncludeFontPadding(false);
-            label.setShadowLayer(Ui.dp(getContext(), 2), 0,
-                    Ui.dp(getContext(), 1), Color.BLACK);
+            if (config.appLabelOutlineEnabled) {
+                label.setShadowLayer(Ui.dp(getContext(), 2), 0,
+                        Ui.dp(getContext(), 1), Color.BLACK);
+            }
             FrameLayout.LayoutParams labelParams = new FrameLayout.LayoutParams(
                     ViewGroup.LayoutParams.MATCH_PARENT,
                     labelHeight,
@@ -559,8 +561,10 @@ final class PanelView extends LinearLayout {
         label.setSingleLine(true);
         label.setEllipsize(TextUtils.TruncateAt.END);
         label.setIncludeFontPadding(false);
-        label.setShadowLayer(Ui.dp(getContext(), 2), 0,
-                Ui.dp(getContext(), 1), Color.BLACK);
+        if (panelConfig.appLabelOutlineEnabled) {
+            label.setShadowLayer(Ui.dp(getContext(), 2), 0,
+                    Ui.dp(getContext(), 1), Color.BLACK);
+        }
         FrameLayout.LayoutParams labelParams = new FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 labelHeight,

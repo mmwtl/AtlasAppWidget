@@ -55,6 +55,7 @@ public final class MainActivity extends ScaledActivity
     private Switch autoStartSwitch;
     private Switch dragHandleSwitch;
     private Switch appLabelsSwitch;
+    private Switch appLabelOutlineSwitch;
     private Switch showOnlyInAppListSwitch;
     private Switch systemStatusSwitch;
     private Switch cpuStatusSwitch;
@@ -237,6 +238,17 @@ public final class MainActivity extends ScaledActivity
         systemStatus.addView(oneOsPresetButton);
 
         systemStatus.addView(appLabelsSwitch);
+        appLabelOutlineSwitch = new Switch(this);
+        appLabelOutlineSwitch.setText(R.string.app_label_outline);
+        appLabelOutlineSwitch.setTextColor(Ui.TEXT);
+        appLabelOutlineSwitch.setTextSize(15);
+        appLabelOutlineSwitch.setPadding(0, Ui.dp(this, 8), 0, Ui.dp(this, 4));
+        appLabelOutlineSwitch.setOnCheckedChangeListener((button, checked) -> {
+            if (!updatingSwitch) {
+                prefs.putBoolean(Prefs.KEY_APP_LABEL_OUTLINE_ENABLED, checked);
+            }
+        });
+        systemStatus.addView(appLabelOutlineSwitch);
         addSlider(systemStatus, getString(R.string.app_label_text_size),
                 PanelConfig.APP_LABEL_TEXT_SIZE_MIN_SP,
                 PanelConfig.APP_LABEL_TEXT_SIZE_MAX_SP,
@@ -1043,6 +1055,8 @@ public final class MainActivity extends ScaledActivity
         boolean showDragHandle = prefs.getBoolean(Prefs.KEY_SHOW_DRAG_HANDLE, true);
         dragHandleSwitch.setChecked(showDragHandle);
         appLabelsSwitch.setChecked(prefs.getBoolean(Prefs.KEY_SHOW_APP_LABELS, false));
+        appLabelOutlineSwitch.setChecked(
+                prefs.getBoolean(Prefs.KEY_APP_LABEL_OUTLINE_ENABLED, true));
         if (climateTransitionDurationSlider != null) {
             climateTransitionDurationSlider.setProgress(
                     prefs.climateTransitionDurationMs()

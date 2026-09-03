@@ -36,6 +36,7 @@ public final class SettingsBackupTest {
                 restored.content.appLabelTextSizeSp);
         assertEquals(PanelConfig.APP_LABEL_GAP_DEFAULT_DP,
                 restored.content.appLabelGapDp);
+        assertTrue(restored.content.appLabelOutlineEnabled);
         assertEquals(PanelConfig.HANDLE_BOTTOM, restored.movement.dragHandlePosition);
         assertFalse(restored.systemStatus.showRam);
         assertEquals(800, restored.systemStatus.textWeight);
@@ -138,7 +139,7 @@ public final class SettingsBackupTest {
 
     @Test public void rejectsUnsupportedSchemaVersion() throws Exception {
         JSONObject root = new JSONObject(SettingsBackup.encode(data(15, null, null), "test"));
-        root.put("schemaVersion", 7);
+        root.put("schemaVersion", 8);
 
         IOException error = assertThrows(IOException.class,
                 () -> SettingsBackup.decode(root.toString()));
@@ -227,6 +228,48 @@ public final class SettingsBackupTest {
                 () -> SettingsBackup.decode(root.toString()));
 
         assertTrue(error.getMessage().contains("appLabelGapDp"));
+    }
+
+    @Test public void appLabelOutlineRoundTrips() throws Exception {
+        SettingsBackup.Data base = data(15, null, null);
+        SettingsBackup.Data original = new SettingsBackup.Data(
+                base.autoStart, base.showOnlyInAppList, base.appUiScaleTenths,
+                base.freeformHideThresholdPercent, base.positionX, base.positionY,
+                base.selectedComponents, base.shortcuts, base.climateTransitionComponents,
+                base.climateTransitionDurationMs, base.customIcons,
+                new SettingsBackup.ContentData(true,
+                        PanelConfig.APP_LABEL_TEXT_SIZE_DEFAULT_SP,
+                        PanelConfig.APP_LABEL_GAP_DEFAULT_DP, false),
+                base.movement, base.systemStatus, base.fuel, base.geometry, base.appearance);
+
+        String json = SettingsBackup.encode(original, "test");
+        SettingsBackup.Data restored = SettingsBackup.decode(json);
+
+        assertFalse(restored.content.appLabelOutlineEnabled);
+        assertFalse(new JSONObject(json).getJSONObject("settings").getJSONObject("content")
+                .getBoolean("appLabelOutlineEnabled"));
+    }
+
+    @Test public void olderBackupDefaultsMissingAppLabelOutline() throws Exception {
+        JSONObject root = new JSONObject(SettingsBackup.encode(data(15, null, null), "test"));
+        root.put("schemaVersion", 6);
+        root.getJSONObject("settings").getJSONObject("content")
+                .remove("appLabelOutlineEnabled");
+
+        SettingsBackup.Data restored = SettingsBackup.decode(root.toString());
+
+        assertTrue(restored.content.appLabelOutlineEnabled);
+    }
+
+    @Test public void currentBackupRequiresAppLabelOutline() throws Exception {
+        JSONObject root = new JSONObject(SettingsBackup.encode(data(15, null, null), "test"));
+        root.getJSONObject("settings").getJSONObject("content")
+                .remove("appLabelOutlineEnabled");
+
+        IOException error = assertThrows(IOException.class,
+                () -> SettingsBackup.decode(root.toString()));
+
+        assertTrue(error.getMessage().contains("обводки названий"));
     }
 
     @Test public void currentBackupRequiresAppLabelTextSize() throws Exception {

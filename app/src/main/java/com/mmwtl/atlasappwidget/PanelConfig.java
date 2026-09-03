@@ -39,6 +39,7 @@ final class PanelConfig {
     final boolean showAppLabels;
     final int appLabelTextSizeSp;
     final int appLabelGapDp;
+    final boolean appLabelOutlineEnabled;
     final boolean showSystemStatus;
     final boolean showCpuStatus;
     final boolean showRamStatus;
@@ -77,6 +78,8 @@ final class PanelConfig {
                 APP_LABEL_GAP_MIN_DP,
                 APP_LABEL_GAP_MAX_DP
         );
+        appLabelOutlineEnabled = prefs.getBoolean(
+                Prefs.KEY_APP_LABEL_OUTLINE_ENABLED, true);
         showCpuStatus = prefs.getBoolean(Prefs.KEY_SHOW_CPU_STATUS, true);
         showRamStatus = prefs.getBoolean(Prefs.KEY_SHOW_RAM_STATUS, true);
         showFuelStatus = prefs.getBoolean(Prefs.KEY_SHOW_FUEL_STATUS, true);

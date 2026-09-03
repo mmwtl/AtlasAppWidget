@@ -42,6 +42,7 @@ final class Prefs {
     static final String KEY_SHOW_APP_LABELS = "show_app_labels";
     static final String KEY_APP_LABEL_TEXT_SIZE_SP = "app_label_text_size_sp";
     static final String KEY_APP_LABEL_GAP_DP = "app_label_gap_dp";
+    static final String KEY_APP_LABEL_OUTLINE_ENABLED = "app_label_outline_enabled";
     static final String KEY_SHOW_SYSTEM_STATUS = "show_system_status";
     static final String KEY_SHOW_CPU_STATUS = "show_cpu_status";
     static final String KEY_SHOW_RAM_STATUS = "show_ram_status";
@@ -148,6 +149,7 @@ final class Prefs {
                 .putBoolean(KEY_SHOW_APP_LABELS, true)
                 .putInt(KEY_APP_LABEL_TEXT_SIZE_SP, PanelConfig.ONEOS_APP_LABEL_TEXT_SIZE_SP)
                 .putInt(KEY_APP_LABEL_GAP_DP, PanelConfig.ONEOS_APP_LABEL_GAP_DP)
+                .putBoolean(KEY_APP_LABEL_OUTLINE_ENABLED, false)
                 .putInt(KEY_ICON_SIZE_DP, PanelConfig.ONEOS_ICON_SIZE_DP)
                 .putInt(KEY_ICON_CORNER_PERCENT, PanelConfig.ONEOS_ICON_CORNER_PERCENT)
                 .apply();
@@ -464,6 +466,8 @@ final class Prefs {
                 .putBoolean(KEY_SHOW_APP_LABELS, data.content.showAppLabels)
                 .putInt(KEY_APP_LABEL_TEXT_SIZE_SP, data.content.appLabelTextSizeSp)
                 .putInt(KEY_APP_LABEL_GAP_DP, data.content.appLabelGapDp)
+                .putBoolean(KEY_APP_LABEL_OUTLINE_ENABLED,
+                        data.content.appLabelOutlineEnabled)
                 .putBoolean(KEY_SHOW_SYSTEM_STATUS, data.systemStatus.enabled)
                 .putBoolean(KEY_SHOW_CPU_STATUS, data.systemStatus.showCpu)
                 .putBoolean(KEY_SHOW_RAM_STATUS, data.systemStatus.showRam)

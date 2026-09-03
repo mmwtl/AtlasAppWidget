@@ -31,7 +31,7 @@ import java.util.Set;
 final class SettingsBackup {
     static final String FILE_NAME = "AtlasAppWidget-settings.json";
     private static final String FORMAT = "atlas-app-widget-settings";
-    private static final int SCHEMA_VERSION = 6;
+    private static final int SCHEMA_VERSION = 7;
     private static final int MAX_FILE_BYTES = 256 * 1024;
     private static final int MAX_BACKUP_ICON_BYTES = 128 * 1024;
     private static final int MAX_SELECTED_COMPONENTS = 200;
@@ -107,20 +107,27 @@ final class SettingsBackup {
         final boolean showAppLabels;
         final int appLabelTextSizeSp;
         final int appLabelGapDp;
+        final boolean appLabelOutlineEnabled;
 
         ContentData(boolean showAppLabels) {
             this(showAppLabels, PanelConfig.APP_LABEL_TEXT_SIZE_DEFAULT_SP,
-                    PanelConfig.APP_LABEL_GAP_DEFAULT_DP);
+                    PanelConfig.APP_LABEL_GAP_DEFAULT_DP, true);
         }
 
         ContentData(boolean showAppLabels, int appLabelTextSizeSp) {
-            this(showAppLabels, appLabelTextSizeSp, PanelConfig.APP_LABEL_GAP_DEFAULT_DP);
+            this(showAppLabels, appLabelTextSizeSp, PanelConfig.APP_LABEL_GAP_DEFAULT_DP, true);
         }
 
         ContentData(boolean showAppLabels, int appLabelTextSizeSp, int appLabelGapDp) {
+            this(showAppLabels, appLabelTextSizeSp, appLabelGapDp, true);
+        }
+
+        ContentData(boolean showAppLabels, int appLabelTextSizeSp, int appLabelGapDp,
+                boolean appLabelOutlineEnabled) {
             this.showAppLabels = showAppLabels;
             this.appLabelTextSizeSp = appLabelTextSizeSp;
             this.appLabelGapDp = appLabelGapDp;
+            this.appLabelOutlineEnabled = appLabelOutlineEnabled;
         }
 
         private ContentData validated() throws IOException {
@@ -328,7 +335,8 @@ final class SettingsBackup {
                         clamp(prefs.getInt(Prefs.KEY_APP_LABEL_GAP_DP,
                                         PanelConfig.APP_LABEL_GAP_DEFAULT_DP),
                                 PanelConfig.APP_LABEL_GAP_MIN_DP,
-                                PanelConfig.APP_LABEL_GAP_MAX_DP)),
+                                PanelConfig.APP_LABEL_GAP_MAX_DP),
+                        prefs.getBoolean(Prefs.KEY_APP_LABEL_OUTLINE_ENABLED, true)),
                 new MovementData(
                         prefs.getBoolean(Prefs.KEY_SHOW_DRAG_HANDLE, true),
                         clamp(prefs.getInt(Prefs.KEY_DRAG_HANDLE_POSITION,
@@ -512,7 +520,9 @@ final class SettingsBackup {
                     .put("content", new JSONObject()
                             .put("showAppLabels", data.content.showAppLabels)
                             .put("appLabelTextSizeSp", data.content.appLabelTextSizeSp)
-                            .put("appLabelGapDp", data.content.appLabelGapDp))
+                            .put("appLabelGapDp", data.content.appLabelGapDp)
+                            .put("appLabelOutlineEnabled",
+                                    data.content.appLabelOutlineEnabled))
                     .put("movement", new JSONObject()
                             .put("showDragHandle", data.movement.showDragHandle)
                             .put("dragHandlePosition", data.movement.dragHandlePosition))
@@ -593,6 +603,9 @@ final class SettingsBackup {
             if (version >= 6 && !content.has("appLabelGapDp")) {
                 throw invalid("В JSON отсутствует интервал до названий приложений");
             }
+            if (version >= 7 && !content.has("appLabelOutlineEnabled")) {
+                throw invalid("В JSON отсутствует настройка обводки названий приложений");
+            }
             Object positionValue = requireValue(settings, "overlayPosition",
                     "settings.overlayPosition");
             Integer x = null;
@@ -657,7 +670,11 @@ final class SettingsBackup {
                             version >= 6
                                     ? requireInt(content, "appLabelGapDp",
                                     "settings.content.appLabelGapDp")
-                                    : PanelConfig.APP_LABEL_GAP_DEFAULT_DP),
+                                    : PanelConfig.APP_LABEL_GAP_DEFAULT_DP,
+                            version >= 7
+                                    ? requireBoolean(content, "appLabelOutlineEnabled",
+                                    "settings.content.appLabelOutlineEnabled")
+                                    : true),
                     new MovementData(
                             requireBoolean(movement, "showDragHandle",
                                     "settings.movement.showDragHandle"),
