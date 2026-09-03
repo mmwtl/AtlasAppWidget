@@ -75,10 +75,10 @@ final class Prefs {
     private static final String KEY_CUSTOM_ICONS = "custom_icons_json";
     private static final String KEY_PORTABLE_SETTINGS_REVISION = "portable_settings_revision";
 
-    static final int CLIMATE_TRANSITION_DURATION_MIN_MS = 10;
-    static final int CLIMATE_TRANSITION_DURATION_MAX_MS = 1_000;
-    static final int CLIMATE_TRANSITION_DURATION_STEP_MS = 10;
-    static final int CLIMATE_TRANSITION_DURATION_DEFAULT_MS = 1_000;
+    static final int CLIMATE_TRANSITION_DURATION_MIN_MS = 50;
+    static final int CLIMATE_TRANSITION_DURATION_MAX_MS = 500;
+    static final int CLIMATE_TRANSITION_DURATION_STEP_MS = 50;
+    static final int CLIMATE_TRANSITION_DURATION_DEFAULT_MS = 500;
 
     static final int POSITION_UNSET = Integer.MIN_VALUE;
 
@@ -307,7 +307,7 @@ final class Prefs {
                 normalizeClimateTransitionDuration(durationMs));
     }
 
-    private static int normalizeClimateTransitionDuration(int durationMs) {
+    static int normalizeClimateTransitionDuration(int durationMs) {
         int clamped = Math.max(CLIMATE_TRANSITION_DURATION_MIN_MS,
                 Math.min(CLIMATE_TRANSITION_DURATION_MAX_MS, durationMs));
         return ((clamped + CLIMATE_TRANSITION_DURATION_STEP_MS / 2)

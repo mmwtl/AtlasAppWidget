@@ -31,7 +31,7 @@ import java.util.Set;
 final class SettingsBackup {
     static final String FILE_NAME = "AtlasAppWidget-settings.json";
     private static final String FORMAT = "atlas-app-widget-settings";
-    private static final int SCHEMA_VERSION = 7;
+    private static final int SCHEMA_VERSION = 8;
     private static final int MAX_FILE_BYTES = 256 * 1024;
     private static final int MAX_BACKUP_ICON_BYTES = 128 * 1024;
     private static final int MAX_SELECTED_COMPONENTS = 200;
@@ -89,6 +89,9 @@ final class SettingsBackup {
                     "settings.climateTransitionDurationMs", climateTransitionDurationMs,
                     Prefs.CLIMATE_TRANSITION_DURATION_MIN_MS,
                     Prefs.CLIMATE_TRANSITION_DURATION_MAX_MS);
+            if (climateTransitionDurationMs % Prefs.CLIMATE_TRANSITION_DURATION_STEP_MS != 0) {
+                throw invalid("settings.climateTransitionDurationMs должен быть кратен 50 мс");
+            }
             this.customIcons = validateCustomIcons(customIcons, this.shortcuts);
             if (content == null || movement == null || systemStatus == null || fuel == null
                     || geometry == null || appearance == null) {
@@ -639,6 +642,11 @@ final class SettingsBackup {
                         selectedComponents);
                 climateDuration = requireInt(settings, "climateTransitionDurationMs",
                         "settings.climateTransitionDurationMs");
+                if (version < 8) {
+                    requireRange("settings.climateTransitionDurationMs", climateDuration,
+                            10, 1_000);
+                    climateDuration = Prefs.normalizeClimateTransitionDuration(climateDuration);
+                }
             } else {
                 climateComponents = legacyClimateEnabled
                         ? selectedNonFuelComponents(selectedComponents) : List.of();

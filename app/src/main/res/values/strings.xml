@@ -33,7 +33,6 @@
     <string name="climate_transition_duration">Длительность экрана скрытия климата</string>
     <string name="milliseconds_value">%1$d мс</string>
     <string name="climate_transition_enabled">Скрывать климат при запуске</string>
-    <string name="climate_transition_message">Скрытие климат-панели&#10;Подготовка запуска…</string>
     <string name="system_status_title">Элементы и индикаторы</string>
     <string name="show_system_status">Показывать панель графиков</string>
     <string name="system_status_visible_metrics">Какие графики показывать</string>

@@ -3,13 +3,13 @@ package com.mmwtl.atlasappwidget;
 import android.app.Activity;
 import android.content.Context;
 import android.content.Intent;
+import android.graphics.Color;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import android.view.View;
 import android.view.Window;
 import android.widget.FrameLayout;
-import android.widget.TextView;
 import android.widget.Toast;
 
 /** Opaque fullscreen transition surface used to hide the OEM climate panel during app launch. */
@@ -32,7 +32,7 @@ public final class DiagnosticLaunchActivity extends Activity {
                 .putExtra(EXTRA_TARGET_INTENT, target)
                 .putExtra(EXTRA_TARGET_LABEL, label == null ? context.getString(R.string.app_name)
                         : label)
-                .putExtra(EXTRA_DURATION_MS, clampDuration(durationMs));
+                .putExtra(EXTRA_DURATION_MS, Prefs.normalizeClimateTransitionDuration(durationMs));
     }
 
     @Override
@@ -41,19 +41,14 @@ public final class DiagnosticLaunchActivity extends Activity {
         configureOpaqueEdgeToEdgeWindow();
 
         FrameLayout root = new FrameLayout(this);
-        root.setBackgroundColor(Ui.BACKGROUND);
-        TextView message = Ui.text(this, R.string.climate_transition_message, 20, Ui.TEXT);
-        message.setGravity(android.view.Gravity.CENTER);
-        root.addView(message, new FrameLayout.LayoutParams(
-                FrameLayout.LayoutParams.MATCH_PARENT,
-                FrameLayout.LayoutParams.MATCH_PARENT));
+        root.setBackgroundColor(Color.BLACK);
         setContentView(root);
     }
 
     private void configureOpaqueEdgeToEdgeWindow() {
         Window window = getWindow();
-        window.setStatusBarColor(Ui.BACKGROUND);
-        window.setNavigationBarColor(Ui.BACKGROUND);
+        window.setStatusBarColor(Color.BLACK);
+        window.setNavigationBarColor(Color.BLACK);
         if (android.os.Build.VERSION.SDK_INT >= 29) {
             window.setStatusBarContrastEnforced(false);
             window.setNavigationBarContrastEnforced(false);
@@ -75,7 +70,7 @@ public final class DiagnosticLaunchActivity extends Activity {
         }
         launchScheduled = true;
         launchCallback = this::launchTarget;
-        handler.postDelayed(launchCallback, clampDuration(
+        handler.postDelayed(launchCallback, Prefs.normalizeClimateTransitionDuration(
                 getIntent().getIntExtra(EXTRA_DURATION_MS,
                         Prefs.CLIMATE_TRANSITION_DURATION_DEFAULT_MS)));
     }
@@ -118,8 +113,4 @@ public final class DiagnosticLaunchActivity extends Activity {
         super.onDestroy();
     }
 
-    private static int clampDuration(int durationMs) {
-        return Math.max(Prefs.CLIMATE_TRANSITION_DURATION_MIN_MS,
-                Math.min(Prefs.CLIMATE_TRANSITION_DURATION_MAX_MS, durationMs));
-    }
 }

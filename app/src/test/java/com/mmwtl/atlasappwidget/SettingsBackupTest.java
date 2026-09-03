@@ -23,7 +23,7 @@ public final class SettingsBackupTest {
         assertTrue(restored.autoStart);
         assertEquals(List.of("com.example/.MainActivity"),
                 restored.climateTransitionComponents);
-        assertEquals(1_000, restored.climateTransitionDurationMs);
+        assertEquals(500, restored.climateTransitionDurationMs);
         assertTrue(restored.showOnlyInAppList);
         assertEquals(17, restored.appUiScaleTenths);
         assertEquals(80, restored.freeformHideThresholdPercent);
@@ -69,7 +69,7 @@ public final class SettingsBackupTest {
 
         assertEquals(List.of("com.example/.MainActivity"),
                 restored.climateTransitionComponents);
-        assertEquals(1_000, restored.climateTransitionDurationMs);
+        assertEquals(500, restored.climateTransitionDurationMs);
         assertFalse(restored.showOnlyInAppList);
     }
 
@@ -79,7 +79,7 @@ public final class SettingsBackupTest {
                 base.autoStart, base.showOnlyInAppList, base.appUiScaleTenths,
                 base.freeformHideThresholdPercent,
                 base.positionX, base.positionY, base.selectedComponents, base.shortcuts,
-                List.of("com.example/.MainActivity"), 725, base.customIcons,
+                List.of("com.example/.MainActivity"), 350, base.customIcons,
                 base.content, base.movement,
                 base.systemStatus, base.fuel, base.geometry, base.appearance);
 
@@ -88,7 +88,35 @@ public final class SettingsBackupTest {
 
         assertEquals(List.of("com.example/.MainActivity"),
                 restored.climateTransitionComponents);
-        assertEquals(725, restored.climateTransitionDurationMs);
+        assertEquals(350, restored.climateTransitionDurationMs);
+    }
+
+    @Test public void olderClimateDurationsMigrateToNewRangeAndStep() throws Exception {
+        int[][] cases = {{10, 50}, {110, 100}, {125, 150}, {725, 500}, {1000, 500}};
+        for (int[] pair : cases) {
+            JSONObject root = new JSONObject(SettingsBackup.encode(data(15, null, null), "test"));
+            root.put("schemaVersion", 7);
+            root.getJSONObject("settings").put("climateTransitionDurationMs", pair[0]);
+            assertEquals(pair[1], SettingsBackup.decode(root.toString()).climateTransitionDurationMs);
+        }
+    }
+
+    @Test public void currentBackupRejectsClimateDurationOutsideRangeOrStep() throws Exception {
+        for (int duration : new int[]{49, 75, 110, 501, 1000}) {
+            JSONObject root = new JSONObject(SettingsBackup.encode(data(15, null, null), "test"));
+            root.getJSONObject("settings").put("climateTransitionDurationMs", duration);
+            IOException error = assertThrows(IOException.class,
+                    () -> SettingsBackup.decode(root.toString()));
+            assertTrue(error.getMessage().contains("climateTransitionDurationMs"));
+        }
+    }
+
+    @Test public void currentBackupAcceptsEveryClimateDurationStep() throws Exception {
+        for (int duration = 50; duration <= 500; duration += 50) {
+            JSONObject root = new JSONObject(SettingsBackup.encode(data(15, null, null), "test"));
+            root.getJSONObject("settings").put("climateTransitionDurationMs", duration);
+            assertEquals(duration, SettingsBackup.decode(root.toString()).climateTransitionDurationMs);
+        }
     }
 
     @Test public void schema4RejectsClimateTransitionOutsideSelectedComponents() throws Exception {
@@ -139,7 +167,7 @@ public final class SettingsBackupTest {
 
     @Test public void rejectsUnsupportedSchemaVersion() throws Exception {
         JSONObject root = new JSONObject(SettingsBackup.encode(data(15, null, null), "test"));
-        root.put("schemaVersion", 8);
+        root.put("schemaVersion", 9);
 
         IOException error = assertThrows(IOException.class,
                 () -> SettingsBackup.decode(root.toString()));
