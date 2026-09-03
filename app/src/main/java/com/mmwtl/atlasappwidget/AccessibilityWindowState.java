@@ -4,6 +4,7 @@ import android.accessibilityservice.AccessibilityServiceInfo;
 import android.content.ComponentName;
 import android.content.Context;
 import android.os.SystemClock;
+import android.provider.Settings;
 import android.view.accessibility.AccessibilityManager;
 
 import java.util.Collections;
@@ -11,6 +12,8 @@ import java.util.List;
 
 final class AccessibilityWindowState {
     private static volatile Snapshot current = Snapshot.unavailable();
+    private static volatile Object connectionToken;
+    private static volatile Runnable stateListener;
 
     private AccessibilityWindowState() {
     }
@@ -37,11 +40,34 @@ final class AccessibilityWindowState {
         );
     }
 
-    static void markUnavailable() {
+    static void markUnavailable(Object token) {
+        if (connectionToken != token) {
+            return;
+        }
+        connectionToken = null;
         current = Snapshot.unavailable();
+        notifyStateListener();
+    }
+
+    static void markConnected(Object token) {
+        connectionToken = token;
+        notifyStateListener();
+    }
+
+    static void setStateListener(Runnable listener) {
+        stateListener = listener;
+    }
+
+    static void clearStateListener(Runnable listener) {
+        if (stateListener == listener) {
+            stateListener = null;
+        }
     }
 
     static boolean isEnabled(Context context) {
+        if (connectionToken != null) {
+            return true;
+        }
         AccessibilityManager manager = (AccessibilityManager) context.getSystemService(
                 Context.ACCESSIBILITY_SERVICE);
         if (manager == null || !manager.isEnabled()) {
@@ -58,6 +84,35 @@ final class AccessibilityWindowState {
                     service.getResolveInfo().serviceInfo.packageName,
                     service.getResolveInfo().serviceInfo.name
             );
+            if (expected.equals(component)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static void notifyStateListener() {
+        Runnable listener = stateListener;
+        if (listener != null) {
+            listener.run();
+        }
+    }
+
+    static boolean isConfigured(Context context) {
+        if (Settings.Secure.getInt(context.getContentResolver(),
+                Settings.Secure.ACCESSIBILITY_ENABLED, 0) != 1) {
+            return false;
+        }
+        String enabledServices = Settings.Secure.getString(
+                context.getContentResolver(),
+                Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES
+        );
+        if (enabledServices == null || enabledServices.isEmpty()) {
+            return false;
+        }
+        ComponentName expected = new ComponentName(context, WindowAccessibilityService.class);
+        for (String flattened : enabledServices.split(":")) {
+            ComponentName component = ComponentName.unflattenFromString(flattened);
             if (expected.equals(component)) {
                 return true;
             }

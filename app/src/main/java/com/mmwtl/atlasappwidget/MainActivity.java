@@ -42,6 +42,7 @@ public final class MainActivity extends ScaledActivity
     private static final int REQUEST_NOTIFICATIONS = 301;
     private static final int REQUEST_EXPORT_SETTINGS = 302;
     private static final int REQUEST_IMPORT_SETTINGS = 303;
+    private static final long ACCESSIBILITY_STATUS_REFRESH_DELAY_MS = 1_000L;
 
     private final Handler main = new Handler(Looper.getMainLooper());
     private final ExecutorService ioExecutor = Executors.newSingleThreadExecutor();
@@ -79,6 +80,9 @@ public final class MainActivity extends ScaledActivity
     private TextView climateTransitionDurationValue;
     private boolean updatingSwitch;
     private volatile boolean applyingSettings;
+    private final Runnable delayedAccessibilityStatusRefresh = this::refreshStatus;
+    private final Runnable accessibilityStateRefresh = () ->
+            main.post(delayedAccessibilityStatusRefresh);
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -93,8 +97,19 @@ public final class MainActivity extends ScaledActivity
     @Override
     protected void onResume() {
         super.onResume();
+        AccessibilityWindowState.setStateListener(accessibilityStateRefresh);
         refreshStatus();
+        main.removeCallbacks(delayedAccessibilityStatusRefresh);
+        main.postDelayed(delayedAccessibilityStatusRefresh,
+                ACCESSIBILITY_STATUS_REFRESH_DELAY_MS);
         refreshPreviewSoon();
+    }
+
+    @Override
+    protected void onPause() {
+        AccessibilityWindowState.clearStateListener(accessibilityStateRefresh);
+        main.removeCallbacks(delayedAccessibilityStatusRefresh);
+        super.onPause();
     }
 
     @Override
@@ -1019,6 +1034,7 @@ public final class MainActivity extends ScaledActivity
         boolean overlayAllowed = Settings.canDrawOverlays(this);
         boolean usageAllowed = ForegroundAppDetector.hasUsageAccess(this);
         boolean accessibilityAllowed = AccessibilityWindowState.isEnabled(this);
+        boolean accessibilityConfigured = AccessibilityWindowState.isConfigured(this);
         setStatus(overlayStatus,
                 getString(overlayAllowed
                         ? R.string.status_overlay_allowed : R.string.status_overlay_denied),
@@ -1030,6 +1046,8 @@ public final class MainActivity extends ScaledActivity
         setStatus(accessibilityStatus,
                 getString(accessibilityAllowed
                         ? R.string.status_accessibility_allowed
+                        : accessibilityConfigured
+                        ? R.string.status_accessibility_not_connected
                         : R.string.status_accessibility_denied),
                 accessibilityAllowed);
 

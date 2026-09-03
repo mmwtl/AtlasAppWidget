@@ -189,6 +189,7 @@
     <string name="status_usage_allowed">✓ Статистика использования доступна</string>
     <string name="status_usage_denied">! Нет доступа к foreground-приложению</string>
     <string name="status_accessibility_allowed">✓ Контроль окон включён</string>
+    <string name="status_accessibility_not_connected">! Спецвозможность включена, но служба не подключена. Выключите и включите её заново</string>
     <string name="status_accessibility_denied">! Нет доступа к структуре окон</string>
     <string name="status_notifications_allowed">✓ Уведомления разрешены</string>
     <string name="status_notifications_denied">! Уведомления отключены (панель всё равно может работать)</string>

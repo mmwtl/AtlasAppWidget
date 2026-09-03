@@ -47,6 +47,7 @@ public final class WindowAccessibilityService extends AccessibilityService {
                 | AccessibilityServiceInfo.FLAG_REPORT_VIEW_IDS;
         info.notificationTimeout = 50L;
         setServiceInfo(info);
+        AccessibilityWindowState.markConnected(this);
         requestWindowRefresh();
         startOverlayIfNeeded();
         AppLog.info("Window accessibility service connected");
@@ -79,7 +80,7 @@ public final class WindowAccessibilityService extends AccessibilityService {
         refreshPending = false;
         mainHandler.removeCallbacks(launcherAppListRefresh);
         windowReader.shutdownNow();
-        AccessibilityWindowState.markUnavailable();
+        AccessibilityWindowState.markUnavailable(this);
         notifyOverlayService();
         AppLog.info("Window accessibility service disconnected");
         super.onDestroy();
