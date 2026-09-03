@@ -92,7 +92,7 @@
     <string name="icon_gap">Интервал между иконками</string>
     <string name="background_title">Оформление панели</string>
     <string name="panel_radius">Радиус панели</string>
-    <string name="background_opacity">Прозрачность фона</string>
+    <string name="background_opacity">Непрозрачность фона</string>
     <string name="change_background_color">Изменить цвет фона</string>
     <string name="background_color">Цвет фона</string>
     <string name="show_background_stroke">Показывать обводку фона</string>
