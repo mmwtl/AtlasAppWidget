@@ -3,7 +3,7 @@ plugins {
 }
 
 def appVersionCode = 47
-def appVersionName = '1.4.1'
+def appVersionName = '1.5.0'
 def currentBranch = providers.exec {
     workingDir rootDir
     commandLine 'git', 'branch', '--show-current'
