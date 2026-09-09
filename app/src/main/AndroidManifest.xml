@@ -36,12 +36,11 @@
             android:exported="false" />
 
         <activity
-            android:name=".LaunchProxyActivity"
+            android:name=".DiagnosticLaunchActivity"
             android:excludeFromRecents="true"
             android:exported="false"
-            android:noHistory="true"
             android:taskAffinity=""
-            android:theme="@style/Theme.AtlasWidget.LaunchProxy" />
+            android:theme="@style/Theme.AtlasWidget.Diagnostic" />
 
         <activity
             android:name=".MainActivity"

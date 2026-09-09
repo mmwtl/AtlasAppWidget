@@ -21,7 +21,9 @@ public final class SettingsBackupTest {
         SettingsBackup.Data restored = SettingsBackup.decode(json);
 
         assertTrue(restored.autoStart);
-        assertTrue(restored.useLaunchProxy);
+        assertEquals(List.of("com.example/.MainActivity"),
+                restored.climateTransitionComponents);
+        assertEquals(500, restored.climateTransitionDurationMs);
         assertTrue(restored.showOnlyInAppList);
         assertEquals(17, restored.appUiScaleTenths);
         assertEquals(80, restored.freeformHideThresholdPercent);
@@ -30,6 +32,11 @@ public final class SettingsBackupTest {
         assertEquals(List.of("com.example/.MainActivity", AppEntry.FUEL_COMPONENT_KEY),
                 restored.selectedComponents);
         assertTrue(restored.content.showAppLabels);
+        assertEquals(PanelConfig.APP_LABEL_TEXT_SIZE_DEFAULT_SP,
+                restored.content.appLabelTextSizeSp);
+        assertEquals(PanelConfig.APP_LABEL_GAP_DEFAULT_DP,
+                restored.content.appLabelGapDp);
+        assertTrue(restored.content.appLabelOutlineEnabled);
         assertEquals(PanelConfig.HANDLE_BOTTOM, restored.movement.dragHandlePosition);
         assertFalse(restored.systemStatus.showRam);
         assertEquals(800, restored.systemStatus.textWeight);
@@ -43,21 +50,111 @@ public final class SettingsBackupTest {
         assertEquals(0.466, settings.getJSONObject("fuel").getDouble("multiplier"), 0d);
         assertEquals(80, settings.getInt("freeformHideThresholdPercent"));
         assertTrue(settings.getBoolean("showOnlyInAppList"));
+        assertFalse(settings.has("useLaunchProxy"));
+        assertFalse(settings.has("useDiagnosticLaunchActivity"));
         assertFalse(settings.has("serviceEnabled"));
         assertTrue(settings.has("customIcons"));
         assertTrue(settings.getJSONObject("customIcons").length() == 0);
     }
 
-    @Test public void olderJsonDefaultsMissingLaunchProxyToFalse() throws Exception {
+    @Test public void schema3LegacyLaunchModeMigratesToSelectedComponents() throws Exception {
         JSONObject root = new JSONObject(SettingsBackup.encode(data(false, 15, null, null), "test"));
-        root.getJSONObject("settings").remove("useLaunchProxy");
+        root.getJSONObject("settings").put("useLaunchProxy", true);
         root.getJSONObject("settings").remove("showOnlyInAppList");
-        root.put("schemaVersion", 1);
+        root.getJSONObject("settings").remove("climateTransitionComponents");
+        root.getJSONObject("settings").remove("climateTransitionDurationMs");
+        root.put("schemaVersion", 3);
 
         SettingsBackup.Data restored = SettingsBackup.decode(root.toString());
 
-        assertFalse(restored.useLaunchProxy);
+        assertEquals(List.of("com.example/.MainActivity"),
+                restored.climateTransitionComponents);
+        assertEquals(500, restored.climateTransitionDurationMs);
         assertFalse(restored.showOnlyInAppList);
+    }
+
+    @Test public void climateTransitionSettingsRoundTrip() throws Exception {
+        SettingsBackup.Data base = data(15, null, null);
+        SettingsBackup.Data original = new SettingsBackup.Data(
+                base.autoStart, base.showOnlyInAppList, base.appUiScaleTenths,
+                base.freeformHideThresholdPercent,
+                base.positionX, base.positionY, base.selectedComponents, base.shortcuts,
+                List.of("com.example/.MainActivity"), 350, base.customIcons,
+                base.content, base.movement,
+                base.systemStatus, base.fuel, base.geometry, base.appearance);
+
+        SettingsBackup.Data restored = SettingsBackup.decode(
+                SettingsBackup.encode(original, "test"));
+
+        assertEquals(List.of("com.example/.MainActivity"),
+                restored.climateTransitionComponents);
+        assertEquals(350, restored.climateTransitionDurationMs);
+    }
+
+    @Test public void olderClimateDurationsMigrateToNewRangeAndStep() throws Exception {
+        int[][] cases = {{10, 50}, {110, 100}, {125, 150}, {725, 500}, {1000, 500}};
+        for (int[] pair : cases) {
+            JSONObject root = new JSONObject(SettingsBackup.encode(data(15, null, null), "test"));
+            root.put("schemaVersion", 7);
+            root.getJSONObject("settings").put("climateTransitionDurationMs", pair[0]);
+            assertEquals(pair[1], SettingsBackup.decode(root.toString()).climateTransitionDurationMs);
+        }
+    }
+
+    @Test public void currentBackupRejectsClimateDurationOutsideRangeOrStep() throws Exception {
+        for (int duration : new int[]{49, 75, 110, 501, 1000}) {
+            JSONObject root = new JSONObject(SettingsBackup.encode(data(15, null, null), "test"));
+            root.getJSONObject("settings").put("climateTransitionDurationMs", duration);
+            IOException error = assertThrows(IOException.class,
+                    () -> SettingsBackup.decode(root.toString()));
+            assertTrue(error.getMessage().contains("climateTransitionDurationMs"));
+        }
+    }
+
+    @Test public void currentBackupAcceptsEveryClimateDurationStep() throws Exception {
+        for (int duration = 50; duration <= 500; duration += 50) {
+            JSONObject root = new JSONObject(SettingsBackup.encode(data(15, null, null), "test"));
+            root.getJSONObject("settings").put("climateTransitionDurationMs", duration);
+            assertEquals(duration, SettingsBackup.decode(root.toString()).climateTransitionDurationMs);
+        }
+    }
+
+    @Test public void schema4RejectsClimateTransitionOutsideSelectedComponents() throws Exception {
+        JSONObject root = new JSONObject(SettingsBackup.encode(data(15, null, null), "test"));
+        root.getJSONObject("settings").getJSONArray("climateTransitionComponents")
+                .put("com.other/.Activity");
+
+        IOException error = assertThrows(IOException.class,
+                () -> SettingsBackup.decode(root.toString()));
+
+        assertTrue(error.getMessage().contains("climateTransitionComponents"));
+    }
+
+    @Test public void schema4RejectsClimateTransitionDurationOutsideRange() throws Exception {
+        JSONObject root = new JSONObject(SettingsBackup.encode(data(15, null, null), "test"));
+        root.getJSONObject("settings").put("climateTransitionDurationMs", 1_001);
+
+        IOException error = assertThrows(IOException.class,
+                () -> SettingsBackup.decode(root.toString()));
+
+        assertTrue(error.getMessage().contains("climateTransitionDurationMs"));
+    }
+
+    @Test public void schema4RequiresClimateTransitionFields() throws Exception {
+        JSONObject root = new JSONObject(SettingsBackup.encode(data(15, null, null), "test"));
+        root.getJSONObject("settings").remove("climateTransitionComponents");
+
+        IOException error = assertThrows(IOException.class,
+                () -> SettingsBackup.decode(root.toString()));
+
+        assertTrue(error.getMessage().contains("скрытия климат"));
+    }
+
+    @Test public void oldLegacyFlagsAreNotExported() throws Exception {
+        JSONObject root = new JSONObject(SettingsBackup.encode(data(true, 15, null, null), "test"));
+        JSONObject settings = root.getJSONObject("settings");
+        assertFalse(settings.has("useLaunchProxy"));
+        assertFalse(settings.has("useDiagnosticLaunchActivity"));
     }
 
     @Test public void jsonRoundTripPreservesDefaultPosition() throws Exception {
@@ -70,12 +167,159 @@ public final class SettingsBackupTest {
 
     @Test public void rejectsUnsupportedSchemaVersion() throws Exception {
         JSONObject root = new JSONObject(SettingsBackup.encode(data(15, null, null), "test"));
-        root.put("schemaVersion", 4);
+        root.put("schemaVersion", 9);
 
         IOException error = assertThrows(IOException.class,
                 () -> SettingsBackup.decode(root.toString()));
 
         assertTrue(error.getMessage().contains("Неподдерживаемая версия"));
+    }
+
+    @Test public void appLabelTextSizeRoundTrips() throws Exception {
+        SettingsBackup.Data base = data(15, null, null);
+        SettingsBackup.Data original = new SettingsBackup.Data(
+                base.autoStart, base.showOnlyInAppList, base.appUiScaleTenths,
+                base.freeformHideThresholdPercent, base.positionX, base.positionY,
+                base.selectedComponents, base.shortcuts, base.climateTransitionComponents,
+                base.climateTransitionDurationMs, base.customIcons,
+                new SettingsBackup.ContentData(true, PanelConfig.APP_LABEL_TEXT_SIZE_MAX_SP),
+                base.movement, base.systemStatus, base.fuel, base.geometry, base.appearance);
+
+        String json = SettingsBackup.encode(original, "test");
+        SettingsBackup.Data restored = SettingsBackup.decode(json);
+
+        assertEquals(PanelConfig.APP_LABEL_TEXT_SIZE_MAX_SP,
+                restored.content.appLabelTextSizeSp);
+        assertEquals(PanelConfig.APP_LABEL_TEXT_SIZE_MAX_SP,
+                new JSONObject(json).getJSONObject("settings").getJSONObject("content")
+                        .getInt("appLabelTextSizeSp"));
+    }
+
+    @Test public void olderBackupDefaultsMissingAppLabelTextSize() throws Exception {
+        JSONObject root = new JSONObject(SettingsBackup.encode(data(15, null, null), "test"));
+        root.put("schemaVersion", 4);
+        root.getJSONObject("settings").getJSONObject("content")
+                .remove("appLabelTextSizeSp");
+
+        SettingsBackup.Data restored = SettingsBackup.decode(root.toString());
+
+        assertEquals(PanelConfig.APP_LABEL_TEXT_SIZE_DEFAULT_SP,
+                restored.content.appLabelTextSizeSp);
+    }
+
+    @Test public void appLabelGapRoundTrips() throws Exception {
+        SettingsBackup.Data base = data(15, null, null);
+        SettingsBackup.Data original = new SettingsBackup.Data(
+                base.autoStart, base.showOnlyInAppList, base.appUiScaleTenths,
+                base.freeformHideThresholdPercent, base.positionX, base.positionY,
+                base.selectedComponents, base.shortcuts, base.climateTransitionComponents,
+                base.climateTransitionDurationMs, base.customIcons,
+                new SettingsBackup.ContentData(true, PanelConfig.APP_LABEL_TEXT_SIZE_MAX_SP,
+                        PanelConfig.ONEOS_APP_LABEL_GAP_DP),
+                base.movement, base.systemStatus, base.fuel, base.geometry, base.appearance);
+
+        String json = SettingsBackup.encode(original, "test");
+        SettingsBackup.Data restored = SettingsBackup.decode(json);
+
+        assertEquals(PanelConfig.ONEOS_APP_LABEL_GAP_DP, restored.content.appLabelGapDp);
+        assertEquals(PanelConfig.ONEOS_APP_LABEL_GAP_DP,
+                new JSONObject(json).getJSONObject("settings").getJSONObject("content")
+                        .getInt("appLabelGapDp"));
+    }
+
+    @Test public void olderBackupDefaultsMissingAppLabelGap() throws Exception {
+        JSONObject root = new JSONObject(SettingsBackup.encode(data(15, null, null), "test"));
+        root.put("schemaVersion", 5);
+        root.getJSONObject("settings").getJSONObject("content").remove("appLabelGapDp");
+
+        SettingsBackup.Data restored = SettingsBackup.decode(root.toString());
+
+        assertEquals(PanelConfig.APP_LABEL_GAP_DEFAULT_DP, restored.content.appLabelGapDp);
+    }
+
+    @Test public void currentBackupRequiresAppLabelGap() throws Exception {
+        JSONObject root = new JSONObject(SettingsBackup.encode(data(15, null, null), "test"));
+        root.getJSONObject("settings").getJSONObject("content").remove("appLabelGapDp");
+
+        IOException error = assertThrows(IOException.class,
+                () -> SettingsBackup.decode(root.toString()));
+
+        assertTrue(error.getMessage().contains("интервал до названий"));
+    }
+
+    @Test public void rejectsAppLabelGapOutsideRange() throws Exception {
+        JSONObject root = new JSONObject(SettingsBackup.encode(data(15, null, null), "test"));
+        root.getJSONObject("settings").getJSONObject("content")
+                .put("appLabelGapDp", PanelConfig.APP_LABEL_GAP_MAX_DP + 1);
+
+        IOException error = assertThrows(IOException.class,
+                () -> SettingsBackup.decode(root.toString()));
+
+        assertTrue(error.getMessage().contains("appLabelGapDp"));
+    }
+
+    @Test public void appLabelOutlineRoundTrips() throws Exception {
+        SettingsBackup.Data base = data(15, null, null);
+        SettingsBackup.Data original = new SettingsBackup.Data(
+                base.autoStart, base.showOnlyInAppList, base.appUiScaleTenths,
+                base.freeformHideThresholdPercent, base.positionX, base.positionY,
+                base.selectedComponents, base.shortcuts, base.climateTransitionComponents,
+                base.climateTransitionDurationMs, base.customIcons,
+                new SettingsBackup.ContentData(true,
+                        PanelConfig.APP_LABEL_TEXT_SIZE_DEFAULT_SP,
+                        PanelConfig.APP_LABEL_GAP_DEFAULT_DP, false),
+                base.movement, base.systemStatus, base.fuel, base.geometry, base.appearance);
+
+        String json = SettingsBackup.encode(original, "test");
+        SettingsBackup.Data restored = SettingsBackup.decode(json);
+
+        assertFalse(restored.content.appLabelOutlineEnabled);
+        assertFalse(new JSONObject(json).getJSONObject("settings").getJSONObject("content")
+                .getBoolean("appLabelOutlineEnabled"));
+    }
+
+    @Test public void olderBackupDefaultsMissingAppLabelOutline() throws Exception {
+        JSONObject root = new JSONObject(SettingsBackup.encode(data(15, null, null), "test"));
+        root.put("schemaVersion", 6);
+        root.getJSONObject("settings").getJSONObject("content")
+                .remove("appLabelOutlineEnabled");
+
+        SettingsBackup.Data restored = SettingsBackup.decode(root.toString());
+
+        assertTrue(restored.content.appLabelOutlineEnabled);
+    }
+
+    @Test public void currentBackupRequiresAppLabelOutline() throws Exception {
+        JSONObject root = new JSONObject(SettingsBackup.encode(data(15, null, null), "test"));
+        root.getJSONObject("settings").getJSONObject("content")
+                .remove("appLabelOutlineEnabled");
+
+        IOException error = assertThrows(IOException.class,
+                () -> SettingsBackup.decode(root.toString()));
+
+        assertTrue(error.getMessage().contains("обводки названий"));
+    }
+
+    @Test public void currentBackupRequiresAppLabelTextSize() throws Exception {
+        JSONObject root = new JSONObject(SettingsBackup.encode(data(15, null, null), "test"));
+        root.getJSONObject("settings").getJSONObject("content")
+                .remove("appLabelTextSizeSp");
+
+        IOException error = assertThrows(IOException.class,
+                () -> SettingsBackup.decode(root.toString()));
+
+        assertTrue(error.getMessage().contains("размер названий"));
+    }
+
+    @Test public void rejectsAppLabelTextSizeOutsideRange() throws Exception {
+        JSONObject root = new JSONObject(SettingsBackup.encode(data(15, null, null), "test"));
+        root.getJSONObject("settings").getJSONObject("content")
+                .put("appLabelTextSizeSp", PanelConfig.APP_LABEL_TEXT_SIZE_MAX_SP + 1);
+
+        IOException error = assertThrows(IOException.class,
+                () -> SettingsBackup.decode(root.toString()));
+
+        assertTrue(error.getMessage().contains("appLabelTextSizeSp"));
     }
 
     @Test public void shortcutCatalogRoundTripsAndOrphanSelectionIsFiltered() throws Exception {
@@ -86,12 +330,13 @@ public final class SettingsBackupTest {
                 "com.salat.gsplit/.PresetLauncherActivity");
         SettingsBackup.Data base = data(15, null, null);
         SettingsBackup.Data original = new SettingsBackup.Data(
-                base.autoStart, base.useLaunchProxy, base.showOnlyInAppList,
+                base.autoStart, base.showOnlyInAppList,
                 base.appUiScaleTenths, base.freeformHideThresholdPercent,
                 base.positionX, base.positionY,
                 List.of(shortcut.key, "com.example/.MainActivity"), List.of(shortcut),
-                base.content, base.movement, base.systemStatus, base.fuel,
-                base.geometry, base.appearance);
+                List.of(), Prefs.CLIMATE_TRANSITION_DURATION_DEFAULT_MS, Map.of(),
+                base.content, base.movement, base.systemStatus, base.fuel, base.geometry,
+                base.appearance);
 
         JSONObject encoded = new JSONObject(SettingsBackup.encode(original, "test"));
         encoded.getJSONObject("settings").getJSONArray("selectedComponents")
@@ -113,9 +358,10 @@ public final class SettingsBackupTest {
                 ShortcutSpec.stableKey(uri), "Preset", uri,
                 "com.salat.gsplit/.PresetLauncherActivity");
         SettingsBackup.Data original = new SettingsBackup.Data(
-                base.autoStart, base.useLaunchProxy, base.showOnlyInAppList,
+                base.autoStart, base.showOnlyInAppList,
                 base.appUiScaleTenths, base.freeformHideThresholdPercent,
                 base.positionX, base.positionY, List.of(shortcut.key), List.of(shortcut),
+                List.of(), Prefs.CLIMATE_TRANSITION_DURATION_DEFAULT_MS,
                 Map.of(shortcut.key, icon), base.content, base.movement,
                 base.systemStatus, base.fuel, base.geometry, base.appearance);
 
@@ -190,22 +436,25 @@ public final class SettingsBackupTest {
         return data(false, scale, x, y);
     }
 
-    private static SettingsBackup.Data data(boolean useLaunchProxy, int scale, Integer x,
+    private static SettingsBackup.Data data(boolean climateTransitionEnabled, int scale, Integer x,
             Integer y) throws IOException {
-        return data(useLaunchProxy, false, scale, x, y);
+        return data(climateTransitionEnabled, false, scale, x, y);
     }
 
-    private static SettingsBackup.Data data(boolean useLaunchProxy, boolean showOnlyInAppList,
-            int scale, Integer x, Integer y) throws IOException {
+    private static SettingsBackup.Data data(boolean climateTransitionEnabled,
+            boolean showOnlyInAppList, int scale, Integer x, Integer y) throws IOException {
         return new SettingsBackup.Data(
                 true,
-                useLaunchProxy,
                 showOnlyInAppList,
                 scale,
                 80,
                 x,
                 y,
                 List.of("com.example/.MainActivity", AppEntry.FUEL_COMPONENT_KEY),
+                List.of(),
+                climateTransitionEnabled ? List.of("com.example/.MainActivity") : List.of(),
+                Prefs.CLIMATE_TRANSITION_DURATION_DEFAULT_MS,
+                Map.of(),
                 new SettingsBackup.ContentData(true),
                 new SettingsBackup.MovementData(false, PanelConfig.HANDLE_BOTTOM),
                 new SettingsBackup.SystemStatusData(

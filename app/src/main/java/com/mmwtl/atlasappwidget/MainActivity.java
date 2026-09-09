@@ -42,6 +42,7 @@ public final class MainActivity extends ScaledActivity
     private static final int REQUEST_NOTIFICATIONS = 301;
     private static final int REQUEST_EXPORT_SETTINGS = 302;
     private static final int REQUEST_IMPORT_SETTINGS = 303;
+    private static final long ACCESSIBILITY_STATUS_REFRESH_DELAY_MS = 1_000L;
 
     private final Handler main = new Handler(Looper.getMainLooper());
     private final ExecutorService ioExecutor = Executors.newSingleThreadExecutor();
@@ -55,7 +56,7 @@ public final class MainActivity extends ScaledActivity
     private Switch autoStartSwitch;
     private Switch dragHandleSwitch;
     private Switch appLabelsSwitch;
-    private Switch launchProxySwitch;
+    private Switch appLabelOutlineSwitch;
     private Switch showOnlyInAppListSwitch;
     private Switch systemStatusSwitch;
     private Switch cpuStatusSwitch;
@@ -75,8 +76,13 @@ public final class MainActivity extends ScaledActivity
     private Button backgroundStrokeColorButton;
     private Button exportSettingsButton;
     private Button importSettingsButton;
+    private SeekBar climateTransitionDurationSlider;
+    private TextView climateTransitionDurationValue;
     private boolean updatingSwitch;
     private volatile boolean applyingSettings;
+    private final Runnable delayedAccessibilityStatusRefresh = this::refreshStatus;
+    private final Runnable accessibilityStateRefresh = () ->
+            main.post(delayedAccessibilityStatusRefresh);
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -91,8 +97,19 @@ public final class MainActivity extends ScaledActivity
     @Override
     protected void onResume() {
         super.onResume();
+        AccessibilityWindowState.setStateListener(accessibilityStateRefresh);
         refreshStatus();
+        main.removeCallbacks(delayedAccessibilityStatusRefresh);
+        main.postDelayed(delayedAccessibilityStatusRefresh,
+                ACCESSIBILITY_STATUS_REFRESH_DELAY_MS);
         refreshPreviewSoon();
+    }
+
+    @Override
+    protected void onPause() {
+        AccessibilityWindowState.clearStateListener(accessibilityStateRefresh);
+        main.removeCallbacks(delayedAccessibilityStatusRefresh);
+        super.onPause();
     }
 
     @Override
@@ -212,6 +229,7 @@ public final class MainActivity extends ScaledActivity
         Ui.topMargin(appsButton, 12);
         appsButton.setOnClickListener(view -> startActivity(new Intent(this, AppPickerActivity.class)));
         apps.addView(appsButton);
+        addClimateTransitionDurationSlider(apps);
 
         appLabelsSwitch = new Switch(this);
         appLabelsSwitch.setText(R.string.show_app_labels);
@@ -223,29 +241,43 @@ public final class MainActivity extends ScaledActivity
                 prefs.putBoolean(Prefs.KEY_SHOW_APP_LABELS, checked);
             }
         });
-        launchProxySwitch = new Switch(this);
-        launchProxySwitch.setText(R.string.use_launch_proxy);
-        launchProxySwitch.setTextColor(Ui.TEXT);
-        launchProxySwitch.setTextSize(15);
-        launchProxySwitch.setPadding(0, Ui.dp(this, 8), 0, Ui.dp(this, 4));
-        launchProxySwitch.setOnCheckedChangeListener((button, checked) -> {
-            if (!updatingSwitch) {
-                prefs.putBoolean(Prefs.KEY_USE_LAUNCH_PROXY, checked);
-            }
-        });
-        apps.addView(launchProxySwitch);
-        TextView launchProxyHint = Ui.text(
-                this,
-                R.string.use_launch_proxy_hint,
-                13,
-                Ui.TEXT_SECONDARY
-        );
-        launchProxyHint.setLineSpacing(0, 1.1f);
-        apps.addView(launchProxyHint);
         LinearLayout systemStatus = Ui.card(this);
         systemStatus.addView(Ui.heading(this, R.string.system_status_title, 20));
 
+        Button oneOsPresetButton = Ui.button(this, R.string.apply_oneos_preset);
+        Ui.topMargin(oneOsPresetButton, 12);
+        oneOsPresetButton.setOnClickListener(view -> {
+            prefs.applyOneOsPreset();
+            recreate();
+        });
+        systemStatus.addView(oneOsPresetButton);
+
         systemStatus.addView(appLabelsSwitch);
+        appLabelOutlineSwitch = new Switch(this);
+        appLabelOutlineSwitch.setText(R.string.app_label_outline);
+        appLabelOutlineSwitch.setTextColor(Ui.TEXT);
+        appLabelOutlineSwitch.setTextSize(15);
+        appLabelOutlineSwitch.setPadding(0, Ui.dp(this, 8), 0, Ui.dp(this, 4));
+        appLabelOutlineSwitch.setOnCheckedChangeListener((button, checked) -> {
+            if (!updatingSwitch) {
+                prefs.putBoolean(Prefs.KEY_APP_LABEL_OUTLINE_ENABLED, checked);
+            }
+        });
+        systemStatus.addView(appLabelOutlineSwitch);
+        addSlider(systemStatus, getString(R.string.app_label_text_size),
+                PanelConfig.APP_LABEL_TEXT_SIZE_MIN_SP,
+                PanelConfig.APP_LABEL_TEXT_SIZE_MAX_SP,
+                prefs.getInt(Prefs.KEY_APP_LABEL_TEXT_SIZE_SP,
+                        PanelConfig.APP_LABEL_TEXT_SIZE_DEFAULT_SP),
+                value -> getString(R.string.sp_value, value),
+                value -> prefs.putInt(Prefs.KEY_APP_LABEL_TEXT_SIZE_SP, value));
+        addSlider(systemStatus, getString(R.string.app_label_gap),
+                PanelConfig.APP_LABEL_GAP_MIN_DP,
+                PanelConfig.APP_LABEL_GAP_MAX_DP,
+                prefs.getInt(Prefs.KEY_APP_LABEL_GAP_DP,
+                        PanelConfig.APP_LABEL_GAP_DEFAULT_DP),
+                value -> getString(R.string.dp_value, value),
+                value -> prefs.putInt(Prefs.KEY_APP_LABEL_GAP_DP, value));
 
         systemStatusSwitch = new Switch(this);
         systemStatusSwitch.setText(R.string.show_system_status);
@@ -928,6 +960,56 @@ public final class MainActivity extends ScaledActivity
         ));
     }
 
+    private void addClimateTransitionDurationSlider(LinearLayout parent) {
+        LinearLayout header = new LinearLayout(this);
+        header.setOrientation(LinearLayout.HORIZONTAL);
+        header.setGravity(Gravity.CENTER_VERTICAL);
+        Ui.topMargin(header, 15);
+        TextView name = Ui.text(this, R.string.climate_transition_duration, 14, Ui.TEXT);
+        header.addView(name, new LinearLayout.LayoutParams(
+                0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+        climateTransitionDurationValue = Ui.text(this, "", 14, Ui.TEXT_SECONDARY);
+        climateTransitionDurationValue.setGravity(Gravity.END | Gravity.CENTER_VERTICAL);
+        header.addView(climateTransitionDurationValue);
+        parent.addView(header);
+
+        climateTransitionDurationSlider = new SeekBar(this);
+        climateTransitionDurationSlider.setMin(
+                Prefs.CLIMATE_TRANSITION_DURATION_MIN_MS
+                        / Prefs.CLIMATE_TRANSITION_DURATION_STEP_MS);
+        climateTransitionDurationSlider.setMax(
+                Prefs.CLIMATE_TRANSITION_DURATION_MAX_MS
+                        / Prefs.CLIMATE_TRANSITION_DURATION_STEP_MS);
+        climateTransitionDurationSlider.setProgress(
+                prefs.climateTransitionDurationMs()
+                        / Prefs.CLIMATE_TRANSITION_DURATION_STEP_MS);
+        climateTransitionDurationSlider.setOnSeekBarChangeListener(
+                new SeekBar.OnSeekBarChangeListener() {
+                    @Override
+                    public void onProgressChanged(SeekBar bar, int value, boolean fromUser) {
+                        climateTransitionDurationValue.setText(getString(
+                                R.string.milliseconds_value,
+                                value * Prefs.CLIMATE_TRANSITION_DURATION_STEP_MS));
+                    }
+
+                    @Override
+                    public void onStartTrackingTouch(SeekBar bar) {
+                    }
+
+                    @Override
+                    public void onStopTrackingTouch(SeekBar bar) {
+                        prefs.setClimateTransitionDurationMs(bar.getProgress()
+                                * Prefs.CLIMATE_TRANSITION_DURATION_STEP_MS);
+                    }
+                });
+        climateTransitionDurationValue.setText(getString(
+                R.string.milliseconds_value,
+                climateTransitionDurationSlider.getProgress()
+                        * Prefs.CLIMATE_TRANSITION_DURATION_STEP_MS));
+        parent.addView(climateTransitionDurationSlider, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+    }
+
     private String formatScale(int tenths) {
         return tenths % 10 == 0
                 ? tenths / 10 + "×"
@@ -952,6 +1034,7 @@ public final class MainActivity extends ScaledActivity
         boolean overlayAllowed = Settings.canDrawOverlays(this);
         boolean usageAllowed = ForegroundAppDetector.hasUsageAccess(this);
         boolean accessibilityAllowed = AccessibilityWindowState.isEnabled(this);
+        boolean accessibilityConfigured = AccessibilityWindowState.isConfigured(this);
         setStatus(overlayStatus,
                 getString(overlayAllowed
                         ? R.string.status_overlay_allowed : R.string.status_overlay_denied),
@@ -963,6 +1046,8 @@ public final class MainActivity extends ScaledActivity
         setStatus(accessibilityStatus,
                 getString(accessibilityAllowed
                         ? R.string.status_accessibility_allowed
+                        : accessibilityConfigured
+                        ? R.string.status_accessibility_not_connected
                         : R.string.status_accessibility_denied),
                 accessibilityAllowed);
 
@@ -988,7 +1073,13 @@ public final class MainActivity extends ScaledActivity
         boolean showDragHandle = prefs.getBoolean(Prefs.KEY_SHOW_DRAG_HANDLE, true);
         dragHandleSwitch.setChecked(showDragHandle);
         appLabelsSwitch.setChecked(prefs.getBoolean(Prefs.KEY_SHOW_APP_LABELS, false));
-        launchProxySwitch.setChecked(prefs.getBoolean(Prefs.KEY_USE_LAUNCH_PROXY, false));
+        appLabelOutlineSwitch.setChecked(
+                prefs.getBoolean(Prefs.KEY_APP_LABEL_OUTLINE_ENABLED, true));
+        if (climateTransitionDurationSlider != null) {
+            climateTransitionDurationSlider.setProgress(
+                    prefs.climateTransitionDurationMs()
+                            / Prefs.CLIMATE_TRANSITION_DURATION_STEP_MS);
+        }
         showOnlyInAppListSwitch.setChecked(
                 prefs.getBoolean(Prefs.KEY_SHOW_ONLY_IN_APP_LIST, false));
         boolean showSystemStatus = prefs.getBoolean(Prefs.KEY_SHOW_SYSTEM_STATUS, false);

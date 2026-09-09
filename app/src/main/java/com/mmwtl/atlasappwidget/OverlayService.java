@@ -779,27 +779,23 @@ public final class OverlayService extends Service
     public void onAppClicked(AppEntry entry) {
         panelSuppression.suppress(SystemClock.elapsedRealtime(), 1_500L);
         dismissFuelDetails();
-        if (prefs.getBoolean(Prefs.KEY_USE_LAUNCH_PROXY, false)) {
-            Intent proxy = LaunchProxyIntents.proxy(this, entry);
-            if (proxy == null) {
-                AppLog.warn("Cannot launch selected activity through proxy: invalid component "
-                        + entry.componentKey, new IllegalArgumentException(entry.componentKey));
-                Toast.makeText(this, getString(R.string.launch_failed, entry.label),
+        if (entry != null && !entry.isFuel()
+                && prefs.isClimateTransitionEnabled(entry.componentKey)) {
+            Intent launch = LaunchIntents.forEntry(entry);
+            if (launch == null) {
+                AppLog.warn("Cannot launch selected activity: invalid target "
+                        + (entry == null ? "null" : entry.componentKey),
+                        new IllegalArgumentException("Invalid launch target"));
+                Toast.makeText(this, getString(R.string.launch_failed,
+                        entry == null ? getString(R.string.app_name) : entry.label),
                         Toast.LENGTH_SHORT).show();
                 return;
             }
-            try {
-                startActivity(proxy);
-            } catch (ActivityNotFoundException | SecurityException error) {
-                AppLog.warn("Cannot launch selected activity through proxy "
-                        + entry.componentKey, error);
-                Toast.makeText(this, getString(R.string.launch_failed, entry.label),
-                        Toast.LENGTH_SHORT).show();
-            }
+            launchThroughDiagnosticActivity(launch, entry);
             return;
         }
         Intent launch = entry.isShortcut()
-                ? LaunchProxyIntents.targetIntent(entry.intentUri)
+                ? LaunchIntents.targetIntent(entry.intentUri)
                 : new Intent(Intent.ACTION_MAIN)
                 .addCategory(Intent.CATEGORY_LAUNCHER)
                 .setComponent(entry.componentName)
@@ -814,6 +810,29 @@ public final class OverlayService extends Service
         } catch (ActivityNotFoundException | SecurityException error) {
             AppLog.warn("Cannot launch selected activity " + entry.componentKey, error);
             Toast.makeText(this, getString(R.string.launch_failed, entry.label),
+                    Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    private void launchThroughDiagnosticActivity(Intent launch, AppEntry entry) {
+        try {
+            startActivity(DiagnosticLaunchActivity.intentFor(this, launch,
+                    entry == null ? getString(R.string.app_name) : entry.label,
+                    prefs.climateTransitionDurationMs()));
+        } catch (RuntimeException error) {
+            AppLog.warn("Cannot launch diagnostic transition activity", error);
+            launchTargetImmediately(launch, entry);
+        }
+    }
+
+    private void launchTargetImmediately(Intent launch, AppEntry entry) {
+        try {
+            startActivity(launch);
+        } catch (RuntimeException error) {
+            AppLog.warn("Cannot launch selected activity "
+                    + (entry == null ? "null" : entry.componentKey), error);
+            Toast.makeText(this, getString(R.string.launch_failed,
+                    entry == null ? getString(R.string.app_name) : entry.label),
                     Toast.LENGTH_SHORT).show();
         }
     }

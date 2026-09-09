@@ -26,8 +26,13 @@
     <string name="panel_apps_title">Содержимое панели</string>
     <string name="choose_apps">Выбрать приложения, activity, ярлыки и иконки</string>
     <string name="show_app_labels">Показывать названия приложений</string>
-    <string name="use_launch_proxy">Полноэкранный переход перед запуском</string>
-    <string name="use_launch_proxy_hint">Перед открытием activity кратко показывает прозрачное полноэкранное окно, как лаунчер GInputBridge. Это помогает OneOS заранее скрыть системную панель климата. По умолчанию выключено.</string>
+    <string name="app_label_outline">Обводка названий приложений</string>
+    <string name="app_label_text_size">Размер названий приложений</string>
+    <string name="app_label_gap">Интервал до названия</string>
+    <string name="apply_oneos_preset">Применить стиль OneOS</string>
+    <string name="climate_transition_duration">Длительность экрана скрытия климата</string>
+    <string name="milliseconds_value">%1$d мс</string>
+    <string name="climate_transition_enabled">Скрывать климат при запуске</string>
     <string name="system_status_title">Элементы и индикаторы</string>
     <string name="show_system_status">Показывать панель графиков</string>
     <string name="system_status_visible_metrics">Какие графики показывать</string>
@@ -87,7 +92,7 @@
     <string name="icon_gap">Интервал между иконками</string>
     <string name="background_title">Оформление панели</string>
     <string name="panel_radius">Радиус панели</string>
-    <string name="background_opacity">Прозрачность фона</string>
+    <string name="background_opacity">Непрозрачность фона</string>
     <string name="change_background_color">Изменить цвет фона</string>
     <string name="background_color">Цвет фона</string>
     <string name="show_background_stroke">Показывать обводку фона</string>
@@ -104,7 +109,7 @@
     <string name="scale_hint">Меняет размер экранов и элементов приложения без изменения системного масштаба ГУ. Геометрия overlay-панели настраивается отдельно выше.</string>
     <string name="scale">Масштаб</string>
     <string name="settings_backup_title">Импорт и экспорт настроек</string>
-    <string name="settings_backup_hint">JSON содержит выбранные activity и ярлыки, их порядок, иконки ярлыков, внешний вид, положение overlay, порог скрытия, масштаб, автозапуск, режим запуска через прокси и формулу топлива. Разрешения и работа сервиса не переносятся.</string>
+    <string name="settings_backup_hint">JSON содержит выбранные activity и ярлыки, их порядок, элементы со screen-переходом для скрытия климат-панели, длительность этого перехода, иконки ярлыков, внешний вид, положение overlay, порог скрытия, масштаб, автозапуск и формулу топлива. Разрешения и работа сервиса не переносятся.</string>
     <string name="export_settings">Экспортировать настройки в JSON</string>
     <string name="import_settings">Импортировать настройки из JSON</string>
     <string name="import_settings_confirm">Импортировать</string>
@@ -183,6 +188,7 @@
     <string name="status_usage_allowed">✓ Статистика использования доступна</string>
     <string name="status_usage_denied">! Нет доступа к foreground-приложению</string>
     <string name="status_accessibility_allowed">✓ Контроль окон включён</string>
+    <string name="status_accessibility_not_connected">! Спецвозможность включена, но служба не подключена. Выключите и включите её заново</string>
     <string name="status_accessibility_denied">! Нет доступа к структуре окон</string>
     <string name="status_notifications_allowed">✓ Уведомления разрешены</string>
     <string name="status_notifications_denied">! Уведомления отключены (панель всё равно может работать)</string>

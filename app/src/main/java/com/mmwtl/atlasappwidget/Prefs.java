@@ -10,6 +10,8 @@ import org.json.JSONObject;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -20,7 +22,16 @@ final class Prefs {
     private static final Object MIGRATION_LOCK = new Object();
     private static volatile boolean credentialMigrationAttempted;
     static final String KEY_AUTO_START = "auto_start";
+    // Legacy launch flags are read once for migration and are not part of the active contract.
     static final String KEY_USE_LAUNCH_PROXY = "use_launch_proxy";
+    static final String KEY_USE_DIAGNOSTIC_LAUNCH_ACTIVITY =
+            "use_diagnostic_launch_activity";
+    private static final String KEY_LEGACY_CLIMATE_MIGRATION_DONE =
+            "climate_transition_legacy_migration_done";
+    static final String KEY_CLIMATE_TRANSITION_COMPONENTS =
+            "climate_transition_components_json";
+    static final String KEY_CLIMATE_TRANSITION_DURATION_MS =
+            "climate_transition_duration_ms";
     static final String KEY_SHOW_ONLY_IN_APP_LIST = "show_only_in_app_list";
     static final String KEY_SERVICE_ENABLED = "service_enabled";
     static final String KEY_APP_UI_SCALE_TENTHS = "app_ui_scale_tenths";
@@ -29,6 +40,9 @@ final class Prefs {
     static final String KEY_SHOW_DRAG_HANDLE = "show_drag_handle";
     static final String KEY_DRAG_HANDLE_POSITION = "drag_handle_position";
     static final String KEY_SHOW_APP_LABELS = "show_app_labels";
+    static final String KEY_APP_LABEL_TEXT_SIZE_SP = "app_label_text_size_sp";
+    static final String KEY_APP_LABEL_GAP_DP = "app_label_gap_dp";
+    static final String KEY_APP_LABEL_OUTLINE_ENABLED = "app_label_outline_enabled";
     static final String KEY_SHOW_SYSTEM_STATUS = "show_system_status";
     static final String KEY_SHOW_CPU_STATUS = "show_cpu_status";
     static final String KEY_SHOW_RAM_STATUS = "show_ram_status";
@@ -61,6 +75,11 @@ final class Prefs {
     private static final String KEY_CUSTOM_ICONS = "custom_icons_json";
     private static final String KEY_PORTABLE_SETTINGS_REVISION = "portable_settings_revision";
 
+    static final int CLIMATE_TRANSITION_DURATION_MIN_MS = 50;
+    static final int CLIMATE_TRANSITION_DURATION_MAX_MS = 500;
+    static final int CLIMATE_TRANSITION_DURATION_STEP_MS = 50;
+    static final int CLIMATE_TRANSITION_DURATION_DEFAULT_MS = 500;
+
     static final int POSITION_UNSET = Integer.MIN_VALUE;
 
     private final SharedPreferences values;
@@ -70,6 +89,7 @@ final class Prefs {
         Context storage = app.createDeviceProtectedStorageContext();
         migrateCredentialPreferencesWhenAvailable(app, storage);
         values = storage.getSharedPreferences(NAME, Context.MODE_PRIVATE);
+        migrateLegacyClimateTransitionSettings();
     }
 
     private static void migrateCredentialPreferencesWhenAvailable(
@@ -122,6 +142,17 @@ final class Prefs {
 
     void putFloat(String key, float value) {
         values.edit().putFloat(key, value).apply();
+    }
+
+    void applyOneOsPreset() {
+        values.edit()
+                .putBoolean(KEY_SHOW_APP_LABELS, true)
+                .putInt(KEY_APP_LABEL_TEXT_SIZE_SP, PanelConfig.ONEOS_APP_LABEL_TEXT_SIZE_SP)
+                .putInt(KEY_APP_LABEL_GAP_DP, PanelConfig.ONEOS_APP_LABEL_GAP_DP)
+                .putBoolean(KEY_APP_LABEL_OUTLINE_ENABLED, false)
+                .putInt(KEY_ICON_SIZE_DP, PanelConfig.ONEOS_ICON_SIZE_DP)
+                .putInt(KEY_ICON_CORNER_PERCENT, PanelConfig.ONEOS_ICON_CORNER_PERCENT)
+                .apply();
     }
 
     void putFuelFormula(float multiplier, float offset) {
@@ -194,6 +225,8 @@ final class Prefs {
         current.remove(component);
         if (selected) {
             current.add(component);
+        } else {
+            removeClimateTransitionComponent(component);
         }
         writeSelected(current);
     }
@@ -218,6 +251,117 @@ final class Prefs {
         if (current.removeIf(component -> !availableComponents.contains(component))) {
             writeSelected(current);
         }
+        Set<String> selected = new HashSet<>(current);
+        Set<String> climate = climateTransitionComponents();
+        if (climate.removeIf(component -> !selected.contains(component))) {
+            writeClimateTransitionComponents(climate);
+        }
+    }
+
+    synchronized boolean isClimateTransitionEnabled(String component) {
+        return component != null && climateTransitionComponents().contains(component);
+    }
+
+    synchronized void setClimateTransitionEnabled(String component, boolean enabled) {
+        if (component == null || AppEntry.FUEL_COMPONENT_KEY.equals(component)) {
+            return;
+        }
+        Set<String> current = climateTransitionComponents();
+        if (enabled) {
+            if (!selectedComponents().contains(component)) {
+                return;
+            }
+            current.add(component);
+        } else {
+            current.remove(component);
+        }
+        writeClimateTransitionComponents(current);
+    }
+
+    synchronized Set<String> climateTransitionComponents() {
+        LinkedHashSet<String> result = new LinkedHashSet<>();
+        String json = values.getString(KEY_CLIMATE_TRANSITION_COMPONENTS, "[]");
+        try {
+            JSONArray array = new JSONArray(json);
+            for (int index = 0; index < array.length(); index++) {
+                String value = array.optString(index, "");
+                if (!value.isEmpty() && !AppEntry.FUEL_COMPONENT_KEY.equals(value)) {
+                    result.add(value);
+                }
+            }
+        } catch (JSONException error) {
+            AppLog.warnRateLimited("climate-transition-components-json",
+                    "Climate-transition components JSON is corrupt", error);
+        }
+        return result;
+    }
+
+    synchronized int climateTransitionDurationMs() {
+        return normalizeClimateTransitionDuration(getInt(
+                KEY_CLIMATE_TRANSITION_DURATION_MS,
+                CLIMATE_TRANSITION_DURATION_DEFAULT_MS));
+    }
+
+    void setClimateTransitionDurationMs(int durationMs) {
+        putInt(KEY_CLIMATE_TRANSITION_DURATION_MS,
+                normalizeClimateTransitionDuration(durationMs));
+    }
+
+    static int normalizeClimateTransitionDuration(int durationMs) {
+        int clamped = Math.max(CLIMATE_TRANSITION_DURATION_MIN_MS,
+                Math.min(CLIMATE_TRANSITION_DURATION_MAX_MS, durationMs));
+        return ((clamped + CLIMATE_TRANSITION_DURATION_STEP_MS / 2)
+                / CLIMATE_TRANSITION_DURATION_STEP_MS)
+                * CLIMATE_TRANSITION_DURATION_STEP_MS;
+    }
+
+    private void removeClimateTransitionComponent(String component) {
+        Set<String> current = climateTransitionComponents();
+        if (current.remove(component)) {
+            writeClimateTransitionComponents(current);
+        }
+    }
+
+    private void writeClimateTransitionComponents(Set<String> components) {
+        JSONArray array = new JSONArray();
+        for (String component : components) {
+            array.put(component);
+        }
+        values.edit().putString(KEY_CLIMATE_TRANSITION_COMPONENTS, array.toString()).apply();
+    }
+
+    private void migrateLegacyClimateTransitionSettings() {
+        synchronized (MIGRATION_LOCK) {
+            migrateLegacyClimateTransitionSettingsLocked();
+        }
+    }
+
+    private void migrateLegacyClimateTransitionSettingsLocked() {
+        if (values.getBoolean(KEY_LEGACY_CLIMATE_MIGRATION_DONE, false)) {
+            return;
+        }
+        boolean legacyEnabled = values.getBoolean(KEY_USE_LAUNCH_PROXY, false)
+                || values.getBoolean(KEY_USE_DIAGNOSTIC_LAUNCH_ACTIVITY, false);
+        LinkedHashSet<String> climate = new LinkedHashSet<>(climateTransitionComponents());
+        if (legacyEnabled) {
+            for (String component : selectedComponents()) {
+                if (!AppEntry.FUEL_COMPONENT_KEY.equals(component)) {
+                    climate.add(component);
+                }
+            }
+        } else {
+            climate.clear();
+        }
+        JSONArray array = new JSONArray();
+        for (String component : climate) array.put(component);
+        values.edit()
+                .putString(KEY_CLIMATE_TRANSITION_COMPONENTS, array.toString())
+                .putInt(KEY_CLIMATE_TRANSITION_DURATION_MS,
+                        climateTransitionDurationMs())
+                .putBoolean(KEY_LEGACY_CLIMATE_MIGRATION_DONE, true)
+                .remove(KEY_USE_LAUNCH_PROXY)
+                .remove(KEY_USE_DIAGNOSTIC_LAUNCH_ACTIVITY)
+                .commit();
     }
 
     synchronized List<ShortcutSpec> shortcutCatalog() {
@@ -313,7 +457,6 @@ final class Prefs {
         mergedIcons.putAll(importedIcons);
         SharedPreferences.Editor editor = values.edit()
                 .putBoolean(KEY_AUTO_START, data.autoStart)
-                .putBoolean(KEY_USE_LAUNCH_PROXY, data.useLaunchProxy)
                 .putBoolean(KEY_SHOW_ONLY_IN_APP_LIST, data.showOnlyInAppList)
                 .putInt(KEY_APP_UI_SCALE_TENTHS, data.appUiScaleTenths)
                 .putInt(KEY_FREEFORM_HIDE_THRESHOLD_PERCENT,
@@ -321,6 +464,10 @@ final class Prefs {
                 .putBoolean(KEY_SHOW_DRAG_HANDLE, data.movement.showDragHandle)
                 .putInt(KEY_DRAG_HANDLE_POSITION, data.movement.dragHandlePosition)
                 .putBoolean(KEY_SHOW_APP_LABELS, data.content.showAppLabels)
+                .putInt(KEY_APP_LABEL_TEXT_SIZE_SP, data.content.appLabelTextSizeSp)
+                .putInt(KEY_APP_LABEL_GAP_DP, data.content.appLabelGapDp)
+                .putBoolean(KEY_APP_LABEL_OUTLINE_ENABLED,
+                        data.content.appLabelOutlineEnabled)
                 .putBoolean(KEY_SHOW_SYSTEM_STATUS, data.systemStatus.enabled)
                 .putBoolean(KEY_SHOW_CPU_STATUS, data.systemStatus.showCpu)
                 .putBoolean(KEY_SHOW_RAM_STATUS, data.systemStatus.showRam)
@@ -352,6 +499,12 @@ final class Prefs {
                 .putInt(KEY_PANEL_RADIUS_DP, data.appearance.panelRadiusDp)
                 .putString(KEY_SELECTED_COMPONENTS, selectedJson(data.selectedComponents))
                 .putString(KEY_SHORTCUT_CATALOG, shortcutJson(data.shortcuts))
+                .putString(KEY_CLIMATE_TRANSITION_COMPONENTS,
+                        climateTransitionJson(data.climateTransitionComponents))
+                .putInt(KEY_CLIMATE_TRANSITION_DURATION_MS, data.climateTransitionDurationMs)
+                .putBoolean(KEY_LEGACY_CLIMATE_MIGRATION_DONE, true)
+                .remove(KEY_USE_LAUNCH_PROXY)
+                .remove(KEY_USE_DIAGNOSTIC_LAUNCH_ACTIVITY)
                 .putString(KEY_CUSTOM_ICONS, customIconJson(mergedIcons))
                 .putInt(KEY_PORTABLE_SETTINGS_REVISION,
                         values.getInt(KEY_PORTABLE_SETTINGS_REVISION, 0) + 1);
@@ -386,6 +539,14 @@ final class Prefs {
     private static String selectedJson(List<String> selected) {
         JSONArray array = new JSONArray();
         for (String component : selected) {
+            array.put(component);
+        }
+        return array.toString();
+    }
+
+    private static String climateTransitionJson(List<String> components) {
+        JSONArray array = new JSONArray();
+        for (String component : components) {
             array.put(component);
         }
         return array.toString();

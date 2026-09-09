@@ -111,8 +111,9 @@ final class PanelView extends LinearLayout {
         int handleSize = config.showDragHandle ? Ui.dp(context, 34) : 0;
         int handleGap = config.showDragHandle ? Ui.dp(context, 4) : 0;
         int configuredIconSize = Ui.dp(context, config.iconSizeDp);
-        labelHeight = config.showAppLabels ? Ui.dp(context, 20) : 0;
-        int labelGap = config.showAppLabels ? Ui.dp(context, 4) : 0;
+        labelHeight = config.showAppLabels
+                ? PanelConfig.appLabelHeightPixels(context, config.appLabelTextSizeSp) : 0;
+        int labelGap = config.showAppLabels ? Ui.dp(context, config.appLabelGapDp) : 0;
         int systemStatusHeight = SystemStatusView.heightPixels(
                 context,
                 config.systemStatusTextSizeSp,
@@ -489,13 +490,16 @@ final class PanelView extends LinearLayout {
         }
 
         if (config.showAppLabels) {
-            TextView label = Ui.text(getContext(), entry.label, 12, Ui.TEXT_SECONDARY);
+            TextView label = Ui.text(getContext(), entry.label,
+                    panelConfig.appLabelTextSizeSp, Color.WHITE);
             label.setGravity(Gravity.CENTER);
             label.setSingleLine(true);
             label.setEllipsize(TextUtils.TruncateAt.END);
             label.setIncludeFontPadding(false);
-            label.setShadowLayer(Ui.dp(getContext(), 2), 0,
-                    Ui.dp(getContext(), 1), Color.BLACK);
+            if (config.appLabelOutlineEnabled) {
+                label.setShadowLayer(Ui.dp(getContext(), 2), 0,
+                        Ui.dp(getContext(), 1), Color.BLACK);
+            }
             FrameLayout.LayoutParams labelParams = new FrameLayout.LayoutParams(
                     ViewGroup.LayoutParams.MATCH_PARENT,
                     labelHeight,
@@ -551,13 +555,16 @@ final class PanelView extends LinearLayout {
     }
 
     private TextView appLabel(String text, int labelHeight) {
-        TextView label = Ui.text(getContext(), text, 12, Ui.TEXT_SECONDARY);
+        TextView label = Ui.text(getContext(), text,
+                panelConfig.appLabelTextSizeSp, Color.WHITE);
         label.setGravity(Gravity.CENTER);
         label.setSingleLine(true);
         label.setEllipsize(TextUtils.TruncateAt.END);
         label.setIncludeFontPadding(false);
-        label.setShadowLayer(Ui.dp(getContext(), 2), 0,
-                Ui.dp(getContext(), 1), Color.BLACK);
+        if (panelConfig.appLabelOutlineEnabled) {
+            label.setShadowLayer(Ui.dp(getContext(), 2), 0,
+                    Ui.dp(getContext(), 1), Color.BLACK);
+        }
         FrameLayout.LayoutParams labelParams = new FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 labelHeight,

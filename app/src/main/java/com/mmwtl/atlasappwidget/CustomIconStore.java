@@ -105,6 +105,32 @@ final class CustomIconStore {
         return finishImport(context, componentKey, temporary, bytes);
     }
 
+    static String importIcon(Context context, Drawable drawable, String componentKey)
+            throws IOException {
+        if (drawable == null) {
+            throw new IOException("Shortcut icon drawable is unavailable");
+        }
+        if (drawable instanceof BitmapDrawable bitmapDrawable) {
+            return importIcon(context, bitmapDrawable.getBitmap(), componentKey);
+        }
+        int intrinsicWidth = drawable.getIntrinsicWidth();
+        int intrinsicHeight = drawable.getIntrinsicHeight();
+        int width = intrinsicWidth > 0
+                ? Math.min(MAX_IMPORTED_BITMAP_DIMENSION, intrinsicWidth)
+                : MAX_IMPORTED_BITMAP_DIMENSION;
+        int height = intrinsicHeight > 0
+                ? Math.min(MAX_IMPORTED_BITMAP_DIMENSION, intrinsicHeight)
+                : MAX_IMPORTED_BITMAP_DIMENSION;
+        Bitmap bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888);
+        try {
+            drawable.setBounds(0, 0, width, height);
+            drawable.draw(new Canvas(bitmap));
+            return importIcon(context, bitmap, componentKey);
+        } finally {
+            bitmap.recycle();
+        }
+    }
+
     static String importIcon(Context context, byte[] bytes, String componentKey)
             throws IOException {
         if (bytes == null || bytes.length == 0 || bytes.length > MAX_ICON_BYTES) {
@@ -143,21 +169,7 @@ final class CustomIconStore {
             }
             if (resourceId == 0) throw new IOException("Shortcut icon resource not found");
             Drawable drawable = resources.getDrawable(resourceId, context.getTheme());
-            if (drawable instanceof BitmapDrawable bitmapDrawable) {
-                return importIcon(context, bitmapDrawable.getBitmap(), componentKey);
-            }
-            int width = Math.max(1, Math.min(MAX_IMPORTED_BITMAP_DIMENSION,
-                    drawable.getIntrinsicWidth()));
-            int height = Math.max(1, Math.min(MAX_IMPORTED_BITMAP_DIMENSION,
-                    drawable.getIntrinsicHeight()));
-            Bitmap bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888);
-            try {
-                drawable.setBounds(0, 0, width, height);
-                drawable.draw(new Canvas(bitmap));
-                return importIcon(context, bitmap, componentKey);
-            } finally {
-                bitmap.recycle();
-            }
+            return importIcon(context, drawable, componentKey);
         } catch (PackageManager.NameNotFoundException | RuntimeException error) {
             throw new IOException("Cannot load shortcut icon resource", error);
         }

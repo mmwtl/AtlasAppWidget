@@ -31,7 +31,7 @@ import java.util.Set;
 final class SettingsBackup {
     static final String FILE_NAME = "AtlasAppWidget-settings.json";
     private static final String FORMAT = "atlas-app-widget-settings";
-    private static final int SCHEMA_VERSION = 3;
+    private static final int SCHEMA_VERSION = 8;
     private static final int MAX_FILE_BYTES = 256 * 1024;
     private static final int MAX_BACKUP_ICON_BYTES = 128 * 1024;
     private static final int MAX_SELECTED_COMPONENTS = 200;
@@ -39,7 +39,6 @@ final class SettingsBackup {
 
     static final class Data {
         final boolean autoStart;
-        final boolean useLaunchProxy;
         final boolean showOnlyInAppList;
         final int appUiScaleTenths;
         final int freeformHideThresholdPercent;
@@ -47,6 +46,8 @@ final class SettingsBackup {
         final Integer positionY;
         final List<String> selectedComponents;
         final List<ShortcutSpec> shortcuts;
+        final List<String> climateTransitionComponents;
+        final int climateTransitionDurationMs;
         final Map<String, byte[]> customIcons;
         final ContentData content;
         final MovementData movement;
@@ -55,39 +56,14 @@ final class SettingsBackup {
         final GeometryData geometry;
         final AppearanceData appearance;
 
-        Data(boolean autoStart, boolean useLaunchProxy, boolean showOnlyInAppList,
-                int appUiScaleTenths,
-                int freeformHideThresholdPercent, Integer positionX, Integer positionY,
-                List<String> selectedComponents, ContentData content, MovementData movement,
-                SystemStatusData systemStatus, FuelData fuel, GeometryData geometry,
-                AppearanceData appearance) throws IOException {
-            this(autoStart, useLaunchProxy, showOnlyInAppList, appUiScaleTenths,
-                    freeformHideThresholdPercent, positionX, positionY, selectedComponents,
-                    List.of(), Map.of(), content, movement, systemStatus, fuel, geometry,
-                    appearance);
-        }
-
-        Data(boolean autoStart, boolean useLaunchProxy, boolean showOnlyInAppList,
-                int appUiScaleTenths,
+        Data(boolean autoStart, boolean showOnlyInAppList, int appUiScaleTenths,
                 int freeformHideThresholdPercent, Integer positionX, Integer positionY,
                 List<String> selectedComponents, List<ShortcutSpec> shortcuts,
-                ContentData content, MovementData movement, SystemStatusData systemStatus,
-                FuelData fuel, GeometryData geometry, AppearanceData appearance) throws IOException {
-            this(autoStart, useLaunchProxy, showOnlyInAppList, appUiScaleTenths,
-                    freeformHideThresholdPercent, positionX, positionY, selectedComponents,
-                    shortcuts, Map.of(), content, movement, systemStatus, fuel, geometry,
-                    appearance);
-        }
-
-        Data(boolean autoStart, boolean useLaunchProxy, boolean showOnlyInAppList,
-                int appUiScaleTenths,
-                int freeformHideThresholdPercent, Integer positionX, Integer positionY,
-                List<String> selectedComponents, List<ShortcutSpec> shortcuts,
+                List<String> climateTransitionComponents, int climateTransitionDurationMs,
                 Map<String, byte[]> customIcons, ContentData content, MovementData movement,
                 SystemStatusData systemStatus, FuelData fuel, GeometryData geometry,
                 AppearanceData appearance) throws IOException {
             this.autoStart = autoStart;
-            this.useLaunchProxy = useLaunchProxy;
             this.showOnlyInAppList = showOnlyInAppList;
             this.appUiScaleTenths = requireRange("settings.uiScaleTenths", appUiScaleTenths,
                     ScaledActivity.MIN_SCALE_TENTHS, ScaledActivity.MAX_SCALE_TENTHS);
@@ -106,13 +82,22 @@ final class SettingsBackup {
             this.positionX = positionX;
             this.positionY = positionY;
             this.shortcuts = validateShortcuts(shortcuts);
-            this.customIcons = validateCustomIcons(customIcons, this.shortcuts);
             this.selectedComponents = validateSelectedComponents(selectedComponents, this.shortcuts);
+            this.climateTransitionComponents = validateClimateTransitionComponents(
+                    climateTransitionComponents, this.selectedComponents);
+            this.climateTransitionDurationMs = requireRange(
+                    "settings.climateTransitionDurationMs", climateTransitionDurationMs,
+                    Prefs.CLIMATE_TRANSITION_DURATION_MIN_MS,
+                    Prefs.CLIMATE_TRANSITION_DURATION_MAX_MS);
+            if (climateTransitionDurationMs % Prefs.CLIMATE_TRANSITION_DURATION_STEP_MS != 0) {
+                throw invalid("settings.climateTransitionDurationMs должен быть кратен 50 мс");
+            }
+            this.customIcons = validateCustomIcons(customIcons, this.shortcuts);
             if (content == null || movement == null || systemStatus == null || fuel == null
                     || geometry == null || appearance == null) {
                 throw invalid("В JSON отсутствует раздел настроек");
             }
-            this.content = content;
+            this.content = content.validated();
             this.movement = movement.validated();
             this.systemStatus = systemStatus.validated();
             this.fuel = fuel.validated();
@@ -123,9 +108,38 @@ final class SettingsBackup {
 
     static final class ContentData {
         final boolean showAppLabels;
+        final int appLabelTextSizeSp;
+        final int appLabelGapDp;
+        final boolean appLabelOutlineEnabled;
 
         ContentData(boolean showAppLabels) {
+            this(showAppLabels, PanelConfig.APP_LABEL_TEXT_SIZE_DEFAULT_SP,
+                    PanelConfig.APP_LABEL_GAP_DEFAULT_DP, true);
+        }
+
+        ContentData(boolean showAppLabels, int appLabelTextSizeSp) {
+            this(showAppLabels, appLabelTextSizeSp, PanelConfig.APP_LABEL_GAP_DEFAULT_DP, true);
+        }
+
+        ContentData(boolean showAppLabels, int appLabelTextSizeSp, int appLabelGapDp) {
+            this(showAppLabels, appLabelTextSizeSp, appLabelGapDp, true);
+        }
+
+        ContentData(boolean showAppLabels, int appLabelTextSizeSp, int appLabelGapDp,
+                boolean appLabelOutlineEnabled) {
             this.showAppLabels = showAppLabels;
+            this.appLabelTextSizeSp = appLabelTextSizeSp;
+            this.appLabelGapDp = appLabelGapDp;
+            this.appLabelOutlineEnabled = appLabelOutlineEnabled;
+        }
+
+        private ContentData validated() throws IOException {
+            requireRange("settings.content.appLabelTextSizeSp", appLabelTextSizeSp,
+                    PanelConfig.APP_LABEL_TEXT_SIZE_MIN_SP,
+                    PanelConfig.APP_LABEL_TEXT_SIZE_MAX_SP);
+            requireRange("settings.content.appLabelGapDp", appLabelGapDp,
+                    PanelConfig.APP_LABEL_GAP_MIN_DP, PanelConfig.APP_LABEL_GAP_MAX_DP);
+            return this;
         }
     }
 
@@ -288,9 +302,21 @@ final class SettingsBackup {
         if (!showCpu && !showRam && !showFuel) {
             showCpu = true;
         }
+        List<String> climateComponents = new ArrayList<>();
+        List<String> selectedValues = prefs.selectedComponents();
+        Set<String> selected = new HashSet<>(selectedValues);
+        Set<String> shortcutKeys = new HashSet<>();
+        for (ShortcutSpec shortcut : prefs.shortcutCatalog()) shortcutKeys.add(shortcut.key);
+        for (String component : prefs.climateTransitionComponents()) {
+            boolean validSelected = selected.contains(component)
+                    && (!component.startsWith(ShortcutSpec.KEY_PREFIX)
+                    || shortcutKeys.contains(component));
+            if (validSelected && !AppEntry.FUEL_COMPONENT_KEY.equals(component)) {
+                climateComponents.add(component);
+            }
+        }
         return new Data(
                 prefs.getBoolean(Prefs.KEY_AUTO_START, false),
-                prefs.getBoolean(Prefs.KEY_USE_LAUNCH_PROXY, false),
                 prefs.getBoolean(Prefs.KEY_SHOW_ONLY_IN_APP_LIST, false),
                 clamp(prefs.getInt(Prefs.KEY_APP_UI_SCALE_TENTHS,
                                 ScaledActivity.DEFAULT_SCALE_TENTHS),
@@ -298,10 +324,22 @@ final class SettingsBackup {
                 prefs.freeformHideThresholdPercent(),
                 positionX,
                 positionY,
-                prefs.selectedComponents(),
+                selectedValues,
                 prefs.shortcutCatalog(),
+                climateComponents,
+                prefs.climateTransitionDurationMs(),
                 captureCustomIcons(context, prefs),
-                new ContentData(prefs.getBoolean(Prefs.KEY_SHOW_APP_LABELS, false)),
+                new ContentData(
+                        prefs.getBoolean(Prefs.KEY_SHOW_APP_LABELS, false),
+                        clamp(prefs.getInt(Prefs.KEY_APP_LABEL_TEXT_SIZE_SP,
+                                        PanelConfig.APP_LABEL_TEXT_SIZE_DEFAULT_SP),
+                                PanelConfig.APP_LABEL_TEXT_SIZE_MIN_SP,
+                                PanelConfig.APP_LABEL_TEXT_SIZE_MAX_SP),
+                        clamp(prefs.getInt(Prefs.KEY_APP_LABEL_GAP_DP,
+                                        PanelConfig.APP_LABEL_GAP_DEFAULT_DP),
+                                PanelConfig.APP_LABEL_GAP_MIN_DP,
+                                PanelConfig.APP_LABEL_GAP_MAX_DP),
+                        prefs.getBoolean(Prefs.KEY_APP_LABEL_OUTLINE_ENABLED, true)),
                 new MovementData(
                         prefs.getBoolean(Prefs.KEY_SHOW_DRAG_HANDLE, true),
                         clamp(prefs.getInt(Prefs.KEY_DRAG_HANDLE_POSITION,
@@ -472,16 +510,22 @@ final class SettingsBackup {
                     .put("appVersion", appVersion == null ? "" : appVersion);
             JSONObject settings = new JSONObject()
                     .put("autoStart", data.autoStart)
-                    .put("useLaunchProxy", data.useLaunchProxy)
                     .put("showOnlyInAppList", data.showOnlyInAppList)
                     .put("uiScaleTenths", data.appUiScaleTenths)
                     .put("freeformHideThresholdPercent",
                             data.freeformHideThresholdPercent)
                     .put("selectedComponents", new JSONArray(data.selectedComponents))
                     .put("shortcuts", shortcutArray(data.shortcuts))
+                    .put("climateTransitionComponents",
+                            new JSONArray(data.climateTransitionComponents))
+                    .put("climateTransitionDurationMs", data.climateTransitionDurationMs)
                     .put("customIcons", customIconObject(data.customIcons))
                     .put("content", new JSONObject()
-                            .put("showAppLabels", data.content.showAppLabels))
+                            .put("showAppLabels", data.content.showAppLabels)
+                            .put("appLabelTextSizeSp", data.content.appLabelTextSizeSp)
+                            .put("appLabelGapDp", data.content.appLabelGapDp)
+                            .put("appLabelOutlineEnabled",
+                                    data.content.appLabelOutlineEnabled))
                     .put("movement", new JSONObject()
                             .put("showDragHandle", data.movement.showDragHandle)
                             .put("dragHandlePosition", data.movement.dragHandlePosition))
@@ -556,6 +600,15 @@ final class SettingsBackup {
             JSONObject fuel = requireObject(settings, "fuel", "settings.fuel");
             JSONObject geometry = requireObject(settings, "geometry", "settings.geometry");
             JSONObject appearance = requireObject(settings, "appearance", "settings.appearance");
+            if (version >= 5 && !content.has("appLabelTextSizeSp")) {
+                throw invalid("В JSON отсутствует размер названий приложений");
+            }
+            if (version >= 6 && !content.has("appLabelGapDp")) {
+                throw invalid("В JSON отсутствует интервал до названий приложений");
+            }
+            if (version >= 7 && !content.has("appLabelOutlineEnabled")) {
+                throw invalid("В JSON отсутствует настройка обводки названий приложений");
+            }
             Object positionValue = requireValue(settings, "overlayPosition",
                     "settings.overlayPosition");
             Integer x = null;
@@ -571,11 +624,36 @@ final class SettingsBackup {
                     ? parseShortcuts(settings) : List.of();
             Map<String, byte[]> customIcons = version >= 3 && settings.has("customIcons")
                     ? parseCustomIcons(settings) : Map.of();
+            List<String> selectedComponents = requireStringList(settings, "selectedComponents",
+                    "settings.selectedComponents");
+            boolean legacyClimateEnabled = (settings.has("useLaunchProxy")
+                    && requireBoolean(settings, "useLaunchProxy", "settings.useLaunchProxy"))
+                    || (settings.has("useDiagnosticLaunchActivity")
+                    && requireBoolean(settings, "useDiagnosticLaunchActivity",
+                    "settings.useDiagnosticLaunchActivity"));
+            List<String> climateComponents;
+            int climateDuration;
+            if (version >= 4) {
+                if (!settings.has("climateTransitionComponents")
+                        || !settings.has("climateTransitionDurationMs")) {
+                    throw invalid("В JSON отсутствуют настройки скрытия климат-панели");
+                }
+                climateComponents = parseClimateTransitionComponents(settings,
+                        selectedComponents);
+                climateDuration = requireInt(settings, "climateTransitionDurationMs",
+                        "settings.climateTransitionDurationMs");
+                if (version < 8) {
+                    requireRange("settings.climateTransitionDurationMs", climateDuration,
+                            10, 1_000);
+                    climateDuration = Prefs.normalizeClimateTransitionDuration(climateDuration);
+                }
+            } else {
+                climateComponents = legacyClimateEnabled
+                        ? selectedNonFuelComponents(selectedComponents) : List.of();
+                climateDuration = Prefs.CLIMATE_TRANSITION_DURATION_DEFAULT_MS;
+            }
             return new Data(
                     requireBoolean(settings, "autoStart", "settings.autoStart"),
-                    settings.has("useLaunchProxy")
-                            && requireBoolean(settings, "useLaunchProxy",
-                                    "settings.useLaunchProxy"),
                     settings.has("showOnlyInAppList")
                             && requireBoolean(settings, "showOnlyInAppList",
                                     "settings.showOnlyInAppList"),
@@ -586,12 +664,25 @@ final class SettingsBackup {
                             : WindowVisibilityPolicy.DEFAULT_HIDE_THRESHOLD_PERCENT,
                     x,
                     y,
-                    requireStringList(settings, "selectedComponents",
-                            "settings.selectedComponents"),
+                    selectedComponents,
                     shortcuts,
+                    climateComponents,
+                    climateDuration,
                     customIcons,
                     new ContentData(requireBoolean(content, "showAppLabels",
-                            "settings.content.showAppLabels")),
+                            "settings.content.showAppLabels"),
+                            version >= 5
+                                    ? requireInt(content, "appLabelTextSizeSp",
+                                    "settings.content.appLabelTextSizeSp")
+                                    : PanelConfig.APP_LABEL_TEXT_SIZE_DEFAULT_SP,
+                            version >= 6
+                                    ? requireInt(content, "appLabelGapDp",
+                                    "settings.content.appLabelGapDp")
+                                    : PanelConfig.APP_LABEL_GAP_DEFAULT_DP,
+                            version >= 7
+                                    ? requireBoolean(content, "appLabelOutlineEnabled",
+                                    "settings.content.appLabelOutlineEnabled")
+                                    : true),
                     new MovementData(
                             requireBoolean(movement, "showDragHandle",
                                     "settings.movement.showDragHandle"),
@@ -689,6 +780,49 @@ final class SettingsBackup {
         return List.copyOf(result);
     }
 
+    private static List<String> parseClimateTransitionComponents(JSONObject settings,
+            List<String> selectedComponents) throws IOException {
+        Object value = requireValue(settings, "climateTransitionComponents",
+                "settings.climateTransitionComponents");
+        if (!(value instanceof JSONArray array)) {
+            throw invalid("Поле settings.climateTransitionComponents должно быть массивом");
+        }
+        ArrayList<String> result = new ArrayList<>(array.length());
+        Set<String> selected = new HashSet<>(selectedComponents);
+        Set<String> unique = new HashSet<>();
+        for (int index = 0; index < array.length(); index++) {
+            Object item;
+            try {
+                item = array.get(index);
+            } catch (JSONException error) {
+                throw invalid("Не удалось прочитать settings.climateTransitionComponents["
+                        + index + "]", error);
+            }
+            if (!(item instanceof String key) || key.isEmpty()
+                    || key.length() > MAX_COMPONENT_LENGTH
+                    || AppEntry.FUEL_COMPONENT_KEY.equals(key)
+                    || !selected.contains(key) || !unique.add(key)) {
+                throw invalid("Некорректный элемент в settings.climateTransitionComponents["
+                        + index + "]");
+            }
+            result.add(key);
+        }
+        if (result.size() > MAX_SELECTED_COMPONENTS) {
+            throw invalid("Слишком много элементов скрытия климат-панели");
+        }
+        return List.copyOf(result);
+    }
+
+    private static List<String> selectedNonFuelComponents(List<String> selectedComponents) {
+        ArrayList<String> result = new ArrayList<>();
+        for (String component : selectedComponents) {
+            if (!AppEntry.FUEL_COMPONENT_KEY.equals(component)) {
+                result.add(component);
+            }
+        }
+        return List.copyOf(result);
+    }
+
     private static Map<String, byte[]> parseCustomIcons(JSONObject settings) throws IOException {
         Object value = requireValue(settings, "customIcons", "settings.customIcons");
         if (!(value instanceof JSONObject object)) {
@@ -761,6 +895,26 @@ final class SettingsBackup {
                 throw invalid("Повторяющийся ярлык");
             }
             result.add(shortcut);
+        }
+        return List.copyOf(result);
+    }
+
+    private static List<String> validateClimateTransitionComponents(List<String> components,
+            List<String> selectedComponents) throws IOException {
+        if (components == null || components.size() > MAX_SELECTED_COMPONENTS) {
+            throw invalid("Некорректный список элементов скрытия климат-панели");
+        }
+        Set<String> selected = new HashSet<>(selectedComponents);
+        Set<String> unique = new HashSet<>();
+        ArrayList<String> result = new ArrayList<>(components.size());
+        for (String component : components) {
+            if (component == null || component.isEmpty()
+                    || component.length() > MAX_COMPONENT_LENGTH
+                    || AppEntry.FUEL_COMPONENT_KEY.equals(component)
+                    || !selected.contains(component) || !unique.add(component)) {
+                throw invalid("Элемент скрытия климат-панели должен быть выбранным non-fuel элементом");
+            }
+            result.add(component);
         }
         return List.copyOf(result);
     }
