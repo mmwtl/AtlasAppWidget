@@ -17,7 +17,7 @@ public final class PanelLayoutTest {
 
     @Test
     public void excessiveColumnsAndGapStayInsideGrid() {
-        PanelLayout layout = layout(360, 1920, PanelConfig.WIDTH_MIN_PIXELS,
+        PanelLayout layout = layout(360, 1920, 360,
                 10, 1, 240, 40, 40, 0);
         int occupied = layout.cellWidth * 10 + layout.horizontalGap * 9;
 
@@ -27,7 +27,7 @@ public final class PanelLayoutTest {
 
     @Test
     public void horizontalShrinkAlsoReducesPanelHeight() {
-        PanelLayout layout = layout(360, 1920, PanelConfig.WIDTH_MIN_PIXELS,
+        PanelLayout layout = layout(360, 1920, 360,
                 10, 4, 240, 40, 40, 0);
 
         assertEquals(layout.iconSize + 24, layout.cellHeight);
@@ -59,6 +59,14 @@ public final class PanelLayoutTest {
         PanelLayout layout = layout(1440, 1920, 800, 5, 1, 72, 12, 14, 0);
 
         assertEquals(800, layout.panelWidth);
+    }
+
+    @Test
+    public void narrowSingleColumnWidthIsAppliedAsPixels() {
+        PanelLayout layout = layout(1440, 1920, 120, 1, 1, 72, 12, 14, 0);
+
+        assertEquals(120, layout.panelWidth);
+        assertTrue(layout.iconSize <= layout.cellWidth);
     }
 
     @Test
@@ -139,7 +147,7 @@ public final class PanelLayoutTest {
                 width,
                 height,
                 widthPixels,
-                180,
+                PanelConfig.WIDTH_MIN_PIXELS,
                 54,
                 icon,
                 20,
@@ -162,7 +170,8 @@ public final class PanelLayoutTest {
 
     private static PanelLayout layoutWithLabelHeight(int labelHeight) {
         return PanelLayout.calculate(
-                1440, 1920, PanelConfig.WIDTH_DEFAULT_PIXELS, 180, 54, 72, labelHeight, 4,
+                1440, 1920, PanelConfig.WIDTH_DEFAULT_PIXELS,
+                PanelConfig.WIDTH_MIN_PIXELS, 54, 72, labelHeight, 4,
                 1, 5, 14, 12, true, false, 34, 4,
                 false, false, 30, 16, 0
         );
@@ -198,7 +207,8 @@ public final class PanelLayoutTest {
             int systemStatusSize
     ) {
         return PanelLayout.calculate(
-                1440, 1920, PanelConfig.WIDTH_DEFAULT_PIXELS, 180, 54, 72, 20, 4,
+                1440, 1920, PanelConfig.WIDTH_DEFAULT_PIXELS,
+                PanelConfig.WIDTH_MIN_PIXELS, 54, 72, 20, 4,
                 1, 5, 14, 12, showHandle, verticalHandle, 34, 4,
                 showSystemStatus, sideSystemStatus, systemStatusSize, 16, 0
         );

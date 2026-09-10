@@ -133,7 +133,7 @@ final class PanelView extends LinearLayout {
                 availableWidthPixels,
                 availableHeightPixels,
                 config.widthPixels,
-                Ui.dp(context, 180),
+                PanelConfig.WIDTH_MIN_PIXELS,
                 Ui.dp(context, 54),
                 configuredIconSize,
                 labelHeight,

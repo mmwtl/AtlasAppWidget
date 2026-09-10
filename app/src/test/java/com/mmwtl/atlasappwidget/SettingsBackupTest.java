@@ -200,6 +200,16 @@ public final class SettingsBackupTest {
         assertTrue(error.getMessage().contains("widthPixels"));
     }
 
+    @Test public void currentBackupAcceptsWidthPixelsBelowFormerMinimum() throws Exception {
+        JSONObject root = new JSONObject(SettingsBackup.encode(data(15, null, null), "test"));
+        root.getJSONObject("settings").getJSONObject("geometry")
+                .put("widthPixels", 120);
+
+        SettingsBackup.Data restored = SettingsBackup.decode(root.toString());
+
+        assertEquals(120, restored.geometry.widthPixels);
+    }
+
     @Test public void currentBackupRejectsWidthPixelsOutsideRange() throws Exception {
         JSONObject root = new JSONObject(SettingsBackup.encode(data(15, null, null), "test"));
         root.getJSONObject("settings").getJSONObject("geometry")

@@ -34,7 +34,7 @@ final class PanelConfig {
     static final int ONEOS_APP_LABEL_TEXT_SIZE_SP = 24;
     static final int ONEOS_APP_LABEL_GAP_DP = 16;
     static final int WIDTH_REFERENCE_PIXELS = 1440;
-    static final int WIDTH_MIN_PIXELS = 180;
+    static final int WIDTH_MIN_PIXELS = 1;
     static final int WIDTH_MAX_PIXELS = WIDTH_REFERENCE_PIXELS;
     static final int WIDTH_DEFAULT_PIXELS = Math.round(
             WIDTH_REFERENCE_PIXELS * 72 / 100f);
