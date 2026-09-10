@@ -728,10 +728,12 @@ public final class MainActivity extends ScaledActivity
     private LinearLayout buildGeometryCard() {
         LinearLayout geometry = Ui.card(this);
         geometry.addView(Ui.heading(this, R.string.geometry_title, 20));
-        addSlider(geometry, getString(R.string.panel_width), 25, 100,
-                prefs.getInt(Prefs.KEY_WIDTH_PERCENT, 72),
-                value -> getString(R.string.screen_percent, value),
-                value -> prefs.putInt(Prefs.KEY_WIDTH_PERCENT, value));
+        addSlider(geometry, getString(R.string.panel_width),
+                PanelConfig.WIDTH_MIN_PIXELS,
+                PanelConfig.WIDTH_MAX_PIXELS,
+                prefs.getInt(Prefs.KEY_WIDTH_PIXELS, PanelConfig.WIDTH_DEFAULT_PIXELS),
+                value -> getString(R.string.px_value, value),
+                value -> prefs.putInt(Prefs.KEY_WIDTH_PIXELS, value));
         addSlider(geometry, getString(R.string.columns), 1, 10,
                 prefs.getInt(Prefs.KEY_COLUMNS, 5), String::valueOf,
                 value -> prefs.putInt(Prefs.KEY_COLUMNS, value));

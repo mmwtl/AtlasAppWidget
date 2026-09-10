@@ -42,6 +42,7 @@ public final class SettingsBackupTest {
         assertEquals(800, restored.systemStatus.textWeight);
         assertEquals(0.466f, restored.fuel.multiplier, 0f);
         assertEquals(6, restored.geometry.columns);
+        assertEquals(960, restored.geometry.widthPixels);
         assertEquals(0xFF123456, restored.appearance.backgroundColor);
         JSONObject root = new JSONObject(json);
         assertEquals("atlas-app-widget-settings", root.getString("format"));
@@ -55,6 +56,8 @@ public final class SettingsBackupTest {
         assertFalse(settings.has("serviceEnabled"));
         assertTrue(settings.has("customIcons"));
         assertTrue(settings.getJSONObject("customIcons").length() == 0);
+        assertEquals(960, settings.getJSONObject("geometry").getInt("widthPixels"));
+        assertFalse(settings.getJSONObject("geometry").has("widthPercent"));
     }
 
     @Test public void schema3LegacyLaunchModeMigratesToSelectedComponents() throws Exception {
@@ -167,12 +170,45 @@ public final class SettingsBackupTest {
 
     @Test public void rejectsUnsupportedSchemaVersion() throws Exception {
         JSONObject root = new JSONObject(SettingsBackup.encode(data(15, null, null), "test"));
-        root.put("schemaVersion", 9);
+        root.put("schemaVersion", 10);
 
         IOException error = assertThrows(IOException.class,
                 () -> SettingsBackup.decode(root.toString()));
 
         assertTrue(error.getMessage().contains("Неподдерживаемая версия"));
+    }
+
+    @Test public void schema8WidthPercentMigratesToPixels() throws Exception {
+        JSONObject root = new JSONObject(SettingsBackup.encode(data(15, null, null), "test"));
+        JSONObject geometry = root.getJSONObject("settings").getJSONObject("geometry");
+        geometry.remove("widthPixels");
+        geometry.put("widthPercent", 80);
+        root.put("schemaVersion", 8);
+
+        SettingsBackup.Data restored = SettingsBackup.decode(root.toString());
+
+        assertEquals(1_152, restored.geometry.widthPixels);
+    }
+
+    @Test public void currentBackupRequiresWidthPixels() throws Exception {
+        JSONObject root = new JSONObject(SettingsBackup.encode(data(15, null, null), "test"));
+        root.getJSONObject("settings").getJSONObject("geometry").remove("widthPixels");
+
+        IOException error = assertThrows(IOException.class,
+                () -> SettingsBackup.decode(root.toString()));
+
+        assertTrue(error.getMessage().contains("widthPixels"));
+    }
+
+    @Test public void currentBackupRejectsWidthPixelsOutsideRange() throws Exception {
+        JSONObject root = new JSONObject(SettingsBackup.encode(data(15, null, null), "test"));
+        root.getJSONObject("settings").getJSONObject("geometry")
+                .put("widthPixels", PanelConfig.WIDTH_MAX_PIXELS + 1);
+
+        IOException error = assertThrows(IOException.class,
+                () -> SettingsBackup.decode(root.toString()));
+
+        assertTrue(error.getMessage().contains("widthPixels"));
     }
 
     @Test public void appLabelTextSizeRoundTrips() throws Exception {
@@ -467,7 +503,7 @@ public final class SettingsBackupTest {
                         14,
                         800),
                 new SettingsBackup.FuelData(true, 0.466f, 3.25f),
-                new SettingsBackup.GeometryData(80, 6, 2, 96, 20, 16, 10),
+                new SettingsBackup.GeometryData(960, 6, 2, 96, 20, 16, 10),
                 new SettingsBackup.AppearanceData(
                         0xFF123456,
                         210,

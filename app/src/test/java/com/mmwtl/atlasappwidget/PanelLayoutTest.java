@@ -8,7 +8,8 @@ import org.junit.Test;
 public final class PanelLayoutTest {
     @Test
     public void fullWidthWithOutlineNeverExceedsAvailableBounds() {
-        PanelLayout layout = layout(1440, 1920, 100, 5, 1, 72, 12, 14, 20);
+        PanelLayout layout = layout(1440, 1920, PanelConfig.WIDTH_MAX_PIXELS,
+                5, 1, 72, 12, 14, 20);
 
         assertEquals(1440, layout.panelWidth);
         assertTrue(layout.panelHeight <= 1920);
@@ -16,7 +17,8 @@ public final class PanelLayoutTest {
 
     @Test
     public void excessiveColumnsAndGapStayInsideGrid() {
-        PanelLayout layout = layout(360, 1920, 25, 10, 1, 240, 40, 40, 0);
+        PanelLayout layout = layout(360, 1920, PanelConfig.WIDTH_MIN_PIXELS,
+                10, 1, 240, 40, 40, 0);
         int occupied = layout.cellWidth * 10 + layout.horizontalGap * 9;
 
         assertTrue(occupied <= layout.gridWidth);
@@ -25,7 +27,8 @@ public final class PanelLayoutTest {
 
     @Test
     public void horizontalShrinkAlsoReducesPanelHeight() {
-        PanelLayout layout = layout(360, 1920, 25, 10, 4, 240, 40, 40, 0);
+        PanelLayout layout = layout(360, 1920, PanelConfig.WIDTH_MIN_PIXELS,
+                10, 4, 240, 40, 40, 0);
 
         assertEquals(layout.iconSize + 24, layout.cellHeight);
         assertTrue(layout.iconSize < 240);
@@ -34,7 +37,8 @@ public final class PanelLayoutTest {
 
     @Test
     public void verticalLimitShrinksIconsAndGaps() {
-        PanelLayout layout = layout(1440, 420, 72, 5, 4, 240, 40, 40, 12);
+        PanelLayout layout = layout(1440, 420, PanelConfig.WIDTH_DEFAULT_PIXELS,
+                5, 4, 240, 40, 40, 12);
 
         assertTrue(layout.panelHeight <= 420);
         assertTrue(layout.iconSize < 240);
@@ -43,10 +47,18 @@ public final class PanelLayoutTest {
 
     @Test
     public void defaultConfigurationKeepsRequestedIconSize() {
-        PanelLayout layout = layout(1440, 1920, 72, 5, 1, 72, 12, 14, 0);
+        PanelLayout layout = layout(1440, 1920, PanelConfig.WIDTH_DEFAULT_PIXELS,
+                5, 1, 72, 12, 14, 0);
 
         assertEquals(72, layout.iconSize);
         assertEquals(12, layout.horizontalGap);
+    }
+
+    @Test
+    public void requestedWidthIsAppliedAsPixels() {
+        PanelLayout layout = layout(1440, 1920, 800, 5, 1, 72, 12, 14, 0);
+
+        assertEquals(800, layout.panelWidth);
     }
 
     @Test
@@ -115,7 +127,7 @@ public final class PanelLayoutTest {
     private static PanelLayout layout(
             int width,
             int height,
-            int widthPercent,
+            int widthPixels,
             int columns,
             int rows,
             int icon,
@@ -126,7 +138,7 @@ public final class PanelLayoutTest {
         return PanelLayout.calculate(
                 width,
                 height,
-                widthPercent,
+                widthPixels,
                 180,
                 54,
                 icon,
@@ -150,7 +162,7 @@ public final class PanelLayoutTest {
 
     private static PanelLayout layoutWithLabelHeight(int labelHeight) {
         return PanelLayout.calculate(
-                1440, 1920, 72, 180, 54, 72, labelHeight, 4,
+                1440, 1920, PanelConfig.WIDTH_DEFAULT_PIXELS, 180, 54, 72, labelHeight, 4,
                 1, 5, 14, 12, true, false, 34, 4,
                 false, false, 30, 16, 0
         );
@@ -186,7 +198,7 @@ public final class PanelLayoutTest {
             int systemStatusSize
     ) {
         return PanelLayout.calculate(
-                1440, 1920, 72, 180, 54, 72, 20, 4,
+                1440, 1920, PanelConfig.WIDTH_DEFAULT_PIXELS, 180, 54, 72, 20, 4,
                 1, 5, 14, 12, showHandle, verticalHandle, 34, 4,
                 showSystemStatus, sideSystemStatus, systemStatusSize, 16, 0
         );

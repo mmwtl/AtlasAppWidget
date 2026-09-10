@@ -45,7 +45,7 @@ final class PanelLayout {
     static PanelLayout calculate(
             int availableWidth,
             int availableHeight,
-            int widthPercent,
+            int requestedWidthPixels,
             int minimumWidth,
             int minimumHeight,
             int requestedIconSize,
@@ -87,11 +87,9 @@ final class PanelLayout {
         int horizontalStatusSpace = sideSystemStatus ? systemStatusSpace : 0;
         int verticalStatusSpace = sideSystemStatus ? 0 : systemStatusSpace;
 
-        int requestedWidth = Math.round(
-                safeWidth * Math.max(25, Math.min(100, widthPercent)) / 100f);
         int backgroundWidth = Math.min(
                 maxBackgroundWidth,
-                Math.max(Math.max(1, minimumWidth), requestedWidth)
+                Math.max(Math.max(1, minimumWidth), Math.max(1, requestedWidthPixels))
         );
 
         int maxHorizontalPadding = Math.max(

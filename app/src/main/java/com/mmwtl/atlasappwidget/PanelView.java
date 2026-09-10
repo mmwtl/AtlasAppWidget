@@ -132,7 +132,7 @@ final class PanelView extends LinearLayout {
         PanelLayout layout = PanelLayout.calculate(
                 availableWidthPixels,
                 availableHeightPixels,
-                config.widthPercent,
+                config.widthPixels,
                 Ui.dp(context, 180),
                 Ui.dp(context, 54),
                 configuredIconSize,

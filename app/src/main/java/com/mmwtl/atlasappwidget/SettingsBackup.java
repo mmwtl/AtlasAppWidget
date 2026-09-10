@@ -31,7 +31,7 @@ import java.util.Set;
 final class SettingsBackup {
     static final String FILE_NAME = "AtlasAppWidget-settings.json";
     private static final String FORMAT = "atlas-app-widget-settings";
-    private static final int SCHEMA_VERSION = 8;
+    private static final int SCHEMA_VERSION = 9;
     private static final int MAX_FILE_BYTES = 256 * 1024;
     private static final int MAX_BACKUP_ICON_BYTES = 128 * 1024;
     private static final int MAX_SELECTED_COMPONENTS = 200;
@@ -220,7 +220,7 @@ final class SettingsBackup {
     }
 
     static final class GeometryData {
-        final int widthPercent;
+        final int widthPixels;
         final int columns;
         final int rows;
         final int iconSizeDp;
@@ -228,9 +228,9 @@ final class SettingsBackup {
         final int paddingDp;
         final int gapDp;
 
-        GeometryData(int widthPercent, int columns, int rows, int iconSizeDp,
+        GeometryData(int widthPixels, int columns, int rows, int iconSizeDp,
                 int iconCornerPercent, int paddingDp, int gapDp) {
-            this.widthPercent = widthPercent;
+            this.widthPixels = widthPixels;
             this.columns = columns;
             this.rows = rows;
             this.iconSizeDp = iconSizeDp;
@@ -240,7 +240,8 @@ final class SettingsBackup {
         }
 
         private GeometryData validated() throws IOException {
-            requireRange("settings.geometry.widthPercent", widthPercent, 25, 100);
+            requireRange("settings.geometry.widthPixels", widthPixels,
+                    PanelConfig.WIDTH_MIN_PIXELS, PanelConfig.WIDTH_MAX_PIXELS);
             requireRange("settings.geometry.columns", columns, 1, 10);
             requireRange("settings.geometry.rows", rows, 1, 4);
             requireRange("settings.geometry.iconSizeDp", iconSizeDp, 40, 240);
@@ -370,7 +371,10 @@ final class SettingsBackup {
                         clamp(prefs.getFloat(Prefs.KEY_FUEL_OFFSET,
                                 FuelLevelProvider.DEFAULT_OFFSET), -1_000f, 1_000f)),
                 new GeometryData(
-                        clamp(prefs.getInt(Prefs.KEY_WIDTH_PERCENT, 72), 25, 100),
+                        clamp(prefs.getInt(Prefs.KEY_WIDTH_PIXELS,
+                                        PanelConfig.WIDTH_DEFAULT_PIXELS),
+                                PanelConfig.WIDTH_MIN_PIXELS,
+                                PanelConfig.WIDTH_MAX_PIXELS),
                         clamp(prefs.getInt(Prefs.KEY_COLUMNS, 5), 1, 10),
                         clamp(prefs.getInt(Prefs.KEY_ROWS, 1), 1, 4),
                         clamp(prefs.getInt(Prefs.KEY_ICON_SIZE_DP, 72), 40, 240),
@@ -498,7 +502,11 @@ final class SettingsBackup {
                 }
                 output.write(buffer, 0, count);
             }
-            return decode(new String(output.toByteArray(), StandardCharsets.UTF_8));
+            int displayWidth = context.getResources().getDisplayMetrics().widthPixels;
+            if (displayWidth <= 0) {
+                displayWidth = PanelConfig.WIDTH_REFERENCE_PIXELS;
+            }
+            return decode(new String(output.toByteArray(), StandardCharsets.UTF_8), displayWidth);
         }
     }
 
@@ -543,7 +551,7 @@ final class SettingsBackup {
                             .put("multiplier", readableFloat(data.fuel.multiplier))
                             .put("offset", readableFloat(data.fuel.offset)))
                     .put("geometry", new JSONObject()
-                            .put("widthPercent", data.geometry.widthPercent)
+                            .put("widthPixels", data.geometry.widthPixels)
                             .put("columns", data.geometry.columns)
                             .put("rows", data.geometry.rows)
                             .put("iconSizeDp", data.geometry.iconSizeDp)
@@ -581,6 +589,10 @@ final class SettingsBackup {
     }
 
     static Data decode(String json) throws IOException {
+        return decode(json, PanelConfig.WIDTH_REFERENCE_PIXELS);
+    }
+
+    private static Data decode(String json, int legacyDisplayWidthPixels) throws IOException {
         try {
             if (json != null && !json.isEmpty() && json.charAt(0) == '\ufeff') {
                 json = json.substring(1);
@@ -704,8 +716,7 @@ final class SettingsBackup {
                             requireFloat(fuel, "multiplier", "settings.fuel.multiplier"),
                             requireFloat(fuel, "offset", "settings.fuel.offset")),
                     new GeometryData(
-                            requireInt(geometry, "widthPercent",
-                                    "settings.geometry.widthPercent"),
+                            decodeWidthPixels(geometry, version, legacyDisplayWidthPixels),
                             requireInt(geometry, "columns", "settings.geometry.columns"),
                             requireInt(geometry, "rows", "settings.geometry.rows"),
                             requireInt(geometry, "iconSizeDp", "settings.geometry.iconSizeDp"),
@@ -731,6 +742,18 @@ final class SettingsBackup {
         } catch (JSONException error) {
             throw invalid("Повреждённый JSON настроек", error);
         }
+    }
+
+    private static int decodeWidthPixels(JSONObject geometry, int version,
+            int legacyDisplayWidthPixels) throws IOException {
+        if (version >= 9 || !geometry.has("widthPercent")) {
+            return requireInt(geometry, "widthPixels", "settings.geometry.widthPixels");
+        }
+        int widthPercent = requireInt(geometry, "widthPercent",
+                "settings.geometry.widthPercent");
+        requireRange("settings.geometry.widthPercent", widthPercent, 25, 100);
+        return PanelConfig.widthPixelsFromLegacyPercent(
+                widthPercent, legacyDisplayWidthPixels);
     }
 
     private static JSONArray shortcutArray(List<ShortcutSpec> shortcuts) throws JSONException {
