@@ -33,6 +33,11 @@ final class PanelConfig {
     static final int ONEOS_ICON_CORNER_PERCENT = 23;
     static final int ONEOS_APP_LABEL_TEXT_SIZE_SP = 24;
     static final int ONEOS_APP_LABEL_GAP_DP = 16;
+    static final int WIDTH_REFERENCE_PIXELS = 1440;
+    static final int WIDTH_MIN_PIXELS = 1;
+    static final int WIDTH_MAX_PIXELS = WIDTH_REFERENCE_PIXELS;
+    static final int WIDTH_DEFAULT_PIXELS = Math.round(
+            WIDTH_REFERENCE_PIXELS * 72 / 100f);
 
     final boolean showDragHandle;
     final int dragHandlePosition;
@@ -48,7 +53,7 @@ final class PanelConfig {
     final int systemStatusLineHeightDp;
     final int systemStatusTextSizeSp;
     final int systemStatusTextWeight;
-    final int widthPercent;
+    final int widthPixels;
     final int columns;
     final int rows;
     final int iconSizeDp;
@@ -105,7 +110,11 @@ final class PanelConfig {
                 STATUS_TEXT_WEIGHT_MIN,
                 STATUS_TEXT_WEIGHT_MAX
         );
-        widthPercent = prefs.getInt(Prefs.KEY_WIDTH_PERCENT, 72);
+        widthPixels = clamp(
+                prefs.getInt(Prefs.KEY_WIDTH_PIXELS, WIDTH_DEFAULT_PIXELS),
+                WIDTH_MIN_PIXELS,
+                WIDTH_MAX_PIXELS
+        );
         columns = prefs.getInt(Prefs.KEY_COLUMNS, 5);
         rows = prefs.getInt(Prefs.KEY_ROWS, 1);
         iconSizeDp = prefs.getInt(Prefs.KEY_ICON_SIZE_DP, 72);
@@ -137,6 +146,15 @@ final class PanelConfig {
 
     private static int clamp(int value, int minimum, int maximum) {
         return Math.max(minimum, Math.min(maximum, value));
+    }
+
+    static int widthPixelsFromLegacyPercent(int widthPercent, int availableWidthPixels) {
+        int safeWidth = Math.max(1, availableWidthPixels);
+        return clamp(
+                Math.round(safeWidth * widthPercent / 100f),
+                WIDTH_MIN_PIXELS,
+                WIDTH_MAX_PIXELS
+        );
     }
 
     static int appLabelHeightPixels(Context context, int textSizeSp) {

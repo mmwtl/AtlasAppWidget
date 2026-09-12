@@ -210,6 +210,9 @@ final class WindowVisibilityPolicy {
             String foregroundPackage,
             String foregroundClass
     ) {
+        if (HeadUnitWindowRules.forceHide(window.packageName, window.className)) {
+            return false;
+        }
         if (isHomeComponent(window.packageName, window.className, homeComponents)) {
             return true;
         }

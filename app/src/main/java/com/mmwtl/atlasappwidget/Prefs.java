@@ -54,7 +54,8 @@ final class Prefs {
     static final String KEY_FUEL_MULTIPLIER = "fuel_multiplier";
     static final String KEY_FUEL_OFFSET = "fuel_offset";
     static final String KEY_USE_CUSTOM_FUEL_FORMULA = "use_custom_fuel_formula";
-    static final String KEY_WIDTH_PERCENT = "width_percent";
+    static final String KEY_WIDTH_PIXELS = "width_pixels";
+    private static final String KEY_LEGACY_WIDTH_PERCENT = "width_percent";
     static final String KEY_COLUMNS = "columns";
     static final String KEY_ROWS = "rows";
     static final String KEY_ICON_SIZE_DP = "icon_size_dp";
@@ -89,7 +90,28 @@ final class Prefs {
         Context storage = app.createDeviceProtectedStorageContext();
         migrateCredentialPreferencesWhenAvailable(app, storage);
         values = storage.getSharedPreferences(NAME, Context.MODE_PRIVATE);
+        migrateLegacyWidth(app);
         migrateLegacyClimateTransitionSettings();
+    }
+
+    private void migrateLegacyWidth(Context context) {
+        synchronized (MIGRATION_LOCK) {
+            if (values.contains(KEY_WIDTH_PIXELS) || !values.contains(KEY_LEGACY_WIDTH_PERCENT)) {
+                return;
+            }
+            int legacyPercent = Math.max(25, Math.min(100,
+                    values.getInt(KEY_LEGACY_WIDTH_PERCENT, 72)));
+            int displayWidth = context.getResources().getDisplayMetrics().widthPixels;
+            if (displayWidth <= 0) {
+                displayWidth = PanelConfig.WIDTH_REFERENCE_PIXELS;
+            }
+            values.edit()
+                    .putInt(KEY_WIDTH_PIXELS,
+                            PanelConfig.widthPixelsFromLegacyPercent(
+                                    legacyPercent, displayWidth))
+                    .remove(KEY_LEGACY_WIDTH_PERCENT)
+                    .commit();
+        }
     }
 
     private static void migrateCredentialPreferencesWhenAvailable(
@@ -479,7 +501,7 @@ final class Prefs {
                 .putBoolean(KEY_USE_CUSTOM_FUEL_FORMULA, data.fuel.useCustomFormula)
                 .putFloat(KEY_FUEL_MULTIPLIER, data.fuel.multiplier)
                 .putFloat(KEY_FUEL_OFFSET, data.fuel.offset)
-                .putInt(KEY_WIDTH_PERCENT, data.geometry.widthPercent)
+                .putInt(KEY_WIDTH_PIXELS, data.geometry.widthPixels)
                 .putInt(KEY_COLUMNS, data.geometry.columns)
                 .putInt(KEY_ROWS, data.geometry.rows)
                 .putInt(KEY_ICON_SIZE_DP, data.geometry.iconSizeDp)

@@ -224,13 +224,24 @@ final class ForegroundAppDetector {
         }
         for (ResolveInfo home : homes) {
             if (home.activityInfo != null) {
-                homePackages.add(home.activityInfo.packageName);
+                String packageName = home.activityInfo.packageName;
+                String className = home.activityInfo.name;
+                if (isExcludedHome(packageName, className)) {
+                    continue;
+                }
+                homePackages.add(packageName);
                 homeComponents.add(WindowVisibilityPolicy.componentKey(
-                        home.activityInfo.packageName,
-                        home.activityInfo.name
+                        packageName,
+                        className
                 ));
             }
         }
         lastHomeRefreshTime = System.currentTimeMillis();
+    }
+
+    private static boolean isExcludedHome(String packageName, String className) {
+        return HeadUnitWindowRules.forceHide(packageName, className)
+                || "com.android.settings".equals(packageName)
+                || (className != null && className.endsWith(".FallbackHome"));
     }
 }

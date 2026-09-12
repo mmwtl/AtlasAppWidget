@@ -287,6 +287,38 @@ public final class WindowVisibilityPolicyTest {
         return new ForegroundEventTracker.VisibleActivity(packageName, className, 1L);
     }
 
+    @Test
+    public void settingsWindowAboveRealHomeHidesPanel() {
+        assertDecision(
+                WindowVisibilityPolicy.Decision.HOME_HIDDEN,
+                List.of(
+                        window("launcher", "HomeActivity", false, false,
+                                0, 0, WIDTH, HEIGHT, 0),
+                        window("com.android.settings", "SubSettings", true, true,
+                                0, 120, WIDTH, 1680, 4)
+                ),
+                activity("com.android.settings", "SubSettings"),
+                "com.android.settings",
+                "SubSettings"
+        );
+    }
+
+    @Test
+    public void permissionControllerDialogAboveRealHomeHidesPanel() {
+        assertDecision(
+                WindowVisibilityPolicy.Decision.HOME_HIDDEN,
+                List.of(
+                        window("launcher", "HomeActivity", false, false,
+                                0, 0, WIDTH, HEIGHT, 0),
+                        window("com.android.permissioncontroller", "GrantPermissionsActivity", true, true,
+                                200, 500, 1240, 1400, 4)
+                ),
+                activity("com.android.permissioncontroller", "GrantPermissionsActivity"),
+                "com.android.permissioncontroller",
+                "GrantPermissionsActivity"
+        );
+    }
+
     private static void assertDecision(
             WindowVisibilityPolicy.Decision expected,
             List<WindowObservation> windows,

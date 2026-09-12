@@ -109,7 +109,7 @@
     <string name="scale_hint">Меняет размер экранов и элементов приложения без изменения системного масштаба ГУ. Геометрия overlay-панели настраивается отдельно выше.</string>
     <string name="scale">Масштаб</string>
     <string name="settings_backup_title">Импорт и экспорт настроек</string>
-    <string name="settings_backup_hint">JSON содержит выбранные activity и ярлыки, их порядок, элементы со screen-переходом для скрытия климат-панели, длительность этого перехода, иконки ярлыков, внешний вид, положение overlay, порог скрытия, масштаб, автозапуск и формулу топлива. Разрешения и работа сервиса не переносятся.</string>
+    <string name="settings_backup_hint">JSON содержит выбранные activity и ярлыки, их порядок, элементы со screen-переходом для скрытия климат-панели, длительность этого перехода, иконки ярлыков, геометрию панели (включая ширину в пикселях), внешний вид, положение overlay, порог скрытия, масштаб, автозапуск и формулу топлива. Разрешения и работа сервиса не переносятся.</string>
     <string name="export_settings">Экспортировать настройки в JSON</string>
     <string name="import_settings">Импортировать настройки из JSON</string>
     <string name="import_settings_confirm">Импортировать</string>
@@ -172,6 +172,7 @@
     <string name="color_green">Зелёный</string>
     <string name="color_blue">Синий</string>
     <string name="screen_percent">%1$d%% экрана</string>
+    <string name="px_value">%1$d px</string>
     <string name="dp_value">%1$d dp</string>
     <string name="sp_value">%1$d sp</string>
     <string name="font_weight_thin">тонкий · %1$d</string>
