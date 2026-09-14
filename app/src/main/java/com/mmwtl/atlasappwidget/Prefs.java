@@ -71,6 +71,7 @@ final class Prefs {
     static final String KEY_PANEL_RADIUS_DP = "panel_radius_dp";
     static final String KEY_POSITION_X = "position_x";
     static final String KEY_POSITION_Y = "position_y";
+    static final String KEY_POSITION_CORNER = "position_corner";
     static final String KEY_SELECTED_COMPONENTS = "selected_components_json";
     static final String KEY_SHORTCUT_CATALOG = "shortcut_catalog_json";
     private static final String KEY_CUSTOM_ICONS = "custom_icons_json";
@@ -156,6 +157,14 @@ final class Prefs {
 
     void putInt(String key, int value) {
         values.edit().putInt(key, value).apply();
+    }
+
+    void putPosition(OverlayCorner corner, int offsetX, int offsetY) {
+        values.edit()
+                .putString(KEY_POSITION_CORNER, corner.preferenceValue)
+                .putInt(KEY_POSITION_X, Math.max(0, offsetX))
+                .putInt(KEY_POSITION_Y, Math.max(0, offsetY))
+                .apply();
     }
 
     float getFloat(String key, float fallback) {
@@ -531,10 +540,16 @@ final class Prefs {
                 .putInt(KEY_PORTABLE_SETTINGS_REVISION,
                         values.getInt(KEY_PORTABLE_SETTINGS_REVISION, 0) + 1);
         if (data.positionX == null) {
-            editor.remove(KEY_POSITION_X).remove(KEY_POSITION_Y);
+            editor.remove(KEY_POSITION_X).remove(KEY_POSITION_Y)
+                    .remove(KEY_POSITION_CORNER);
         } else {
             editor.putInt(KEY_POSITION_X, data.positionX)
                     .putInt(KEY_POSITION_Y, data.positionY);
+            if (data.positionCorner == null) {
+                editor.remove(KEY_POSITION_CORNER);
+            } else {
+                editor.putString(KEY_POSITION_CORNER, data.positionCorner.preferenceValue);
+            }
         }
         boolean saved = editor.commit();
         if (!saved) {

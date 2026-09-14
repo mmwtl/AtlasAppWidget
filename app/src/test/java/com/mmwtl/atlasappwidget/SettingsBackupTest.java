@@ -168,9 +168,35 @@ public final class SettingsBackupTest {
         assertNull(restored.positionY);
     }
 
+    @Test public void currentBackupRoundTripsPositionCornerAndOffsets() throws Exception {
+        JSONObject root = new JSONObject(SettingsBackup.encode(data(15, 31, 42), "test"));
+        JSONObject position = root.getJSONObject("settings").getJSONObject("overlayPosition");
+        position.remove("legacyAbsolute");
+        position.put("corner", "bottom_end");
+
+        SettingsBackup.Data restored = SettingsBackup.decode(root.toString());
+
+        assertEquals(OverlayCorner.BOTTOM_END, restored.positionCorner);
+        assertEquals(Integer.valueOf(31), restored.positionX);
+        assertEquals(Integer.valueOf(42), restored.positionY);
+    }
+
+    @Test public void schemaNinePositionRemainsLegacyAbsolute() throws Exception {
+        JSONObject root = new JSONObject(SettingsBackup.encode(data(15, 321, 654), "test"));
+        root.put("schemaVersion", 9);
+        JSONObject position = root.getJSONObject("settings").getJSONObject("overlayPosition");
+        position.remove("legacyAbsolute");
+
+        SettingsBackup.Data restored = SettingsBackup.decode(root.toString());
+
+        assertNull(restored.positionCorner);
+        assertEquals(Integer.valueOf(321), restored.positionX);
+        assertEquals(Integer.valueOf(654), restored.positionY);
+    }
+
     @Test public void rejectsUnsupportedSchemaVersion() throws Exception {
         JSONObject root = new JSONObject(SettingsBackup.encode(data(15, null, null), "test"));
-        root.put("schemaVersion", 10);
+        root.put("schemaVersion", 11);
 
         IOException error = assertThrows(IOException.class,
                 () -> SettingsBackup.decode(root.toString()));

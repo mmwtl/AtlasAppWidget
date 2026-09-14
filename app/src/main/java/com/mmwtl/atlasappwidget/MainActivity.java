@@ -7,6 +7,8 @@ import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.graphics.Color;
+import android.graphics.Insets;
+import android.graphics.Rect;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
@@ -17,6 +19,8 @@ import android.text.InputType;
 import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.WindowInsets;
+import android.view.WindowMetrics;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.EditText;
@@ -70,6 +74,11 @@ public final class MainActivity extends ScaledActivity
     private Switch fuelCustomFormulaSwitch;
     private Button fuelFormulaButton;
     private LinearLayout dragHandleOptions;
+    private Spinner positionCornerSpinner;
+    private EditText positionX;
+    private EditText positionY;
+    private OverlayCorner displayedPositionCorner;
+    private boolean refreshingPosition;
     private Switch backgroundStrokeSwitch;
     private FrameLayout previewContainer;
     private Button backgroundColorButton;
@@ -99,6 +108,7 @@ public final class MainActivity extends ScaledActivity
         super.onResume();
         AccessibilityWindowState.setStateListener(accessibilityStateRefresh);
         refreshStatus();
+        refreshPositionControls();
         main.removeCallbacks(delayedAccessibilityStatusRefresh);
         main.postDelayed(delayedAccessibilityStatusRefresh,
                 ACCESSIBILITY_STATUS_REFRESH_DELAY_MS);
@@ -145,8 +155,12 @@ public final class MainActivity extends ScaledActivity
                 return;
             }
             refreshStatus();
-            if (!Prefs.KEY_POSITION_X.equals(key) && !Prefs.KEY_POSITION_Y.equals(key)) {
+            if (!Prefs.KEY_POSITION_X.equals(key) && !Prefs.KEY_POSITION_Y.equals(key)
+                    && !Prefs.KEY_POSITION_CORNER.equals(key)) {
                 refreshPreviewSoon();
+            }
+            if (isPositionGeometryKey(key)) {
+                refreshPositionControls();
             }
         });
     }
@@ -516,11 +530,102 @@ public final class MainActivity extends ScaledActivity
         dragHandleHint.setLineSpacing(0, 1.1f);
         dragHandleOptions.addView(dragHandleHint);
 
+        TextView positionTitle = Ui.text(this, R.string.panel_position, 14, Ui.TEXT);
+        Ui.topMargin(positionTitle, 14);
+        movement.addView(positionTitle);
+        positionCornerSpinner = new Spinner(this);
+        positionCornerSpinner.setAdapter(new ArrayAdapter<>(this,
+                android.R.layout.simple_spinner_dropdown_item, cornerLabels()));
+        positionCornerSpinner.setOnItemSelectedListener(
+                new android.widget.AdapterView.OnItemSelectedListener() {
+                    @Override
+                    public void onItemSelected(android.widget.AdapterView<?> parent,
+                            View view, int position, long id) {
+                        if (!refreshingPosition && positionX != null && positionY != null) {
+                            reanchorPositionFields(OverlayCorner.values()[position]);
+                        }
+                    }
+
+                    @Override
+                    public void onNothingSelected(android.widget.AdapterView<?> parent) {
+                    }
+                });
+        FrameLayout positionCornerField = new FrameLayout(this);
+        positionCornerField.setBackground(Ui.rounded(Ui.SURFACE_RAISED, Ui.dp(this, 8)));
+        positionCornerSpinner.setBackgroundColor(0x00000000);
+        positionCornerSpinner.setPadding(Ui.dp(this, 12), 0, Ui.dp(this, 34), 0);
+        positionCornerField.addView(positionCornerSpinner, new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+        TextView positionCornerArrow = Ui.text(this, "▾", 16, Ui.ACCENT);
+        positionCornerArrow.setGravity(Gravity.CENTER);
+        positionCornerArrow.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
+        FrameLayout.LayoutParams positionCornerArrowParams = new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.MATCH_PARENT,
+                Gravity.END | Gravity.CENTER_VERTICAL);
+        positionCornerArrowParams.rightMargin = Ui.dp(this, 10);
+        positionCornerField.addView(positionCornerArrow, positionCornerArrowParams);
+        positionCornerField.setOnClickListener(view -> positionCornerSpinner.performClick());
+
+        LinearLayout positionGrid = new LinearLayout(this);
+        positionGrid.setOrientation(LinearLayout.VERTICAL);
+        Ui.topMargin(positionGrid, 6);
+        LinearLayout positionHeader = new LinearLayout(this);
+        positionHeader.setOrientation(LinearLayout.HORIZONTAL);
+        positionHeader.addView(Ui.text(this, R.string.position_corner, 13, Ui.TEXT_SECONDARY),
+                positionColumnParams(1.25f, 0));
+        positionHeader.addView(Ui.text(this, R.string.position_x, 13, Ui.TEXT_SECONDARY),
+                positionColumnParams(1, 8));
+        positionHeader.addView(Ui.text(this, R.string.position_y, 13, Ui.TEXT_SECONDARY),
+                positionColumnParams(1, 8));
+        positionGrid.addView(positionHeader);
+
+        LinearLayout positionRow = new LinearLayout(this);
+        positionRow.setOrientation(LinearLayout.HORIZONTAL);
+        positionRow.setGravity(Gravity.CENTER_VERTICAL);
+        positionRow.addView(positionCornerField, positionColumnParams(1.25f, 0));
+        positionX = numberInput();
+        positionX.setHint("X");
+        positionX.setContentDescription(getString(R.string.position_x_content_description));
+        LinearLayout xCell = new LinearLayout(this);
+        xCell.setOrientation(LinearLayout.HORIZONTAL);
+        xCell.addView(positionX, new LinearLayout.LayoutParams(0,
+                ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+        xCell.addView(Ui.text(this, "px", 13, Ui.TEXT_SECONDARY),
+                new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT,
+                        ViewGroup.LayoutParams.WRAP_CONTENT));
+        positionRow.addView(xCell, positionColumnParams(1, 8));
+        positionY = numberInput();
+        positionY.setHint("Y");
+        positionY.setContentDescription(getString(R.string.position_y_content_description));
+        LinearLayout yCell = new LinearLayout(this);
+        yCell.setOrientation(LinearLayout.HORIZONTAL);
+        yCell.addView(positionY, new LinearLayout.LayoutParams(0,
+                ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+        yCell.addView(Ui.text(this, "px", 13, Ui.TEXT_SECONDARY),
+                new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT,
+                        ViewGroup.LayoutParams.WRAP_CONTENT));
+        positionRow.addView(yCell, positionColumnParams(1, 8));
+        positionGrid.addView(positionRow);
+        movement.addView(positionGrid);
+
+        TextView positionHint = Ui.text(this, R.string.panel_position_hint, 13,
+                Ui.TEXT_SECONDARY);
+        positionHint.setLineSpacing(0, 1.1f);
+        Ui.topMargin(positionHint, 6);
+        movement.addView(positionHint);
+
+        Button applyPosition = Ui.button(this, R.string.apply_panel_position);
+        Ui.topMargin(applyPosition, 10);
+        applyPosition.setOnClickListener(view -> applyPosition());
+        movement.addView(applyPosition);
+
         Button resetPosition = Ui.button(this, R.string.reset_panel_position);
         Ui.topMargin(resetPosition, 12);
         resetPosition.setOnClickListener(view -> {
             prefs.putInt(Prefs.KEY_POSITION_X, Prefs.POSITION_UNSET);
             prefs.putInt(Prefs.KEY_POSITION_Y, Prefs.POSITION_UNSET);
+            prefs.remove(Prefs.KEY_POSITION_CORNER);
+            refreshPositionControls();
             Toast.makeText(this, R.string.position_reset, Toast.LENGTH_SHORT).show();
         });
         movement.addView(resetPosition);
@@ -1461,6 +1566,181 @@ public final class MainActivity extends ScaledActivity
         }
         field.setError(getString(R.string.fuel_formula_invalid));
         return null;
+    }
+
+    private EditText numberInput() {
+        EditText input = new EditText(this);
+        input.setSingleLine(true);
+        input.setInputType(InputType.TYPE_CLASS_NUMBER);
+        input.setTextColor(Ui.TEXT);
+        input.setTextSize(16);
+        input.setSelectAllOnFocus(true);
+        input.setPadding(Ui.dp(this, 12), Ui.dp(this, 8), Ui.dp(this, 12),
+                Ui.dp(this, 8));
+        input.setBackground(Ui.rounded(Ui.SURFACE_RAISED, Ui.dp(this, 8)));
+        return input;
+    }
+
+    private String[] cornerLabels() {
+        String[] labels = new String[OverlayCorner.values().length];
+        for (OverlayCorner corner : OverlayCorner.values()) {
+            labels[corner.ordinal()] = corner.label;
+        }
+        return labels;
+    }
+
+    private LinearLayout.LayoutParams positionColumnParams(float weight, int leftMarginDp) {
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
+                0, ViewGroup.LayoutParams.WRAP_CONTENT, weight);
+        params.leftMargin = Ui.dp(this, leftMarginDp);
+        return params;
+    }
+
+    private void refreshPositionControls() {
+        if (positionCornerSpinner == null || positionX == null || positionY == null) return;
+        boolean previous = refreshingPosition;
+        refreshingPosition = true;
+        Rect bounds = availableBoundsForPosition();
+        PanelView size = positionPanel(bounds);
+        int inset = size.outlineInset();
+        int width = Math.max(1, size.panelWidth() - inset * 2);
+        int height = Math.max(1, size.panelHeight() - inset * 2);
+        OverlayCorner corner = OverlayCorner.fromPreference(
+                prefs.raw().getString(Prefs.KEY_POSITION_CORNER, null));
+        int storedX = prefs.getInt(Prefs.KEY_POSITION_X, Prefs.POSITION_UNSET);
+        int storedY = prefs.getInt(Prefs.KEY_POSITION_Y, Prefs.POSITION_UNSET);
+        if (corner == null) {
+            corner = OverlayCorner.TOP_START;
+            int defaultX = bounds.left + Math.max(0,
+                    (bounds.width() - size.panelWidth()) / 2) + inset;
+            int defaultY = bounds.top + Math.max(0,
+                    Math.round((bounds.height() - size.panelHeight()) * 0.72f)) + inset;
+            int absoluteX = storedX == Prefs.POSITION_UNSET
+                    ? defaultX : storedX + bounds.left;
+            int absoluteY = storedY == Prefs.POSITION_UNSET
+                    ? defaultY : storedY + bounds.top;
+            OverlayGeometry.Offset offsets = OverlayGeometry.offsetsFor(corner,
+                    bounds.left, bounds.top, bounds.right, bounds.bottom,
+                    width, height, absoluteX, absoluteY);
+            storedX = offsets.x();
+            storedY = offsets.y();
+        }
+        displayedPositionCorner = corner;
+        positionCornerSpinner.setSelection(corner.ordinal());
+        positionX.setText(Integer.toString(Math.max(0,
+                storedX == Prefs.POSITION_UNSET ? 0 : storedX)));
+        positionY.setText(Integer.toString(Math.max(0,
+                storedY == Prefs.POSITION_UNSET ? 0 : storedY)));
+        refreshingPosition = previous;
+    }
+
+    private boolean isPositionGeometryKey(String key) {
+        return Prefs.KEY_POSITION_X.equals(key)
+                || Prefs.KEY_POSITION_Y.equals(key)
+                || Prefs.KEY_POSITION_CORNER.equals(key)
+                || Prefs.KEY_WIDTH_PIXELS.equals(key)
+                || Prefs.KEY_COLUMNS.equals(key)
+                || Prefs.KEY_ROWS.equals(key)
+                || Prefs.KEY_ICON_SIZE_DP.equals(key)
+                || Prefs.KEY_PADDING_DP.equals(key)
+                || Prefs.KEY_GAP_DP.equals(key)
+                || Prefs.KEY_SHOW_DRAG_HANDLE.equals(key)
+                || Prefs.KEY_DRAG_HANDLE_POSITION.equals(key)
+                || Prefs.KEY_SHOW_APP_LABELS.equals(key)
+                || Prefs.KEY_APP_LABEL_TEXT_SIZE_SP.equals(key)
+                || Prefs.KEY_APP_LABEL_GAP_DP.equals(key)
+                || Prefs.KEY_SHOW_SYSTEM_STATUS.equals(key)
+                || Prefs.KEY_SHOW_CPU_STATUS.equals(key)
+                || Prefs.KEY_SHOW_RAM_STATUS.equals(key)
+                || Prefs.KEY_SHOW_FUEL_STATUS.equals(key)
+                || Prefs.KEY_SYSTEM_STATUS_POSITION.equals(key)
+                || Prefs.KEY_SYSTEM_STATUS_LINE_HEIGHT_DP.equals(key)
+                || Prefs.KEY_SYSTEM_STATUS_TEXT_SIZE_SP.equals(key)
+                || Prefs.KEY_BACKGROUND_STROKE_ENABLED.equals(key)
+                || Prefs.KEY_BACKGROUND_STROKE_WIDTH_DP.equals(key)
+                || Prefs.KEY_SELECTED_COMPONENTS.equals(key)
+                || Prefs.KEY_SHORTCUT_CATALOG.equals(key);
+    }
+
+    private void reanchorPositionFields(OverlayCorner newCorner) {
+        Rect bounds = availableBoundsForPosition();
+        PanelView size = positionPanel(bounds);
+        int inset = size.outlineInset();
+        int width = Math.max(1, size.panelWidth() - inset * 2);
+        int height = Math.max(1, size.panelHeight() - inset * 2);
+        OverlayCorner oldCorner = displayedPositionCorner == null
+                ? OverlayCorner.TOP_START : displayedPositionCorner;
+        OverlayGeometry.Position absolute = OverlayGeometry.positionFor(oldCorner,
+                bounds.left, bounds.top, bounds.right, bounds.bottom,
+                width, height, nonNegativeInput(positionX), nonNegativeInput(positionY));
+        OverlayGeometry.Offset offsets = OverlayGeometry.offsetsFor(newCorner,
+                bounds.left, bounds.top, bounds.right, bounds.bottom,
+                width, height, absolute.x(), absolute.y());
+        displayedPositionCorner = newCorner;
+        positionX.setText(Integer.toString(offsets.x()));
+        positionY.setText(Integer.toString(offsets.y()));
+    }
+
+    private void applyPosition() {
+        Rect bounds = availableBoundsForPosition();
+        PanelView size = positionPanel(bounds);
+        int inset = size.outlineInset();
+        int width = Math.max(1, size.panelWidth() - inset * 2);
+        int height = Math.max(1, size.panelHeight() - inset * 2);
+        int maxX = Math.max(0, bounds.width() - width);
+        int maxY = Math.max(0, bounds.height() - height);
+        Integer x = validatedPositionInput(positionX, 0, maxX,
+                getString(R.string.position_x_range, maxX));
+        Integer y = validatedPositionInput(positionY, 0, maxY,
+                getString(R.string.position_y_range, maxY));
+        if (x == null || y == null) return;
+        int selected = positionCornerSpinner.getSelectedItemPosition();
+        if (selected < 0 || selected >= OverlayCorner.values().length) return;
+        OverlayCorner corner = OverlayCorner.values()[selected];
+        prefs.putPosition(corner, x, y);
+        displayedPositionCorner = corner;
+        Toast.makeText(this, R.string.position_applied, Toast.LENGTH_SHORT).show();
+    }
+
+    private int nonNegativeInput(EditText input) {
+        try {
+            return Math.max(0, Integer.parseInt(input.getText().toString().trim()));
+        } catch (NumberFormatException error) {
+            return 0;
+        }
+    }
+
+    private Integer validatedPositionInput(EditText input, int min, int max, String message) {
+        try {
+            String value = input.getText().toString().trim();
+            if (value.isEmpty()) throw new NumberFormatException();
+            int parsed = Integer.parseInt(value);
+            if (parsed < min || parsed > max) throw new NumberFormatException();
+            input.setError(null);
+            return parsed;
+        } catch (NumberFormatException error) {
+            input.setError(message);
+            return null;
+        }
+    }
+
+    private Rect availableBoundsForPosition() {
+        WindowMetrics metrics = getWindowManager().getCurrentWindowMetrics();
+        Rect full = metrics.getBounds();
+        Insets insets = metrics.getWindowInsets().getInsetsIgnoringVisibility(
+                WindowInsets.Type.systemBars() | WindowInsets.Type.displayCutout());
+        Rect safe = new Rect(full.left + insets.left, full.top + insets.top,
+                full.right - insets.right, full.bottom - insets.bottom);
+        return safe.width() > 0 && safe.height() > 0 ? safe : new Rect(full);
+    }
+
+    private PanelView positionPanel(Rect bounds) {
+        List<AppEntry> entries = AppRepository.loadSelectedActivities(this, prefs);
+        if (entries.isEmpty()) {
+            entries = AppRepository.placeholderSelectedActivities(this, prefs);
+        }
+        return new PanelView(getApplicationContext(), prefs, prefs.panelConfig(), entries, true,
+                bounds.width(), bounds.height(), null, false);
     }
 
     private void updateColorButton(Button button, String label, int color) {

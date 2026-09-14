@@ -31,7 +31,7 @@ import java.util.Set;
 final class SettingsBackup {
     static final String FILE_NAME = "AtlasAppWidget-settings.json";
     private static final String FORMAT = "atlas-app-widget-settings";
-    private static final int SCHEMA_VERSION = 9;
+    private static final int SCHEMA_VERSION = 10;
     private static final int MAX_FILE_BYTES = 256 * 1024;
     private static final int MAX_BACKUP_ICON_BYTES = 128 * 1024;
     private static final int MAX_SELECTED_COMPONENTS = 200;
@@ -44,6 +44,7 @@ final class SettingsBackup {
         final int freeformHideThresholdPercent;
         final Integer positionX;
         final Integer positionY;
+        final OverlayCorner positionCorner;
         final List<String> selectedComponents;
         final List<ShortcutSpec> shortcuts;
         final List<String> climateTransitionComponents;
@@ -63,6 +64,19 @@ final class SettingsBackup {
                 Map<String, byte[]> customIcons, ContentData content, MovementData movement,
                 SystemStatusData systemStatus, FuelData fuel, GeometryData geometry,
                 AppearanceData appearance) throws IOException {
+            this(autoStart, showOnlyInAppList, appUiScaleTenths, freeformHideThresholdPercent,
+                    positionX, positionY, null, selectedComponents, shortcuts,
+                    climateTransitionComponents, climateTransitionDurationMs, customIcons,
+                    content, movement, systemStatus, fuel, geometry, appearance);
+        }
+
+        Data(boolean autoStart, boolean showOnlyInAppList, int appUiScaleTenths,
+                int freeformHideThresholdPercent, Integer positionX, Integer positionY,
+                OverlayCorner positionCorner, List<String> selectedComponents,
+                List<ShortcutSpec> shortcuts, List<String> climateTransitionComponents,
+                int climateTransitionDurationMs, Map<String, byte[]> customIcons,
+                ContentData content, MovementData movement, SystemStatusData systemStatus,
+                FuelData fuel, GeometryData geometry, AppearanceData appearance) throws IOException {
             this.autoStart = autoStart;
             this.showOnlyInAppList = showOnlyInAppList;
             this.appUiScaleTenths = requireRange("settings.uiScaleTenths", appUiScaleTenths,
@@ -81,6 +95,13 @@ final class SettingsBackup {
             }
             this.positionX = positionX;
             this.positionY = positionY;
+            if (positionCorner != null && positionX == null) {
+                throw invalid("Угол overlay задан без положения");
+            }
+            if (positionCorner != null && (positionX < 0 || positionY < 0)) {
+                throw invalid("Отступы overlay должны быть неотрицательными");
+            }
+            this.positionCorner = positionCorner;
             this.shortcuts = validateShortcuts(shortcuts);
             this.selectedComponents = validateSelectedComponents(selectedComponents, this.shortcuts);
             this.climateTransitionComponents = validateClimateTransitionComponents(
@@ -325,6 +346,8 @@ final class SettingsBackup {
                 prefs.freeformHideThresholdPercent(),
                 positionX,
                 positionY,
+                OverlayCorner.fromPreference(
+                        prefs.raw().getString(Prefs.KEY_POSITION_CORNER, null)),
                 selectedValues,
                 prefs.shortcutCatalog(),
                 climateComponents,
@@ -573,9 +596,15 @@ final class SettingsBackup {
             if (data.positionX == null) {
                 settings.put("overlayPosition", JSONObject.NULL);
             } else {
-                settings.put("overlayPosition", new JSONObject()
+                JSONObject position = new JSONObject()
                         .put("x", data.positionX)
-                        .put("y", data.positionY));
+                        .put("y", data.positionY);
+                if (data.positionCorner == null) {
+                    position.put("legacyAbsolute", true);
+                } else {
+                    position.put("corner", data.positionCorner.preferenceValue);
+                }
+                settings.put("overlayPosition", position);
             }
             root.put("settings", settings);
             String encoded = root.toString(2) + '\n';
@@ -625,12 +654,21 @@ final class SettingsBackup {
                     "settings.overlayPosition");
             Integer x = null;
             Integer y = null;
+            OverlayCorner positionCorner = null;
             if (positionValue != JSONObject.NULL) {
                 if (!(positionValue instanceof JSONObject position)) {
                     throw invalid("settings.overlayPosition должен быть объектом или null");
                 }
                 x = requireInt(position, "x", "settings.overlayPosition.x");
                 y = requireInt(position, "y", "settings.overlayPosition.y");
+                if (version >= 10 && !position.has("legacyAbsolute")) {
+                    positionCorner = OverlayCorner.fromPreference(requireString(position,
+                            "corner", "settings.overlayPosition.corner"));
+                    if (positionCorner == null) throw invalid("Неизвестный угол overlay");
+                } else if (version >= 10 && !requireBoolean(position, "legacyAbsolute",
+                        "settings.overlayPosition.legacyAbsolute")) {
+                    throw invalid("Некорректный режим положения overlay");
+                }
             }
             List<ShortcutSpec> shortcuts = version >= 2 && settings.has("shortcuts")
                     ? parseShortcuts(settings) : List.of();
@@ -676,6 +714,7 @@ final class SettingsBackup {
                             : WindowVisibilityPolicy.DEFAULT_HIDE_THRESHOLD_PERCENT,
                     x,
                     y,
+                    positionCorner,
                     selectedComponents,
                     shortcuts,
                     climateComponents,
