@@ -46,15 +46,16 @@ public final class MainActivity extends ScaledActivity
     private static final int REQUEST_NOTIFICATIONS = 301;
     private static final int REQUEST_EXPORT_SETTINGS = 302;
     private static final int REQUEST_IMPORT_SETTINGS = 303;
+    private static final int ON_ACCENT = Color.rgb(7, 16, 20);
     private static final long ACCESSIBILITY_STATUS_REFRESH_DELAY_MS = 1_000L;
 
     private final Handler main = new Handler(Looper.getMainLooper());
     private final ExecutorService ioExecutor = Executors.newSingleThreadExecutor();
     private Prefs prefs;
-    private TextView overlayStatus;
-    private TextView usageStatus;
-    private TextView accessibilityStatus;
-    private TextView notificationStatus;
+    private Button overlayPermissionButton;
+    private Button usagePermissionButton;
+    private Button accessibilityPermissionButton;
+    private Button notificationPermissionButton;
     private TextView serviceStatus;
     private TextView selectedSummary;
     private Switch autoStartSwitch;
@@ -193,46 +194,14 @@ public final class MainActivity extends ScaledActivity
 
         LinearLayout permissions = Ui.card(this);
         permissions.addView(Ui.heading(this, R.string.permissions_title, 20));
-        TextView permissionHint = Ui.text(this,
-                R.string.permissions_hint,
-                14,
-                Ui.TEXT_SECONDARY
-        );
-        permissionHint.setLineSpacing(0, 1.1f);
-        Ui.topMargin(permissionHint, 6);
-        permissions.addView(permissionHint);
-
-        overlayStatus = Ui.text(this, "", 14, Ui.TEXT_SECONDARY);
-        Ui.topMargin(overlayStatus, 16);
-        permissions.addView(overlayStatus);
-        Button overlayButton = Ui.button(this, R.string.allow_overlay);
-        Ui.topMargin(overlayButton, 8);
-        overlayButton.setOnClickListener(view -> openOverlaySettings());
-        permissions.addView(overlayButton);
-
-        usageStatus = Ui.text(this, "", 14, Ui.TEXT_SECONDARY);
-        Ui.topMargin(usageStatus, 16);
-        permissions.addView(usageStatus);
-        Button usageButton = Ui.button(this, R.string.allow_usage);
-        Ui.topMargin(usageButton, 8);
-        usageButton.setOnClickListener(view -> openUsageSettings());
-        permissions.addView(usageButton);
-
-        accessibilityStatus = Ui.text(this, "", 14, Ui.TEXT_SECONDARY);
-        Ui.topMargin(accessibilityStatus, 16);
-        permissions.addView(accessibilityStatus);
-        Button accessibilityButton = Ui.button(this, R.string.allow_accessibility);
-        Ui.topMargin(accessibilityButton, 8);
-        accessibilityButton.setOnClickListener(view -> openAccessibilitySettings());
-        permissions.addView(accessibilityButton);
-
-        notificationStatus = Ui.text(this, "", 14, Ui.TEXT_SECONDARY);
-        Ui.topMargin(notificationStatus, 16);
-        permissions.addView(notificationStatus);
-        Button notificationButton = Ui.button(this, R.string.allow_notifications);
-        Ui.topMargin(notificationButton, 8);
-        notificationButton.setOnClickListener(view -> requestNotificationPermission());
-        permissions.addView(notificationButton);
+        overlayPermissionButton = permissionButton(permissions, R.string.allow_overlay,
+                view -> openOverlaySettings());
+        usagePermissionButton = permissionButton(permissions, R.string.allow_usage,
+                view -> openUsageSettings());
+        accessibilityPermissionButton = permissionButton(permissions, R.string.allow_accessibility,
+                view -> openAccessibilitySettings());
+        notificationPermissionButton = permissionButton(permissions, R.string.allow_notifications,
+                view -> requestNotificationPermission());
         LinearLayout apps = Ui.card(this);
         apps.addView(Ui.heading(this, R.string.panel_apps_title, 20));
         selectedSummary = Ui.text(this, "", 14, Ui.TEXT_SECONDARY);
@@ -1142,29 +1111,20 @@ public final class MainActivity extends ScaledActivity
         boolean usageAllowed = ForegroundAppDetector.hasUsageAccess(this);
         boolean accessibilityAllowed = AccessibilityWindowState.isEnabled(this);
         boolean accessibilityConfigured = AccessibilityWindowState.isConfigured(this);
-        setStatus(overlayStatus,
-                getString(overlayAllowed
-                        ? R.string.status_overlay_allowed : R.string.status_overlay_denied),
-                overlayAllowed);
-        setStatus(usageStatus,
-                getString(usageAllowed
-                        ? R.string.status_usage_allowed : R.string.status_usage_denied),
-                usageAllowed);
-        setStatus(accessibilityStatus,
-                getString(accessibilityAllowed
-                        ? R.string.status_accessibility_allowed
-                        : accessibilityConfigured
-                        ? R.string.status_accessibility_not_connected
-                        : R.string.status_accessibility_denied),
-                accessibilityAllowed);
+        updatePermissionButton(overlayPermissionButton, overlayAllowed,
+                "Наложение разрешено", getString(R.string.allow_overlay));
+        updatePermissionButton(usagePermissionButton, usageAllowed,
+                "Статистика использования доступна", getString(R.string.allow_usage));
+        updatePermissionButton(accessibilityPermissionButton, accessibilityAllowed,
+                "Контроль окон включён",
+                accessibilityConfigured
+                        ? getString(R.string.permission_accessibility_not_connected)
+                        : getString(R.string.allow_accessibility));
 
         boolean notificationAllowed = Build.VERSION.SDK_INT < 33
                 || checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED;
-        setStatus(notificationStatus,
-                getString(notificationAllowed
-                        ? R.string.status_notifications_allowed
-                        : R.string.status_notifications_denied),
-                notificationAllowed);
+        updatePermissionButton(notificationPermissionButton, notificationAllowed,
+                "Уведомления разрешены", getString(R.string.allow_notifications));
 
         boolean serviceEnabled = prefs.getBoolean(Prefs.KEY_SERVICE_ENABLED, false);
         boolean serviceRunning = OverlayService.isRunning();
@@ -1750,6 +1710,27 @@ public final class MainActivity extends ScaledActivity
                 + 0.7152 * Color.green(color)
                 + 0.0722 * Color.blue(color)) / 255.0;
         button.setTextColor(luminance > 0.62 ? Color.BLACK : Color.WHITE);
+    }
+
+    private Button permissionButton(LinearLayout parent, int requestLabel,
+            View.OnClickListener listener) {
+        Button button = Ui.button(this, requestLabel);
+        button.setOnClickListener(listener);
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT);
+        params.topMargin = Ui.dp(this, 12);
+        parent.addView(button, params);
+        return button;
+    }
+
+    private void updatePermissionButton(Button button, boolean granted,
+            String grantedText, String requestText) {
+        if (button == null) return;
+        button.setText((granted ? "✓ " : "✕ ") + (granted ? grantedText : requestText));
+        button.setBackground(Ui.rounded(
+                granted ? Ui.ACCENT : Ui.SURFACE_RAISED, Ui.dp(this, 8)));
+        button.setTextColor(granted ? ON_ACCENT : Ui.TEXT);
     }
 
     private void setStatus(TextView view, String text, boolean good) {
