@@ -93,6 +93,10 @@
     <string name="preview_title">Предпросмотр панели</string>
     <string name="geometry_title">Геометрия панели</string>
     <string name="panel_width">Ширина панели</string>
+    <string name="automatic_panel_height">Высота автоматически</string>
+    <string name="panel_height">Высота панели</string>
+    <string name="panel_height_range">Диапазон высоты фона: %1$d–%2$d px</string>
+    <string name="panel_height_invalid">Введите целое число в диапазоне %1$d–%2$d px</string>
     <string name="columns">Столбцы</string>
     <string name="rows">Ряды</string>
     <string name="icon_size">Размер иконок</string>

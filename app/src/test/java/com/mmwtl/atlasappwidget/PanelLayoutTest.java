@@ -55,6 +55,61 @@ public final class PanelLayoutTest {
     }
 
     @Test
+    public void manualHeightIsExactAndShrinksIconsToFit() {
+        PanelLayout automatic = layout(1440, 1920, PanelConfig.WIDTH_DEFAULT_PIXELS,
+                5, 2, 240, 12, 14, 0);
+        PanelLayout manual = PanelLayout.calculate(
+                1440, 1920, PanelConfig.WIDTH_DEFAULT_PIXELS,
+                PanelConfig.WIDTH_MIN_PIXELS, 54, 240, 20, 4,
+                2, 5, 14, 40, true, false, 34, 4,
+                false, false, 30, 16, 0, 300);
+
+        assertEquals(300, manual.backgroundHeight);
+        assertTrue(manual.iconSize < automatic.iconSize);
+        assertTrue(manual.gridHeight + manual.padding * 2 <= manual.backgroundHeight);
+    }
+
+    @Test
+    public void manualHeightMinimumIncludesLabelsAndVerticalChrome() {
+        PanelLayout layout = PanelLayout.calculate(
+                1440, 1920, PanelConfig.WIDTH_DEFAULT_PIXELS,
+                PanelConfig.WIDTH_MIN_PIXELS, 54, 240, 40, 8,
+                3, 5, 40, 40, true, true, 34, 4,
+                true, false, 80, 16, 2, 1);
+
+        assertEquals(layout.minimumBackgroundHeight, layout.backgroundHeight);
+        assertTrue(layout.backgroundHeight <= layout.maximumBackgroundHeight);
+        assertTrue(layout.iconSize >= 1);
+        assertTrue(layout.gridHeight + layout.padding * 2 + 38 + 80 + 16
+                <= layout.backgroundHeight);
+    }
+
+    @Test
+    public void minimumManualHeightKeepsSideHandleVisibleWithBottomStatus() {
+        PanelLayout layout = PanelLayout.calculate(
+                1440, 1920, 1000, 1, 54, 104, 0, 0,
+                1, 5, 14, 12, true, false, 34, 4,
+                true, false, 30, 16, 2, 1);
+
+        assertEquals(80, layout.minimumBackgroundHeight);
+        assertTrue(layout.gridHeight >= 34);
+        assertEquals(80, layout.backgroundHeight);
+        assertEquals(84, layout.panelHeight);
+    }
+
+    @Test
+    public void largerManualHeightDoesNotEnlargeIcons() {
+        PanelLayout layout = PanelLayout.calculate(
+                1440, 1920, 1000, 1, 54, 72, 20, 4,
+                2, 5, 14, 12, false, false, 34, 4,
+                false, false, 30, 16, 2, 600);
+
+        assertEquals(600, layout.backgroundHeight);
+        assertEquals(72, layout.iconSize);
+        assertTrue(layout.gridHeight + layout.padding * 2 < layout.backgroundHeight);
+    }
+
+    @Test
     public void requestedWidthIsAppliedAsPixels() {
         PanelLayout layout = layout(1440, 1920, 800, 5, 1, 72, 12, 14, 0);
 

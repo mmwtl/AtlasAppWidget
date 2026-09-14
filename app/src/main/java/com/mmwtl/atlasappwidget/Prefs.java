@@ -56,6 +56,8 @@ final class Prefs {
     static final String KEY_USE_CUSTOM_FUEL_FORMULA = "use_custom_fuel_formula";
     static final String KEY_WIDTH_PIXELS = "width_pixels";
     private static final String KEY_LEGACY_WIDTH_PERCENT = "width_percent";
+    static final String KEY_MANUAL_HEIGHT_ENABLED = "manual_height_enabled";
+    static final String KEY_HEIGHT_PIXELS = "height_pixels";
     static final String KEY_COLUMNS = "columns";
     static final String KEY_ROWS = "rows";
     static final String KEY_ICON_SIZE_DP = "icon_size_dp";
@@ -511,6 +513,8 @@ final class Prefs {
                 .putFloat(KEY_FUEL_MULTIPLIER, data.fuel.multiplier)
                 .putFloat(KEY_FUEL_OFFSET, data.fuel.offset)
                 .putInt(KEY_WIDTH_PIXELS, data.geometry.widthPixels)
+                .putBoolean(KEY_MANUAL_HEIGHT_ENABLED, data.geometry.manualHeightEnabled)
+                .putInt(KEY_HEIGHT_PIXELS, data.geometry.heightPixels)
                 .putInt(KEY_COLUMNS, data.geometry.columns)
                 .putInt(KEY_ROWS, data.geometry.rows)
                 .putInt(KEY_ICON_SIZE_DP, data.geometry.iconSizeDp)

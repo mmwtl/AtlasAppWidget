@@ -31,7 +31,7 @@ import java.util.Set;
 final class SettingsBackup {
     static final String FILE_NAME = "AtlasAppWidget-settings.json";
     private static final String FORMAT = "atlas-app-widget-settings";
-    private static final int SCHEMA_VERSION = 10;
+    private static final int SCHEMA_VERSION = 11;
     private static final int MAX_FILE_BYTES = 256 * 1024;
     private static final int MAX_BACKUP_ICON_BYTES = 128 * 1024;
     private static final int MAX_SELECTED_COMPONENTS = 200;
@@ -242,6 +242,8 @@ final class SettingsBackup {
 
     static final class GeometryData {
         final int widthPixels;
+        final boolean manualHeightEnabled;
+        final int heightPixels;
         final int columns;
         final int rows;
         final int iconSizeDp;
@@ -251,7 +253,16 @@ final class SettingsBackup {
 
         GeometryData(int widthPixels, int columns, int rows, int iconSizeDp,
                 int iconCornerPercent, int paddingDp, int gapDp) {
+            this(widthPixels, false, PanelConfig.HEIGHT_REFERENCE_PIXELS, columns, rows,
+                    iconSizeDp, iconCornerPercent, paddingDp, gapDp);
+        }
+
+        GeometryData(int widthPixels, boolean manualHeightEnabled, int heightPixels,
+                int columns, int rows, int iconSizeDp, int iconCornerPercent,
+                int paddingDp, int gapDp) {
             this.widthPixels = widthPixels;
+            this.manualHeightEnabled = manualHeightEnabled;
+            this.heightPixels = heightPixels;
             this.columns = columns;
             this.rows = rows;
             this.iconSizeDp = iconSizeDp;
@@ -263,6 +274,8 @@ final class SettingsBackup {
         private GeometryData validated() throws IOException {
             requireRange("settings.geometry.widthPixels", widthPixels,
                     PanelConfig.WIDTH_MIN_PIXELS, PanelConfig.WIDTH_MAX_PIXELS);
+            requireRange("settings.geometry.heightPixels", heightPixels,
+                    PanelConfig.HEIGHT_MIN_PIXELS, PanelConfig.HEIGHT_MAX_PIXELS);
             requireRange("settings.geometry.columns", columns, 1, 10);
             requireRange("settings.geometry.rows", rows, 1, 4);
             requireRange("settings.geometry.iconSizeDp", iconSizeDp, 40, 240);
@@ -398,6 +411,11 @@ final class SettingsBackup {
                                         PanelConfig.WIDTH_DEFAULT_PIXELS),
                                 PanelConfig.WIDTH_MIN_PIXELS,
                                 PanelConfig.WIDTH_MAX_PIXELS),
+                        prefs.getBoolean(Prefs.KEY_MANUAL_HEIGHT_ENABLED, false),
+                        clamp(prefs.getInt(Prefs.KEY_HEIGHT_PIXELS,
+                                        PanelConfig.HEIGHT_REFERENCE_PIXELS),
+                                PanelConfig.HEIGHT_MIN_PIXELS,
+                                PanelConfig.HEIGHT_MAX_PIXELS),
                         clamp(prefs.getInt(Prefs.KEY_COLUMNS, 5), 1, 10),
                         clamp(prefs.getInt(Prefs.KEY_ROWS, 1), 1, 4),
                         clamp(prefs.getInt(Prefs.KEY_ICON_SIZE_DP, 72), 40, 240),
@@ -575,6 +593,8 @@ final class SettingsBackup {
                             .put("offset", readableFloat(data.fuel.offset)))
                     .put("geometry", new JSONObject()
                             .put("widthPixels", data.geometry.widthPixels)
+                            .put("manualHeightEnabled", data.geometry.manualHeightEnabled)
+                            .put("heightPixels", data.geometry.heightPixels)
                             .put("columns", data.geometry.columns)
                             .put("rows", data.geometry.rows)
                             .put("iconSizeDp", data.geometry.iconSizeDp)
@@ -756,6 +776,11 @@ final class SettingsBackup {
                             requireFloat(fuel, "offset", "settings.fuel.offset")),
                     new GeometryData(
                             decodeWidthPixels(geometry, version, legacyDisplayWidthPixels),
+                            version >= 11 && requireBoolean(geometry, "manualHeightEnabled",
+                                    "settings.geometry.manualHeightEnabled"),
+                            version >= 11 ? requireInt(geometry, "heightPixels",
+                                    "settings.geometry.heightPixels")
+                                    : PanelConfig.HEIGHT_REFERENCE_PIXELS,
                             requireInt(geometry, "columns", "settings.geometry.columns"),
                             requireInt(geometry, "rows", "settings.geometry.rows"),
                             requireInt(geometry, "iconSizeDp", "settings.geometry.iconSizeDp"),

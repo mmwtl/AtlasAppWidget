@@ -93,6 +93,11 @@ public final class MainActivity extends ScaledActivity
     private FrameLayout previewContainer;
     private Button backgroundColorButton;
     private Button backgroundStrokeColorButton;
+    private Switch manualHeightSwitch;
+    private SeekBar manualHeightSlider;
+    private EditText manualHeightInput;
+    private TextView manualHeightRange;
+    private boolean updatingManualHeight;
     private Button exportSettingsButton;
     private Button importSettingsButton;
     private SeekBar climateTransitionDurationSlider;
@@ -168,6 +173,9 @@ public final class MainActivity extends ScaledActivity
                 return;
             }
             refreshStatus();
+            if (isManualHeightKey(key)) {
+                updateManualHeightControls();
+            }
             if (!Prefs.KEY_POSITION_X.equals(key) && !Prefs.KEY_POSITION_Y.equals(key)
                     && !Prefs.KEY_POSITION_CORNER.equals(key)) {
                 refreshPreviewSoon();
@@ -855,6 +863,71 @@ public final class MainActivity extends ScaledActivity
                 prefs.getInt(Prefs.KEY_WIDTH_PIXELS, PanelConfig.WIDTH_DEFAULT_PIXELS),
                 value -> getString(R.string.px_value, value),
                 value -> prefs.putInt(Prefs.KEY_WIDTH_PIXELS, value));
+        manualHeightSwitch = new Switch(this);
+        manualHeightSwitch.setText(R.string.automatic_panel_height);
+        manualHeightSwitch.setTextColor(Ui.TEXT);
+        manualHeightSwitch.setTextSize(15);
+        manualHeightSwitch.setPadding(0, Ui.dp(this, 10), 0, Ui.dp(this, 4));
+        manualHeightSwitch.setOnCheckedChangeListener((button, checked) -> {
+            if (updatingManualHeight) return;
+            if (!checked && !prefs.getBoolean(Prefs.KEY_MANUAL_HEIGHT_ENABLED, false)) {
+                PanelView current = positionPanel(availableBoundsForPosition());
+                prefs.putInt(Prefs.KEY_HEIGHT_PIXELS,
+                        Math.max(PanelConfig.HEIGHT_MIN_PIXELS, current.backgroundHeight()));
+            }
+            prefs.putBoolean(Prefs.KEY_MANUAL_HEIGHT_ENABLED, !checked);
+        });
+        geometry.addView(manualHeightSwitch);
+        manualHeightRange = Ui.text(this, "", 13, Ui.TEXT_SECONDARY);
+        manualHeightRange.setLineSpacing(0, 1.1f);
+        geometry.addView(manualHeightRange);
+        manualHeightSlider = new SeekBar(this);
+        manualHeightSlider.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+            @Override
+            public void onProgressChanged(SeekBar bar, int value, boolean fromUser) {
+                if (fromUser && manualHeightInput != null) {
+                    manualHeightInput.clearFocus();
+                    setManualHeightInput(value);
+                } else if (manualHeightInput != null && !manualHeightInput.hasFocus()) {
+                    setManualHeightInput(value);
+                }
+                if (fromUser && !updatingManualHeight) {
+                    prefs.putInt(Prefs.KEY_HEIGHT_PIXELS, value);
+                }
+            }
+
+            @Override public void onStartTrackingTouch(SeekBar bar) { }
+            @Override public void onStopTrackingTouch(SeekBar bar) { }
+        });
+        geometry.addView(manualHeightSlider, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+        manualHeightInput = numberInput();
+        manualHeightInput.setHint(R.string.panel_height);
+        manualHeightInput.setContentDescription(getString(R.string.panel_height));
+        manualHeightInput.addTextChangedListener(new TextWatcher() {
+            @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) { }
+            @Override public void onTextChanged(CharSequence s, int start, int before, int count) {
+                if (updatingManualHeight) return;
+                Integer value = parseManualHeight(s.toString());
+                if (value != null && manualHeightSlider != null
+                        && value >= manualHeightSlider.getMin()
+                        && value <= manualHeightSlider.getMax()) {
+                    manualHeightSlider.setProgress(value);
+                    prefs.putInt(Prefs.KEY_HEIGHT_PIXELS, value);
+                    manualHeightInput.setError(null);
+                } else if (!s.toString().trim().isEmpty() && manualHeightSlider != null) {
+                    manualHeightInput.setError(getString(R.string.panel_height_invalid,
+                            manualHeightSlider.getMin(), manualHeightSlider.getMax()));
+                }
+            }
+            @Override public void afterTextChanged(Editable s) { }
+        });
+        manualHeightInput.setOnFocusChangeListener((view, focused) -> {
+            if (!focused) updateManualHeightControls();
+        });
+        geometry.addView(manualHeightInput, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+        updateManualHeightControls();
         addSlider(geometry, getString(R.string.columns), 1, 10,
                 prefs.getInt(Prefs.KEY_COLUMNS, 5), String::valueOf,
                 value -> prefs.putInt(Prefs.KEY_COLUMNS, value));
@@ -882,6 +955,59 @@ public final class MainActivity extends ScaledActivity
                 value -> getString(R.string.dp_value, value),
                 value -> prefs.putInt(Prefs.KEY_GAP_DP, value));
         return geometry;
+    }
+
+    private boolean isManualHeightKey(String key) {
+        return Prefs.KEY_MANUAL_HEIGHT_ENABLED.equals(key)
+                || Prefs.KEY_HEIGHT_PIXELS.equals(key)
+                || isPositionGeometryKey(key);
+    }
+
+    private Integer parseManualHeight(String value) {
+        try {
+            if (value.trim().isEmpty()) return null;
+            return Integer.parseInt(value.trim());
+        } catch (NumberFormatException error) {
+            return null;
+        }
+    }
+
+    private void setManualHeightInput(int value) {
+        if (manualHeightInput == null) return;
+        boolean previous = updatingManualHeight;
+        updatingManualHeight = true;
+        manualHeightInput.setText(Integer.toString(value));
+        manualHeightInput.setError(null);
+        updatingManualHeight = previous;
+    }
+
+    private void updateManualHeightControls() {
+        if (manualHeightSwitch == null || manualHeightSlider == null
+                || manualHeightInput == null || manualHeightRange == null) return;
+        PanelView current = positionPanel(availableBoundsForPosition());
+        int minimum = current.minimumBackgroundHeight();
+        int maximum = current.maximumBackgroundHeight();
+        int configured = prefs.getInt(Prefs.KEY_HEIGHT_PIXELS, current.backgroundHeight());
+        int value = Math.max(minimum, Math.min(maximum, configured));
+        boolean inputFocused = manualHeightInput.hasFocus();
+        boolean previous = updatingManualHeight;
+        updatingManualHeight = true;
+        boolean manualEnabled = prefs.getBoolean(Prefs.KEY_MANUAL_HEIGHT_ENABLED, false);
+        manualHeightSwitch.setChecked(!manualEnabled);
+        manualHeightSlider.setMin(minimum);
+        manualHeightSlider.setMax(Math.max(minimum, maximum));
+        manualHeightSlider.setProgress(value);
+        if (!inputFocused) {
+            setManualHeightInput(value);
+        }
+        manualHeightRange.setText(getString(R.string.panel_height_range, minimum, maximum));
+        manualHeightSlider.setEnabled(manualEnabled);
+        manualHeightInput.setEnabled(manualEnabled);
+        manualHeightSlider.setVisibility(manualEnabled ? View.VISIBLE : View.GONE);
+        manualHeightInput.setVisibility(manualEnabled ? View.VISIBLE : View.GONE);
+        manualHeightRange.setVisibility(manualEnabled ? View.VISIBLE : View.GONE);
+        manualHeightRange.setAlpha(manualEnabled ? 1f : 0.55f);
+        updatingManualHeight = previous;
     }
 
     private LinearLayout buildWindowVisibilityCard() {
@@ -1654,6 +1780,8 @@ public final class MainActivity extends ScaledActivity
                 || Prefs.KEY_POSITION_Y.equals(key)
                 || Prefs.KEY_POSITION_CORNER.equals(key)
                 || Prefs.KEY_WIDTH_PIXELS.equals(key)
+                || Prefs.KEY_MANUAL_HEIGHT_ENABLED.equals(key)
+                || Prefs.KEY_HEIGHT_PIXELS.equals(key)
                 || Prefs.KEY_COLUMNS.equals(key)
                 || Prefs.KEY_ROWS.equals(key)
                 || Prefs.KEY_ICON_SIZE_DP.equals(key)
@@ -1671,6 +1799,7 @@ public final class MainActivity extends ScaledActivity
                 || Prefs.KEY_SYSTEM_STATUS_POSITION.equals(key)
                 || Prefs.KEY_SYSTEM_STATUS_LINE_HEIGHT_DP.equals(key)
                 || Prefs.KEY_SYSTEM_STATUS_TEXT_SIZE_SP.equals(key)
+                || Prefs.KEY_SYSTEM_STATUS_TEXT_WEIGHT.equals(key)
                 || Prefs.KEY_BACKGROUND_STROKE_ENABLED.equals(key)
                 || Prefs.KEY_BACKGROUND_STROKE_WIDTH_DP.equals(key)
                 || Prefs.KEY_SELECTED_COMPONENTS.equals(key)

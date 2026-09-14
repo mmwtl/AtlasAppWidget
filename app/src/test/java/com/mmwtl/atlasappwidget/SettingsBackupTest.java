@@ -57,7 +57,43 @@ public final class SettingsBackupTest {
         assertTrue(settings.has("customIcons"));
         assertTrue(settings.getJSONObject("customIcons").length() == 0);
         assertEquals(960, settings.getJSONObject("geometry").getInt("widthPixels"));
+        assertFalse(settings.getJSONObject("geometry").getBoolean("manualHeightEnabled"));
         assertFalse(settings.getJSONObject("geometry").has("widthPercent"));
+    }
+
+    @Test public void manualHeightRoundTripsAndOldSchemaDefaultsAutomatic() throws Exception {
+        SettingsBackup.Data base = data(15, null, null);
+        SettingsBackup.Data manual = new SettingsBackup.Data(
+                base.autoStart, base.showOnlyInAppList, base.appUiScaleTenths,
+                base.freeformHideThresholdPercent, base.positionX, base.positionY,
+                base.selectedComponents, base.shortcuts, base.climateTransitionComponents,
+                base.climateTransitionDurationMs, base.customIcons, base.content, base.movement,
+                base.systemStatus, base.fuel,
+                new SettingsBackup.GeometryData(960, true, 480, 6, 2, 96, 20, 16, 10),
+                base.appearance);
+
+        SettingsBackup.Data restored = SettingsBackup.decode(
+                SettingsBackup.encode(manual, "test"));
+        assertTrue(restored.geometry.manualHeightEnabled);
+        assertEquals(480, restored.geometry.heightPixels);
+
+        JSONObject old = new JSONObject(SettingsBackup.encode(manual, "test"));
+        old.put("schemaVersion", 10);
+        JSONObject geometry = old.getJSONObject("settings").getJSONObject("geometry");
+        geometry.remove("manualHeightEnabled");
+        geometry.remove("heightPixels");
+        SettingsBackup.Data migrated = SettingsBackup.decode(old.toString());
+        assertFalse(migrated.geometry.manualHeightEnabled);
+    }
+
+    @Test public void currentBackupRequiresManualHeightFields() throws Exception {
+        JSONObject root = new JSONObject(SettingsBackup.encode(data(15, null, null), "test"));
+        root.getJSONObject("settings").getJSONObject("geometry")
+                .remove("heightPixels");
+
+        IOException error = assertThrows(IOException.class,
+                () -> SettingsBackup.decode(root.toString()));
+        assertTrue(error.getMessage().contains("heightPixels"));
     }
 
     @Test public void schema3LegacyLaunchModeMigratesToSelectedComponents() throws Exception {
@@ -196,7 +232,7 @@ public final class SettingsBackupTest {
 
     @Test public void rejectsUnsupportedSchemaVersion() throws Exception {
         JSONObject root = new JSONObject(SettingsBackup.encode(data(15, null, null), "test"));
-        root.put("schemaVersion", 11);
+        root.put("schemaVersion", 12);
 
         IOException error = assertThrows(IOException.class,
                 () -> SettingsBackup.decode(root.toString()));

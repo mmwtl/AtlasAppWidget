@@ -38,6 +38,9 @@ final class PanelConfig {
     static final int WIDTH_MAX_PIXELS = WIDTH_REFERENCE_PIXELS;
     static final int WIDTH_DEFAULT_PIXELS = Math.round(
             WIDTH_REFERENCE_PIXELS * 72 / 100f);
+    static final int HEIGHT_REFERENCE_PIXELS = 1920;
+    static final int HEIGHT_MIN_PIXELS = 1;
+    static final int HEIGHT_MAX_PIXELS = HEIGHT_REFERENCE_PIXELS;
 
     final boolean showDragHandle;
     final int dragHandlePosition;
@@ -54,6 +57,8 @@ final class PanelConfig {
     final int systemStatusTextSizeSp;
     final int systemStatusTextWeight;
     final int widthPixels;
+    final boolean manualHeightEnabled;
+    final int heightPixels;
     final int columns;
     final int rows;
     final int iconSizeDp;
@@ -114,6 +119,12 @@ final class PanelConfig {
                 prefs.getInt(Prefs.KEY_WIDTH_PIXELS, WIDTH_DEFAULT_PIXELS),
                 WIDTH_MIN_PIXELS,
                 WIDTH_MAX_PIXELS
+        );
+        manualHeightEnabled = prefs.getBoolean(Prefs.KEY_MANUAL_HEIGHT_ENABLED, false);
+        heightPixels = clamp(
+                prefs.getInt(Prefs.KEY_HEIGHT_PIXELS, HEIGHT_REFERENCE_PIXELS),
+                HEIGHT_MIN_PIXELS,
+                HEIGHT_MAX_PIXELS
         );
         columns = prefs.getInt(Prefs.KEY_COLUMNS, 5);
         rows = prefs.getInt(Prefs.KEY_ROWS, 1);

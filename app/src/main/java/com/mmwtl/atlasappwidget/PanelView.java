@@ -37,6 +37,9 @@ final class PanelView extends LinearLayout {
 
     private final int panelWidth;
     private final int panelHeight;
+    private final int backgroundHeight;
+    private final int minimumBackgroundHeight;
+    private final int maximumBackgroundHeight;
     private final int outlineInset;
     private final SystemStatusView systemStatusView;
     private final boolean needsCpuUpdates;
@@ -150,10 +153,14 @@ final class PanelView extends LinearLayout {
                 systemStatusSide,
                 systemStatusSize,
                 Ui.dp(context, SystemStatusView.GAP_DP),
-                outlineInset
+                outlineInset,
+                config.manualHeightEnabled ? config.heightPixels : -1
         );
         int backgroundWidth = layout.backgroundWidth;
         int backgroundHeight = layout.backgroundHeight;
+        this.backgroundHeight = backgroundHeight;
+        minimumBackgroundHeight = layout.minimumBackgroundHeight;
+        maximumBackgroundHeight = layout.maximumBackgroundHeight;
         int outerPadding = layout.padding;
         panelWidth = layout.panelWidth;
         panelHeight = layout.panelHeight;
@@ -343,6 +350,18 @@ final class PanelView extends LinearLayout {
 
     int panelHeight() {
         return panelHeight;
+    }
+
+    int backgroundHeight() {
+        return backgroundHeight;
+    }
+
+    int minimumBackgroundHeight() {
+        return minimumBackgroundHeight;
+    }
+
+    int maximumBackgroundHeight() {
+        return maximumBackgroundHeight;
     }
 
     int actualIconSize() {
