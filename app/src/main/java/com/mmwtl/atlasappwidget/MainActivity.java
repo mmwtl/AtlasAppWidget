@@ -1562,9 +1562,8 @@ public final class MainActivity extends ScaledActivity
         refreshingPosition = true;
         Rect bounds = availableBoundsForPosition();
         PanelView size = positionPanel(bounds);
-        int inset = size.outlineInset();
-        int width = Math.max(1, size.panelWidth() - inset * 2);
-        int height = Math.max(1, size.panelHeight() - inset * 2);
+        int width = size.panelWidth();
+        int height = size.panelHeight();
         OverlayCorner corner = OverlayCorner.fromPreference(
                 prefs.raw().getString(Prefs.KEY_POSITION_CORNER, null));
         int storedX = prefs.getInt(Prefs.KEY_POSITION_X, Prefs.POSITION_UNSET);
@@ -1572,13 +1571,13 @@ public final class MainActivity extends ScaledActivity
         if (corner == null) {
             corner = OverlayCorner.TOP_START;
             int defaultX = bounds.left + Math.max(0,
-                    (bounds.width() - size.panelWidth()) / 2) + inset;
+                    (bounds.width() - size.panelWidth()) / 2);
             int defaultY = bounds.top + Math.max(0,
-                    Math.round((bounds.height() - size.panelHeight()) * 0.72f)) + inset;
+                    Math.round((bounds.height() - size.panelHeight()) * 0.72f));
             int absoluteX = storedX == Prefs.POSITION_UNSET
-                    ? defaultX : storedX + bounds.left;
+                    ? defaultX : storedX + bounds.left - size.outlineInset();
             int absoluteY = storedY == Prefs.POSITION_UNSET
-                    ? defaultY : storedY + bounds.top;
+                    ? defaultY : storedY + bounds.top - size.outlineInset();
             OverlayGeometry.Offset offsets = OverlayGeometry.offsetsFor(corner,
                     bounds.left, bounds.top, bounds.right, bounds.bottom,
                     width, height, absoluteX, absoluteY);
@@ -1625,9 +1624,8 @@ public final class MainActivity extends ScaledActivity
     private void reanchorPositionFields(OverlayCorner newCorner) {
         Rect bounds = availableBoundsForPosition();
         PanelView size = positionPanel(bounds);
-        int inset = size.outlineInset();
-        int width = Math.max(1, size.panelWidth() - inset * 2);
-        int height = Math.max(1, size.panelHeight() - inset * 2);
+        int width = size.panelWidth();
+        int height = size.panelHeight();
         OverlayCorner oldCorner = displayedPositionCorner == null
                 ? OverlayCorner.TOP_START : displayedPositionCorner;
         OverlayGeometry.Position absolute = OverlayGeometry.positionFor(oldCorner,
@@ -1644,9 +1642,8 @@ public final class MainActivity extends ScaledActivity
     private void applyPosition() {
         Rect bounds = availableBoundsForPosition();
         PanelView size = positionPanel(bounds);
-        int inset = size.outlineInset();
-        int width = Math.max(1, size.panelWidth() - inset * 2);
-        int height = Math.max(1, size.panelHeight() - inset * 2);
+        int width = size.panelWidth();
+        int height = size.panelHeight();
         int maxX = Math.max(0, bounds.width() - width);
         int maxY = Math.max(0, bounds.height() - height);
         Integer x = validatedPositionInput(positionX, 0, maxX,

@@ -508,7 +508,7 @@ public final class OverlayService extends Service
             Rect bounds = availableBounds();
             if (panelBoundsWidth == bounds.width() && panelBoundsHeight == bounds.height()
                     && panelParams != null) {
-                migrateLegacyPosition(bounds, panel, panel.outlineInset());
+                migrateLegacyPosition(bounds, panel);
                 applyStoredPosition(panelParams, panel, bounds);
                 clampPosition(panelParams, panel, bounds);
                 try {
@@ -558,7 +558,7 @@ public final class OverlayService extends Service
                 PixelFormat.TRANSLUCENT
         );
         params.gravity = Gravity.TOP | Gravity.START;
-        migrateLegacyPosition(bounds, candidate, candidate.outlineInset());
+        migrateLegacyPosition(bounds, candidate);
         applyStoredPosition(params, candidate, bounds);
         clampPosition(params, candidate, bounds);
 
@@ -763,12 +763,11 @@ public final class OverlayService extends Service
             case MotionEvent.ACTION_CANCEL:
                 Rect boundsOnUp = availableBounds();
                 OverlayCorner corner = storedCorner();
-                int inset = panel.outlineInset();
                 OverlayGeometry.Offset offsets = OverlayGeometry.offsetsFor(corner,
                         boundsOnUp.left, boundsOnUp.top, boundsOnUp.right, boundsOnUp.bottom,
-                        innerPanelWidth(panel), innerPanelHeight(panel),
-                        panelParams.x + boundsOnUp.left + inset,
-                        panelParams.y + boundsOnUp.top + inset);
+                        panel.panelWidth(), panel.panelHeight(),
+                        panelParams.x + boundsOnUp.left,
+                        panelParams.y + boundsOnUp.top);
                 prefs.putPosition(corner, offsets.x(), offsets.y());
                 return true;
             default:
@@ -915,21 +914,12 @@ public final class OverlayService extends Service
     }
 
     private void clampPosition(WindowManager.LayoutParams params, PanelView target, Rect bounds) {
-        int inset = target.outlineInset();
         OverlayGeometry.Position position = OverlayGeometry.positionFor(OverlayCorner.TOP_START,
                 bounds.left, bounds.top, bounds.right, bounds.bottom,
-                innerPanelWidth(target), innerPanelHeight(target),
-                params.x + inset, params.y + inset);
-        params.x = position.x() - bounds.left - inset;
-        params.y = position.y() - bounds.top - inset;
-    }
-
-    private int innerPanelWidth(PanelView target) {
-        return Math.max(1, target.panelWidth() - target.outlineInset() * 2);
-    }
-
-    private int innerPanelHeight(PanelView target) {
-        return Math.max(1, target.panelHeight() - target.outlineInset() * 2);
+                target.panelWidth(), target.panelHeight(),
+                params.x + bounds.left, params.y + bounds.top);
+        params.x = position.x() - bounds.left;
+        params.y = position.y() - bounds.top;
     }
 
     private OverlayCorner storedCorner() {
@@ -938,24 +928,25 @@ public final class OverlayService extends Service
         return corner == null ? OverlayCorner.TOP_START : corner;
     }
 
-    private void migrateLegacyPosition(Rect bounds, PanelView target, int inset) {
+    private void migrateLegacyPosition(Rect bounds, PanelView target) {
         if (OverlayCorner.fromPreference(
                 prefs.raw().getString(Prefs.KEY_POSITION_CORNER, null)) != null) {
             return;
         }
+        int inset = target.outlineInset();
         int storedX = prefs.getInt(Prefs.KEY_POSITION_X, Prefs.POSITION_UNSET);
         int storedY = prefs.getInt(Prefs.KEY_POSITION_Y, Prefs.POSITION_UNSET);
         int defaultX = bounds.left + Math.max(0,
-                (bounds.width() - target.panelWidth()) / 2) + inset;
+                (bounds.width() - target.panelWidth()) / 2);
         int defaultY = bounds.top + Math.max(0,
-                Math.round((bounds.height() - target.panelHeight()) * 0.72f)) + inset;
+                Math.round((bounds.height() - target.panelHeight()) * 0.72f));
         int absoluteX = storedX == Prefs.POSITION_UNSET
-                ? defaultX : storedX + bounds.left;
+                ? defaultX : storedX + bounds.left - inset;
         int absoluteY = storedY == Prefs.POSITION_UNSET
-                ? defaultY : storedY + bounds.top;
+                ? defaultY : storedY + bounds.top - inset;
         OverlayGeometry.Offset offsets = OverlayGeometry.offsetsFor(OverlayCorner.TOP_START,
                 bounds.left, bounds.top, bounds.right, bounds.bottom,
-                innerPanelWidth(target), innerPanelHeight(target), absoluteX, absoluteY);
+                target.panelWidth(), target.panelHeight(), absoluteX, absoluteY);
         prefs.putPosition(OverlayCorner.TOP_START, offsets.x(), offsets.y());
     }
 
@@ -966,10 +957,9 @@ public final class OverlayService extends Service
         int offsetY = Math.max(0, prefs.getInt(Prefs.KEY_POSITION_Y, 0));
         OverlayGeometry.Position position = OverlayGeometry.positionFor(corner,
                 bounds.left, bounds.top, bounds.right, bounds.bottom,
-                innerPanelWidth(target), innerPanelHeight(target), offsetX, offsetY);
-        int inset = target.outlineInset();
-        params.x = position.x() - bounds.left - inset;
-        params.y = position.y() - bounds.top - inset;
+                target.panelWidth(), target.panelHeight(), offsetX, offsetY);
+        params.x = position.x() - bounds.left;
+        params.y = position.y() - bounds.top;
     }
 
     private Rect availableBounds() {
