@@ -76,11 +76,9 @@
     <string name="position_y">Отступ Y</string>
     <string name="position_x_content_description">Отступ по X в пикселях</string>
     <string name="position_y_content_description">Отступ по Y в пикселях</string>
-    <string name="panel_position_hint">Выберите угол и задайте отступы в пикселях. При смене угла положение панели на экране сохраняется.</string>
-    <string name="apply_panel_position">Применить положение</string>
+    <string name="panel_position_hint">Выберите угол и задайте отступы в пикселях. Изменения сохраняются автоматически после ввода; при смене угла положение панели на экране сохраняется.</string>
     <string name="position_x_range">Введите число от 0 до %1$d px</string>
     <string name="position_y_range">Введите число от 0 до %1$d px</string>
-    <string name="position_applied">Положение применено</string>
     <string name="window_visibility_title">Скрытие поверх окон</string>
     <string name="show_only_in_app_list">Показывать только в списке приложений</string>
     <string name="show_only_in_app_list_hint">Панель будет скрыта на рабочем столе и появится только в окне списка приложений Launcher3, распознанном через специальные возможности. Если состояние окна определить нельзя, панель останется скрытой.</string>

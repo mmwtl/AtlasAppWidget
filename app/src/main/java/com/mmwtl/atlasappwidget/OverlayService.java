@@ -917,7 +917,7 @@ public final class OverlayService extends Service
         OverlayGeometry.Position position = OverlayGeometry.positionFor(OverlayCorner.TOP_START,
                 bounds.left, bounds.top, bounds.right, bounds.bottom,
                 target.panelWidth(), target.panelHeight(),
-                params.x + bounds.left, params.y + bounds.top);
+                params.x, params.y);
         params.x = position.x() - bounds.left;
         params.y = position.y() - bounds.top;
     }

@@ -15,7 +15,9 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import android.provider.Settings;
+import android.text.Editable;
 import android.text.InputType;
+import android.text.TextWatcher;
 import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
@@ -48,6 +50,7 @@ public final class MainActivity extends ScaledActivity
     private static final int REQUEST_IMPORT_SETTINGS = 303;
     private static final int ON_ACCENT = Color.rgb(7, 16, 20);
     private static final long ACCESSIBILITY_STATUS_REFRESH_DELAY_MS = 1_000L;
+    private static final long POSITION_SAVE_DEBOUNCE_DELAY_MS = 400L;
 
     private final Handler main = new Handler(Looper.getMainLooper());
     private final ExecutorService ioExecutor = Executors.newSingleThreadExecutor();
@@ -80,6 +83,12 @@ public final class MainActivity extends ScaledActivity
     private EditText positionY;
     private OverlayCorner displayedPositionCorner;
     private boolean refreshingPosition;
+    private boolean suppressPositionWatchers;
+    private boolean positionDirty;
+    private int lastValidPositionX;
+    private int lastValidPositionY;
+    private boolean hasLastValidPosition;
+    private boolean savingPosition;
     private Switch backgroundStrokeSwitch;
     private FrameLayout previewContainer;
     private Button backgroundColorButton;
@@ -91,6 +100,7 @@ public final class MainActivity extends ScaledActivity
     private boolean updatingSwitch;
     private volatile boolean applyingSettings;
     private final Runnable delayedAccessibilityStatusRefresh = this::refreshStatus;
+    private final Runnable delayedPositionSave = this::savePosition;
     private final Runnable accessibilityStateRefresh = () ->
             main.post(delayedAccessibilityStatusRefresh);
 
@@ -120,6 +130,8 @@ public final class MainActivity extends ScaledActivity
     protected void onPause() {
         AccessibilityWindowState.clearStateListener(accessibilityStateRefresh);
         main.removeCallbacks(delayedAccessibilityStatusRefresh);
+        main.removeCallbacks(delayedPositionSave);
+        savePosition();
         super.onPause();
     }
 
@@ -161,6 +173,9 @@ public final class MainActivity extends ScaledActivity
                 refreshPreviewSoon();
             }
             if (isPositionGeometryKey(key)) {
+                if (isPositionKey(key) && savingPosition) {
+                    return;
+                }
                 refreshPositionControls();
             }
         });
@@ -510,7 +525,9 @@ public final class MainActivity extends ScaledActivity
                     @Override
                     public void onItemSelected(android.widget.AdapterView<?> parent,
                             View view, int position, long id) {
-                        if (!refreshingPosition && positionX != null && positionY != null) {
+                        if (!refreshingPosition && positionX != null && positionY != null
+                                && position >= 0 && position < OverlayCorner.values().length
+                                && OverlayCorner.values()[position] != displayedPositionCorner) {
                             reanchorPositionFields(OverlayCorner.values()[position]);
                         }
                     }
@@ -577,23 +594,53 @@ public final class MainActivity extends ScaledActivity
         positionGrid.addView(positionRow);
         movement.addView(positionGrid);
 
+        TextWatcher positionWatcher = new TextWatcher() {
+            @Override
+            public void beforeTextChanged(CharSequence source, int start, int count,
+                    int after) {
+            }
+
+            @Override
+            public void onTextChanged(CharSequence source, int start, int before, int count) {
+            }
+
+            @Override
+            public void afterTextChanged(Editable editable) {
+                onPositionTextChanged();
+            }
+        };
+        positionX.addTextChangedListener(positionWatcher);
+        positionY.addTextChangedListener(positionWatcher);
+        View.OnFocusChangeListener positionFocusListener = (view, hasFocus) -> {
+            if (!hasFocus && !suppressPositionWatchers) {
+                main.removeCallbacks(delayedPositionSave);
+                savePosition();
+            }
+        };
+        positionX.setOnFocusChangeListener(positionFocusListener);
+        positionY.setOnFocusChangeListener(positionFocusListener);
+
         TextView positionHint = Ui.text(this, R.string.panel_position_hint, 13,
                 Ui.TEXT_SECONDARY);
         positionHint.setLineSpacing(0, 1.1f);
         Ui.topMargin(positionHint, 6);
         movement.addView(positionHint);
 
-        Button applyPosition = Ui.button(this, R.string.apply_panel_position);
-        Ui.topMargin(applyPosition, 10);
-        applyPosition.setOnClickListener(view -> applyPosition());
-        movement.addView(applyPosition);
-
         Button resetPosition = Ui.button(this, R.string.reset_panel_position);
         Ui.topMargin(resetPosition, 12);
         resetPosition.setOnClickListener(view -> {
-            prefs.putInt(Prefs.KEY_POSITION_X, Prefs.POSITION_UNSET);
-            prefs.putInt(Prefs.KEY_POSITION_Y, Prefs.POSITION_UNSET);
-            prefs.remove(Prefs.KEY_POSITION_CORNER);
+            main.removeCallbacks(delayedPositionSave);
+            positionDirty = false;
+            savingPosition = true;
+            try {
+                prefs.raw().edit()
+                        .putInt(Prefs.KEY_POSITION_X, Prefs.POSITION_UNSET)
+                        .putInt(Prefs.KEY_POSITION_Y, Prefs.POSITION_UNSET)
+                        .remove(Prefs.KEY_POSITION_CORNER)
+                        .apply();
+            } finally {
+                savingPosition = false;
+            }
             refreshPositionControls();
             Toast.makeText(this, R.string.position_reset, Toast.LENGTH_SHORT).show();
         });
@@ -1560,10 +1607,14 @@ public final class MainActivity extends ScaledActivity
         if (positionCornerSpinner == null || positionX == null || positionY == null) return;
         boolean previous = refreshingPosition;
         refreshingPosition = true;
+        suppressPositionWatchers = true;
+        positionDirty = false;
         Rect bounds = availableBoundsForPosition();
         PanelView size = positionPanel(bounds);
         int width = size.panelWidth();
         int height = size.panelHeight();
+        int maxX = Math.max(0, bounds.width() - width);
+        int maxY = Math.max(0, bounds.height() - height);
         OverlayCorner corner = OverlayCorner.fromPreference(
                 prefs.raw().getString(Prefs.KEY_POSITION_CORNER, null));
         int storedX = prefs.getInt(Prefs.KEY_POSITION_X, Prefs.POSITION_UNSET);
@@ -1586,10 +1637,15 @@ public final class MainActivity extends ScaledActivity
         }
         displayedPositionCorner = corner;
         positionCornerSpinner.setSelection(corner.ordinal());
-        positionX.setText(Integer.toString(Math.max(0,
-                storedX == Prefs.POSITION_UNSET ? 0 : storedX)));
-        positionY.setText(Integer.toString(Math.max(0,
-                storedY == Prefs.POSITION_UNSET ? 0 : storedY)));
+        int displayedX = Math.min(maxX, Math.max(0,
+                storedX == Prefs.POSITION_UNSET ? 0 : storedX));
+        int displayedY = Math.min(maxY, Math.max(0,
+                storedY == Prefs.POSITION_UNSET ? 0 : storedY));
+        setPositionFields(displayedX, displayedY);
+        lastValidPositionX = displayedX;
+        lastValidPositionY = displayedY;
+        hasLastValidPosition = true;
+        suppressPositionWatchers = false;
         refreshingPosition = previous;
     }
 
@@ -1626,37 +1682,93 @@ public final class MainActivity extends ScaledActivity
         PanelView size = positionPanel(bounds);
         int width = size.panelWidth();
         int height = size.panelHeight();
+        int maxX = Math.max(0, bounds.width() - width);
+        int maxY = Math.max(0, bounds.height() - height);
         OverlayCorner oldCorner = displayedPositionCorner == null
                 ? OverlayCorner.TOP_START : displayedPositionCorner;
+        Integer inputX = parsePositionInput(positionX, 0, maxX);
+        Integer inputY = parsePositionInput(positionY, 0, maxY);
+        boolean currentInputValid = inputX != null && inputY != null;
+        int currentX = currentInputValid
+                ? inputX : hasLastValidPosition ? lastValidPositionX : nonNegativeInput(positionX);
+        int currentY = currentInputValid
+                ? inputY : hasLastValidPosition ? lastValidPositionY : nonNegativeInput(positionY);
         OverlayGeometry.Position absolute = OverlayGeometry.positionFor(oldCorner,
                 bounds.left, bounds.top, bounds.right, bounds.bottom,
-                width, height, nonNegativeInput(positionX), nonNegativeInput(positionY));
+                width, height, currentX, currentY);
         OverlayGeometry.Offset offsets = OverlayGeometry.offsetsFor(newCorner,
                 bounds.left, bounds.top, bounds.right, bounds.bottom,
                 width, height, absolute.x(), absolute.y());
         displayedPositionCorner = newCorner;
-        positionX.setText(Integer.toString(offsets.x()));
-        positionY.setText(Integer.toString(offsets.y()));
+        setPositionFields(offsets.x(), offsets.y());
+        lastValidPositionX = offsets.x();
+        lastValidPositionY = offsets.y();
+        hasLastValidPosition = true;
+        positionDirty = false;
+        main.removeCallbacks(delayedPositionSave);
+        persistPosition(newCorner, offsets.x(), offsets.y());
     }
 
-    private void applyPosition() {
+    private void onPositionTextChanged() {
+        if (suppressPositionWatchers || positionX == null || positionY == null) {
+            return;
+        }
+        positionDirty = true;
+        main.removeCallbacks(delayedPositionSave);
+        main.postDelayed(delayedPositionSave, POSITION_SAVE_DEBOUNCE_DELAY_MS);
+    }
+
+    private void savePosition() {
+        if (!positionDirty || positionX == null || positionY == null) {
+            return;
+        }
         Rect bounds = availableBoundsForPosition();
         PanelView size = positionPanel(bounds);
-        int width = size.panelWidth();
-        int height = size.panelHeight();
-        int maxX = Math.max(0, bounds.width() - width);
-        int maxY = Math.max(0, bounds.height() - height);
+        int maxX = Math.max(0, bounds.width() - size.panelWidth());
+        int maxY = Math.max(0, bounds.height() - size.panelHeight());
         Integer x = validatedPositionInput(positionX, 0, maxX,
                 getString(R.string.position_x_range, maxX));
         Integer y = validatedPositionInput(positionY, 0, maxY,
                 getString(R.string.position_y_range, maxY));
-        if (x == null || y == null) return;
+        if (x == null || y == null) {
+            return;
+        }
         int selected = positionCornerSpinner.getSelectedItemPosition();
-        if (selected < 0 || selected >= OverlayCorner.values().length) return;
+        if (selected < 0 || selected >= OverlayCorner.values().length) {
+            return;
+        }
         OverlayCorner corner = OverlayCorner.values()[selected];
-        prefs.putPosition(corner, x, y);
+        lastValidPositionX = x;
+        lastValidPositionY = y;
+        hasLastValidPosition = true;
         displayedPositionCorner = corner;
-        Toast.makeText(this, R.string.position_applied, Toast.LENGTH_SHORT).show();
+        positionDirty = false;
+        persistPosition(corner, x, y);
+    }
+
+    private void setPositionFields(int x, int y) {
+        boolean previous = suppressPositionWatchers;
+        suppressPositionWatchers = true;
+        positionX.setText(Integer.toString(Math.max(0, x)));
+        positionY.setText(Integer.toString(Math.max(0, y)));
+        positionX.setError(null);
+        positionY.setError(null);
+        suppressPositionWatchers = previous;
+    }
+
+    private void persistPosition(OverlayCorner corner, int x, int y) {
+        savingPosition = true;
+        try {
+            prefs.putPosition(corner, x, y);
+        } finally {
+            savingPosition = false;
+        }
+    }
+
+    private boolean isPositionKey(String key) {
+        return Prefs.KEY_POSITION_X.equals(key)
+                || Prefs.KEY_POSITION_Y.equals(key)
+                || Prefs.KEY_POSITION_CORNER.equals(key);
     }
 
     private int nonNegativeInput(EditText input) {
@@ -1677,6 +1789,18 @@ public final class MainActivity extends ScaledActivity
             return parsed;
         } catch (NumberFormatException error) {
             input.setError(message);
+            return null;
+        }
+    }
+
+    private Integer parsePositionInput(EditText input, int min, int max) {
+        try {
+            String value = input.getText().toString().trim();
+            if (value.isEmpty()) throw new NumberFormatException();
+            int parsed = Integer.parseInt(value);
+            if (parsed < min || parsed > max) throw new NumberFormatException();
+            return parsed;
+        } catch (NumberFormatException error) {
             return null;
         }
     }
