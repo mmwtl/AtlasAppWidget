@@ -30,7 +30,8 @@ public final class WidgetLaunchActivity extends Activity {
             return;
         }
         if (selected.isFuel()) {
-            startActivity(new Intent(this, WidgetFuelActivity.class));
+            startActivity(new Intent(this, WidgetFuelActivity.class)
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
             finish();
             return;
         }

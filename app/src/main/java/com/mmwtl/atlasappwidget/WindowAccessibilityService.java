@@ -32,11 +32,13 @@ public final class WindowAccessibilityService extends AccessibilityService {
     private boolean refreshInFlight;
     private boolean refreshPending;
     private volatile boolean destroyed;
+    private Prefs prefs;
     private final Runnable launcherAppListRefresh = this::requestWindowRefresh;
 
     @Override
     protected void onServiceConnected() {
         super.onServiceConnected();
+        prefs = new Prefs(this);
         AccessibilityServiceInfo info = getServiceInfo();
         info.eventTypes = AccessibilityEvent.TYPE_WINDOWS_CHANGED
                 | AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED
@@ -55,7 +57,7 @@ public final class WindowAccessibilityService extends AccessibilityService {
 
     @Override
     public void onAccessibilityEvent(AccessibilityEvent event) {
-        if (event == null) {
+        if (event == null || prefs == null || prefs.isWidgetMode()) {
             return;
         }
         if (event.getEventType() == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
@@ -88,7 +90,7 @@ public final class WindowAccessibilityService extends AccessibilityService {
 
     @SuppressWarnings("deprecation")
     private void requestWindowRefresh() {
-        if (destroyed) {
+        if (destroyed || prefs == null || prefs.isWidgetMode()) {
             return;
         }
         if (refreshInFlight) {
@@ -112,6 +114,9 @@ public final class WindowAccessibilityService extends AccessibilityService {
         boolean eventWindowPresent = false;
         boolean launcherAppListVisible = false;
         try {
+            if (destroyed || prefs.isWidgetMode()) {
+                return;
+            }
             List<AccessibilityWindowInfo> windows = getWindows();
             if (windows != null) {
                 for (AccessibilityWindowInfo window : windows) {
@@ -168,7 +173,7 @@ public final class WindowAccessibilityService extends AccessibilityService {
             WindowManager manager = getSystemService(WindowManager.class);
             WindowMetrics metrics = manager.getCurrentWindowMetrics();
             Rect display = metrics.getBounds();
-            if (destroyed) {
+            if (destroyed || prefs.isWidgetMode()) {
                 return;
             }
             AccessibilityWindowState.update(
@@ -210,7 +215,7 @@ public final class WindowAccessibilityService extends AccessibilityService {
 
     private void startOverlayIfNeeded() {
         Prefs prefs = new Prefs(this);
-        if (!prefs.getBoolean(Prefs.KEY_SERVICE_ENABLED, false)
+        if (prefs.isWidgetMode() || !prefs.getBoolean(Prefs.KEY_SERVICE_ENABLED, false)
                 || !Settings.canDrawOverlays(this)
                 || !ForegroundAppDetector.hasUsageAccess(this)) {
             return;

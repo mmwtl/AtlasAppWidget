@@ -1,25 +1,22 @@
 package com.mmwtl.atlasappwidget;
 
 import android.app.Activity;
-import android.graphics.Color;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
-import android.view.Gravity;
-import android.widget.FrameLayout;
+import android.view.WindowManager;
 
-/** Fuel details for a home-screen widget; it does not require overlay permission. */
+/** Native floating fuel details, with no overlay or foreground-window monitoring. */
 public final class WidgetFuelActivity extends Activity {
+    private static final long AUTO_HIDE_MS = 10_000L;
     private final Handler handler = new Handler(Looper.getMainLooper());
-    private FuelLevelProvider fuel;
     private FuelDetailsView details;
+    private final Runnable autoHide = this::finish;
     private final Runnable refresh = new Runnable() {
         @Override
         public void run() {
-            if (fuel != null && details != null) {
-                details.update(fuel.reading());
-                handler.postDelayed(this, 1_000L);
-            }
+            details.update(WidgetFuelService.reading());
+            handler.postDelayed(this, 1_000L);
         }
     };
 
@@ -27,31 +24,35 @@ public final class WidgetFuelActivity extends Activity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         Prefs prefs = new Prefs(this);
-        fuel = new FuelLevelProvider(this, prefs);
-        FrameLayout root = new FrameLayout(this);
-        root.setBackgroundColor(Color.rgb(23, 23, 23));
+        if (!prefs.isWidgetMode()
+                || !prefs.selectedComponents().contains(AppEntry.FUEL_COMPONENT_KEY)) {
+            finish();
+            return;
+        }
         details = new FuelDetailsView(this, prefs, this::finish);
-        FrameLayout.LayoutParams params = new FrameLayout.LayoutParams(
-                Math.min(Ui.dp(this, 600),
-                        Math.round(getResources().getDisplayMetrics().widthPixels * 0.9f)),
-                FrameLayout.LayoutParams.WRAP_CONTENT,
-                Gravity.CENTER);
-        root.addView(details, params);
-        setContentView(root);
+        setContentView(details);
+        getWindow().setLayout(Math.min(Ui.dp(this, 600),
+                        Math.round(getWindowManager().getCurrentWindowMetrics()
+                                .getBounds().width() * 0.9f)),
+                WindowManager.LayoutParams.WRAP_CONTENT);
+        setFinishOnTouchOutside(true);
     }
 
     @Override
     protected void onStart() {
         super.onStart();
+        if (details == null) {
+            return;
+        }
         WidgetFuelService.sync(this);
-        fuel.start();
         refresh.run();
+        handler.postDelayed(autoHide, AUTO_HIDE_MS);
     }
 
     @Override
     protected void onStop() {
         handler.removeCallbacks(refresh);
-        fuel.stop();
+        handler.removeCallbacks(autoHide);
         super.onStop();
     }
 }

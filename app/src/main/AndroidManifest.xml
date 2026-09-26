@@ -43,7 +43,11 @@
 
         <activity
             android:name=".WidgetFuelActivity"
-            android:exported="false" />
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:noHistory="true"
+            android:taskAffinity=""
+            android:theme="@style/Theme.AtlasWidget.FuelDialog" />
 
         <activity
             android:name=".DiagnosticLaunchActivity"

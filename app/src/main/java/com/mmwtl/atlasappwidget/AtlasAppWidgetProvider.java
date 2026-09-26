@@ -152,8 +152,10 @@ public final class AtlasAppWidgetProvider extends AppWidgetProvider {
                         cell.setTextViewTextSize(R.id.widget_label,
                                 TypedValue.COMPLEX_UNIT_SP, config.appLabelTextSizeSp);
                     }
-                    Intent launch = new Intent(context, WidgetLaunchActivity.class)
+                    Intent launch = new Intent(context, entry.isFuel()
+                            ? WidgetFuelActivity.class : WidgetLaunchActivity.class)
                             .putExtra(WidgetLaunchActivity.EXTRA_ENTRY_KEY, entry.componentKey)
+                            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                             .setData(Uri.parse("atlaswidget://launch/" + widgetId + "/" + index));
                     PendingIntent click = PendingIntent.getActivity(context,
                             widgetId * 100 + index, launch,
