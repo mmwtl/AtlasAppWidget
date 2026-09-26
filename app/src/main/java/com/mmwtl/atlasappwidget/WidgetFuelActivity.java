@@ -43,6 +43,7 @@ public final class WidgetFuelActivity extends Activity {
     @Override
     protected void onStart() {
         super.onStart();
+        WidgetFuelService.sync(this);
         fuel.start();
         refresh.run();
     }

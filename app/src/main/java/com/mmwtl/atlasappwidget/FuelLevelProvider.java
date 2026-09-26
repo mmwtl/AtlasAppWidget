@@ -35,6 +35,7 @@ final class FuelLevelProvider {
 
     private final Context context;
     private final Prefs prefs;
+    private final Runnable onReadingChanged;
     private final Handler handler = new Handler(Looper.getMainLooper());
     private volatile float currentSensorValue = Float.NaN;
     private volatile long currentReceivedAtMillis;
@@ -78,19 +79,30 @@ final class FuelLevelProvider {
                     lastLoggedLiters = reading.liters;
                     AppLog.info("Fuel level received: " + reading.liters + " L");
                 }
+                if (onReadingChanged != null) {
+                    onReadingChanged.run();
+                }
                 return;
             }
             Float rangeValue = parseRangeSensorValue(rawId, rawValue);
             if (rangeValue != null) {
                 currentRangeReceivedAtElapsedRealtime = SystemClock.elapsedRealtime();
                 currentRangeSensorValue = rangeValue;
+                if (onReadingChanged != null) {
+                    onReadingChanged.run();
+                }
             }
         }
     };
 
     FuelLevelProvider(Context context, Prefs prefs) {
+        this(context, prefs, null);
+    }
+
+    FuelLevelProvider(Context context, Prefs prefs, Runnable onReadingChanged) {
         this.context = context.getApplicationContext();
         this.prefs = prefs;
+        this.onReadingChanged = onReadingChanged;
     }
 
     @SuppressLint("UnspecifiedRegisterReceiverFlag")

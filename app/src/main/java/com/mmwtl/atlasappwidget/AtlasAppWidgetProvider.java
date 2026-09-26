@@ -32,6 +32,7 @@ public final class AtlasAppWidgetProvider extends AppWidgetProvider {
                 || AppWidgetManager.ACTION_APPWIDGET_OPTIONS_CHANGED.equals(action)) {
             PendingResult result = goAsync();
             Context app = context.getApplicationContext();
+            WidgetFuelService.sync(app);
             int[] ids = AppWidgetManager.ACTION_APPWIDGET_UPDATE.equals(action)
                     ? intent.getIntArrayExtra(AppWidgetManager.EXTRA_APPWIDGET_IDS)
                     : new int[]{intent.getIntExtra(AppWidgetManager.EXTRA_APPWIDGET_ID,
@@ -53,7 +54,23 @@ public final class AtlasAppWidgetProvider extends AppWidgetProvider {
         updateAll(context);
     }
 
+    @Override
+    public void onDeleted(Context context, int[] appWidgetIds) {
+        WidgetFuelService.sync(context);
+    }
+
+    @Override
+    public void onDisabled(Context context) {
+        context.stopService(new Intent(context, WidgetFuelService.class));
+    }
+
     static void updateAll(Context context) {
+        Context app = context.getApplicationContext();
+        WidgetFuelService.sync(app);
+        refreshFuel(app);
+    }
+
+    static void refreshFuel(Context context) {
         Context app = context.getApplicationContext();
         AppWidgetManager manager = AppWidgetManager.getInstance(app);
         int[] ids = manager.getAppWidgetIds(new ComponentName(app, AtlasAppWidgetProvider.class));
@@ -111,6 +128,7 @@ public final class AtlasAppWidgetProvider extends AppWidgetProvider {
         panel.setViewPadding(R.id.widget_grid, paddingPx, paddingPx, paddingPx, paddingPx);
         panel.removeAllViews(R.id.widget_grid);
         int shown = Math.min(entries.size(), grid.capacity());
+        FuelLevelProvider.Reading fuelReading = WidgetFuelService.reading();
         int rowCount = Math.min(grid.rows, Math.max(1,
                 (shown + grid.columns - 1) / grid.columns));
         for (int rowIndex = 0; rowIndex < rowCount; rowIndex++) {
@@ -127,7 +145,7 @@ public final class AtlasAppWidgetProvider extends AppWidgetProvider {
                                     - (config.showAppLabels ? 22 : 4));
                     int iconPx = dp(context, Math.min(iconDp, Math.min(cellWidthDp, cellHeightDp)));
                     cell.setImageViewBitmap(R.id.widget_icon,
-                            icon(context, prefs, config, entry, iconPx));
+                            icon(context, prefs, config, entry, iconPx, fuelReading));
                     if (config.showAppLabels) {
                         cell.setViewVisibility(R.id.widget_label, View.VISIBLE);
                         cell.setTextViewText(R.id.widget_label, entry.label);
@@ -141,7 +159,13 @@ public final class AtlasAppWidgetProvider extends AppWidgetProvider {
                             widgetId * 100 + index, launch,
                             PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
                     cell.setOnClickPendingIntent(R.id.widget_cell, click);
-                    cell.setContentDescription(R.id.widget_cell, entry.label);
+                    cell.setContentDescription(R.id.widget_cell, entry.isFuel()
+                            ? fuelReading.isAvailable()
+                                    ? context.getString(R.string.fuel_tile_content_description,
+                                            fuelReading.freeDisplayValue(),
+                                            fuelReading.filledDisplayValue())
+                                    : context.getString(R.string.fuel_data_unavailable)
+                            : entry.label);
                 }
                 row.addView(R.id.widget_row, cell);
             }
@@ -182,7 +206,7 @@ public final class AtlasAppWidgetProvider extends AppWidgetProvider {
     }
 
     private static Bitmap icon(Context context, Prefs prefs, PanelConfig config,
-            AppEntry entry, int size) {
+            AppEntry entry, int size, FuelLevelProvider.Reading fuelReading) {
         Bitmap bitmap = Bitmap.createBitmap(Math.max(1, size), Math.max(1, size),
                 Bitmap.Config.ARGB_8888);
         Canvas canvas = new Canvas(bitmap);
@@ -195,7 +219,7 @@ public final class AtlasAppWidgetProvider extends AppWidgetProvider {
             FuelTileDrawable fuel = new FuelTileDrawable(
                     context.getString(R.string.fuel_free_short),
                     context.getString(R.string.fuel_filled_short));
-            fuel.update(FuelLevelProvider.Reading.unavailable());
+            fuel.update(fuelReading);
             image = fuel;
         } else {
             image = IconLoader.load(context, prefs, entry, size).drawable;
