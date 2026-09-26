@@ -193,6 +193,11 @@ public final class OverlayService extends Service
             stopSelf();
             return START_NOT_STICKY;
         }
+        if (prefs.isWidgetMode()) {
+            prefs.putBoolean(Prefs.KEY_SERVICE_ENABLED, false);
+            stopSelf();
+            return START_NOT_STICKY;
+        }
         prefs.putBoolean(Prefs.KEY_SERVICE_ENABLED, true);
         requestImmediateVisibilityCheck();
         return START_STICKY;
@@ -228,7 +233,7 @@ public final class OverlayService extends Service
         if (destroyed) {
             return;
         }
-        if (!prefs.getBoolean(Prefs.KEY_SERVICE_ENABLED, false)) {
+        if (prefs.isWidgetMode() || !prefs.getBoolean(Prefs.KEY_SERVICE_ENABLED, false)) {
             stopSelf();
             return;
         }
@@ -304,7 +309,7 @@ public final class OverlayService extends Service
             handler.post(fast ? accessibilityFastPoll : foregroundPoll);
             return;
         }
-        if (!prefs.getBoolean(Prefs.KEY_SERVICE_ENABLED, false)) {
+        if (prefs.isWidgetMode() || !prefs.getBoolean(Prefs.KEY_SERVICE_ENABLED, false)) {
             stopSelf();
             return;
         }

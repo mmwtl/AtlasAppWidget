@@ -2,6 +2,8 @@ package com.mmwtl.atlasappwidget;
 
 import android.Manifest;
 import android.app.AlertDialog;
+import android.appwidget.AppWidgetManager;
+import android.content.ComponentName;
 import android.content.ActivityNotFoundException;
 import android.content.Intent;
 import android.content.SharedPreferences;
@@ -61,6 +63,10 @@ public final class MainActivity extends ScaledActivity
     private Button notificationPermissionButton;
     private TextView serviceStatus;
     private TextView selectedSummary;
+    private Switch widgetModeSwitch;
+    private Button startPanelButton;
+    private Button stopPanelButton;
+    private Button addWidgetButton;
     private Switch autoStartSwitch;
     private Switch dragHandleSwitch;
     private Switch appLabelsSwitch;
@@ -106,6 +112,7 @@ public final class MainActivity extends ScaledActivity
     private volatile boolean applyingSettings;
     private final Runnable delayedAccessibilityStatusRefresh = this::refreshStatus;
     private final Runnable delayedPositionSave = this::savePosition;
+    private final Runnable delayedWidgetRefresh = () -> AtlasAppWidgetProvider.updateAll(this);
     private final Runnable accessibilityStateRefresh = () ->
             main.post(delayedAccessibilityStatusRefresh);
 
@@ -129,6 +136,7 @@ public final class MainActivity extends ScaledActivity
         main.postDelayed(delayedAccessibilityStatusRefresh,
                 ACCESSIBILITY_STATUS_REFRESH_DELAY_MS);
         refreshPreviewSoon();
+        AtlasAppWidgetProvider.updateAll(this);
     }
 
     @Override
@@ -136,6 +144,7 @@ public final class MainActivity extends ScaledActivity
         AccessibilityWindowState.clearStateListener(accessibilityStateRefresh);
         main.removeCallbacks(delayedAccessibilityStatusRefresh);
         main.removeCallbacks(delayedPositionSave);
+        main.removeCallbacks(delayedWidgetRefresh);
         savePosition();
         super.onPause();
     }
@@ -186,6 +195,8 @@ public final class MainActivity extends ScaledActivity
                 }
                 refreshPositionControls();
             }
+            main.removeCallbacks(delayedWidgetRefresh);
+            main.postDelayed(delayedWidgetRefresh, 300L);
         });
     }
 
@@ -656,6 +667,32 @@ public final class MainActivity extends ScaledActivity
         LinearLayout service = Ui.card(this);
         service.addView(Ui.heading(this, R.string.service_title, 20));
 
+        widgetModeSwitch = new Switch(this);
+        widgetModeSwitch.setText(R.string.widget_mode);
+        widgetModeSwitch.setTextColor(Ui.TEXT);
+        widgetModeSwitch.setTextSize(15);
+        widgetModeSwitch.setPadding(0, Ui.dp(this, 14), 0, Ui.dp(this, 4));
+        widgetModeSwitch.setChecked(prefs.isWidgetMode());
+        widgetModeSwitch.setOnCheckedChangeListener((button, checked) -> {
+            if (updatingSwitch) return;
+            prefs.setWidgetMode(checked);
+            if (checked) {
+                prefs.putBoolean(Prefs.KEY_SERVICE_ENABLED, false);
+                stopService(new Intent(this, OverlayService.class));
+            }
+            AtlasAppWidgetProvider.updateAll(this);
+            refreshStatus();
+        });
+        service.addView(widgetModeSwitch);
+        TextView widgetHint = Ui.text(this, R.string.widget_mode_hint, 13, Ui.TEXT_SECONDARY);
+        widgetHint.setLineSpacing(0, 1.1f);
+        Ui.topMargin(widgetHint, 5);
+        service.addView(widgetHint);
+        addWidgetButton = Ui.button(this, R.string.add_android_widget);
+        Ui.topMargin(addWidgetButton, 10);
+        addWidgetButton.setOnClickListener(view -> requestWidgetPlacement());
+        service.addView(addWidgetButton);
+
         serviceStatus = Ui.text(this, "", 14, Ui.TEXT_SECONDARY);
         Ui.topMargin(serviceStatus, 12);
         service.addView(serviceStatus);
@@ -664,18 +701,18 @@ public final class MainActivity extends ScaledActivity
         serviceButtons.setOrientation(LinearLayout.HORIZONTAL);
         serviceButtons.setGravity(Gravity.START);
         Ui.topMargin(serviceButtons, 10);
-        Button startButton = Ui.button(this, R.string.start_panel);
-        startButton.setBackground(Ui.rounded(Ui.ACCENT, Ui.dp(this, 8)));
-        startButton.setOnClickListener(view -> startPanel());
-        serviceButtons.addView(startButton);
-        Button stopButton = Ui.button(this, R.string.stop);
+        startPanelButton = Ui.button(this, R.string.start_panel);
+        startPanelButton.setBackground(Ui.rounded(Ui.ACCENT, Ui.dp(this, 8)));
+        startPanelButton.setOnClickListener(view -> startPanel());
+        serviceButtons.addView(startPanelButton);
+        stopPanelButton = Ui.button(this, R.string.stop);
         LinearLayout.LayoutParams stopParams = new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.WRAP_CONTENT,
                 ViewGroup.LayoutParams.WRAP_CONTENT
         );
         stopParams.leftMargin = Ui.dp(this, 10);
-        serviceButtons.addView(stopButton, stopParams);
-        stopButton.setOnClickListener(view -> stopPanel());
+        serviceButtons.addView(stopPanelButton, stopParams);
+        stopPanelButton.setOnClickListener(view -> stopPanel());
         service.addView(serviceButtons);
 
         autoStartSwitch = new Switch(this);
@@ -1301,15 +1338,26 @@ public final class MainActivity extends ScaledActivity
 
         boolean serviceEnabled = prefs.getBoolean(Prefs.KEY_SERVICE_ENABLED, false);
         boolean serviceRunning = OverlayService.isRunning();
+        boolean widgetMode = prefs.isWidgetMode();
         setStatus(serviceStatus,
-                serviceEnabled && serviceRunning
+                widgetMode
+                        ? getString(R.string.status_widget_mode,
+                                AppWidgetManager.getInstance(this).getAppWidgetIds(
+                                        new ComponentName(this,
+                                                AtlasAppWidgetProvider.class)).length)
+                        : serviceEnabled && serviceRunning
                         ? getString(R.string.status_service_running)
                         : serviceEnabled
                         ? getString(R.string.status_service_waiting)
                         : getString(R.string.status_service_stopped),
-                serviceEnabled && serviceRunning);
+                widgetMode || serviceEnabled && serviceRunning);
         updatingSwitch = true;
+        widgetModeSwitch.setChecked(widgetMode);
+        startPanelButton.setEnabled(!widgetMode);
+        stopPanelButton.setEnabled(!widgetMode);
+        addWidgetButton.setEnabled(widgetMode);
         autoStartSwitch.setChecked(prefs.getBoolean(Prefs.KEY_AUTO_START, false));
+        autoStartSwitch.setEnabled(!widgetMode);
         boolean showDragHandle = prefs.getBoolean(Prefs.KEY_SHOW_DRAG_HANDLE, true);
         dragHandleSwitch.setChecked(showDragHandle);
         appLabelsSwitch.setChecked(prefs.getBoolean(Prefs.KEY_SHOW_APP_LABELS, false));
@@ -1349,13 +1397,12 @@ public final class MainActivity extends ScaledActivity
         List<String> selected = prefs.selectedComponents();
         PanelConfig config = prefs.panelConfig();
         int capacity = config.rows * config.columns;
-        selectedSummary.setText(getString(
-                selected.size() > capacity
-                        ? R.string.selected_overflow_summary
-                        : R.string.selected_summary,
-                selected.size(),
-                capacity
-        ));
+        selectedSummary.setText(widgetMode
+                ? getString(R.string.selected_widget_summary, selected.size())
+                : getString(selected.size() > capacity
+                                ? R.string.selected_overflow_summary
+                                : R.string.selected_summary,
+                        selected.size(), capacity));
 
         updateColorButton(
                 backgroundColorButton,
@@ -2038,6 +2085,7 @@ public final class MainActivity extends ScaledActivity
     }
 
     private void startPanel() {
+        if (prefs.isWidgetMode()) return;
         if (AppRepository.loadSelectedActivities(this, prefs).isEmpty()) {
             Toast.makeText(this, R.string.select_app_first, Toast.LENGTH_LONG).show();
             startActivity(new Intent(this, AppPickerActivity.class));
@@ -2079,6 +2127,16 @@ public final class MainActivity extends ScaledActivity
         prefs.putBoolean(Prefs.KEY_SERVICE_ENABLED, false);
         stopService(new Intent(this, OverlayService.class));
         Toast.makeText(this, R.string.panel_stopped, Toast.LENGTH_SHORT).show();
+    }
+
+    private void requestWidgetPlacement() {
+        AppWidgetManager manager = AppWidgetManager.getInstance(this);
+        if (manager.isRequestPinAppWidgetSupported()) {
+            boolean requested = manager.requestPinAppWidget(
+                    new ComponentName(this, AtlasAppWidgetProvider.class), null, null);
+            if (requested) return;
+        }
+        Toast.makeText(this, R.string.widget_add_manually, Toast.LENGTH_LONG).show();
     }
 
     private void openOverlaySettings() {

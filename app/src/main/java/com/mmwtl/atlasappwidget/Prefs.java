@@ -34,6 +34,9 @@ final class Prefs {
             "climate_transition_duration_ms";
     static final String KEY_SHOW_ONLY_IN_APP_LIST = "show_only_in_app_list";
     static final String KEY_SERVICE_ENABLED = "service_enabled";
+    static final String KEY_DISPLAY_MODE = "display_mode";
+    static final String DISPLAY_MODE_OVERLAY = "overlay";
+    static final String DISPLAY_MODE_WIDGET = "widget";
     static final String KEY_APP_UI_SCALE_TENTHS = "app_ui_scale_tenths";
     static final String KEY_FREEFORM_HIDE_THRESHOLD_PERCENT =
             "freeform_hide_threshold_percent";
@@ -143,6 +146,16 @@ final class Prefs {
 
     SharedPreferences raw() {
         return values;
+    }
+
+    boolean isWidgetMode() {
+        return DISPLAY_MODE_WIDGET.equals(values.getString(
+                KEY_DISPLAY_MODE, DISPLAY_MODE_OVERLAY));
+    }
+
+    void setWidgetMode(boolean widget) {
+        values.edit().putString(KEY_DISPLAY_MODE,
+                widget ? DISPLAY_MODE_WIDGET : DISPLAY_MODE_OVERLAY).apply();
     }
 
     boolean getBoolean(String key, boolean fallback) {

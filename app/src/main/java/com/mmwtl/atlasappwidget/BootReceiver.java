@@ -14,6 +14,14 @@ public final class BootReceiver extends BroadcastReceiver {
         }
         Prefs prefs = new Prefs(context);
         String action = intent.getAction();
+        if (prefs.isWidgetMode()) {
+            prefs.putBoolean(Prefs.KEY_SERVICE_ENABLED, false);
+            context.stopService(new Intent(context, OverlayService.class));
+            if (Intent.ACTION_MY_PACKAGE_REPLACED.equals(action)) {
+                AtlasAppWidgetProvider.updateAll(context);
+            }
+            return;
+        }
         if (BootStartPolicy.isStartupAction(action)) {
             if (!prefs.getBoolean(Prefs.KEY_AUTO_START, false)) {
                 if (isUserUnlocked(context)) {
