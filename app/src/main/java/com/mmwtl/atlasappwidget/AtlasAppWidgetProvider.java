@@ -8,6 +8,8 @@ import android.content.Context;
 import android.content.Intent;
 import android.graphics.Bitmap;
 import android.graphics.Canvas;
+import android.graphics.Color;
+import android.content.res.Configuration;
 import android.graphics.Paint;
 import android.graphics.Path;
 import android.graphics.RectF;
@@ -15,7 +17,8 @@ import android.graphics.drawable.Drawable;
 import android.net.Uri;
 import android.os.Bundle;
 import android.util.TypedValue;
-import android.view.View;
+import android.text.TextPaint;
+import android.text.TextUtils;
 import android.widget.RemoteViews;
 
 import java.util.List;
@@ -109,58 +112,77 @@ public final class AtlasAppWidgetProvider extends AppWidgetProvider {
         views.setTextViewText(R.id.widget_empty_text,
                 context.getString(prefs.isWidgetMode()
                         ? R.string.widget_choose_apps : R.string.widget_switch_mode));
-        Intent settings = new Intent(context, MainActivity.class);
+        Intent settings = new Intent(context, MainActivity.class)
+                .putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, widgetId)
+                .setData(Uri.parse("atlaswidget://settings/" + widgetId));
         views.setOnClickPendingIntent(R.id.widget_empty, PendingIntent.getActivity(context,
                 widgetId, settings, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE));
         return views;
     }
 
-    private static RemoteViews panelViews(Context context, Prefs prefs, PanelConfig config,
+    static int widthDp(Context context, Bundle options) {
+        boolean landscape = context.getResources().getConfiguration().orientation
+                == Configuration.ORIENTATION_LANDSCAPE;
+        return Math.max(1, options.getInt(landscape
+                ? AppWidgetManager.OPTION_APPWIDGET_MAX_WIDTH
+                : AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 400));
+    }
+
+    static int heightDp(Context context, Bundle options) {
+        boolean landscape = context.getResources().getConfiguration().orientation
+                == Configuration.ORIENTATION_LANDSCAPE;
+        return Math.max(1, options.getInt(landscape
+                ? AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT
+                : AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT,
+                options.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, 160)));
+    }
+
+    static RemoteViews panelViews(Context context, Prefs prefs, PanelConfig config,
             List<AppEntry> entries, Bundle options, int widgetId) {
-        int widthDp = options.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 240);
-        int heightDp = options.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, 120);
-        WidgetGrid grid = WidgetGrid.forSize(widthDp, heightDp, config.showAppLabels);
+        int widthDp = widthDp(context, options);
+        int heightDp = heightDp(context, options);
+        int labelHeight = config.showAppLabels
+                ? PanelConfig.appLabelHeightPixels(context, config.appLabelTextSizeSp) : 0;
+        WidgetGrid grid = WidgetGrid.forSize(dp(context, Math.max(1, widthDp - 40)),
+                dp(context, heightDp), config.columns, config.rows, dp(context, config.iconSizeDp),
+                dp(context, config.paddingDp + (config.backgroundStrokeEnabled
+                        ? config.backgroundStrokeWidthDp : 0)),
+                dp(context, config.gapDp), labelHeight,
+                config.showAppLabels ? dp(context, config.appLabelGapDp) : 0);
         RemoteViews panel = new RemoteViews(context.getPackageName(), R.layout.widget_panel);
         panel.setImageViewBitmap(R.id.widget_background,
                 background(context, config, widthDp, heightDp));
-        int padding = Math.max(4, Math.min(20, config.paddingDp));
-        int paddingPx = dp(context, padding);
-        panel.setViewPadding(R.id.widget_grid, paddingPx, paddingPx, paddingPx, paddingPx);
+        Intent settings = new Intent(context, MainActivity.class)
+                .putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, widgetId)
+                .setData(Uri.parse("atlaswidget://settings/" + widgetId));
+        if (widgetId != AppWidgetManager.INVALID_APPWIDGET_ID) {
+            panel.setOnClickPendingIntent(R.id.widget_settings, PendingIntent.getActivity(context,
+                    widgetId, settings, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE));
+        }
         panel.removeAllViews(R.id.widget_grid);
         int shown = Math.min(entries.size(), grid.capacity());
         FuelLevelProvider.Reading fuelReading = WidgetFuelService.reading();
-        int rowCount = Math.min(grid.rows, Math.max(1,
-                (shown + grid.columns - 1) / grid.columns));
-        for (int rowIndex = 0; rowIndex < rowCount; rowIndex++) {
+        for (int rowIndex = 0; rowIndex < grid.rows; rowIndex++) {
             RemoteViews row = new RemoteViews(context.getPackageName(), R.layout.widget_row);
             for (int column = 0; column < grid.columns; column++) {
                 int index = rowIndex * grid.columns + column;
                 RemoteViews cell = new RemoteViews(context.getPackageName(), R.layout.widget_cell);
+                AppEntry cellEntry = index < shown ? entries.get(index) : null;
+                cell.setImageViewBitmap(R.id.widget_cell, cellBitmap(context, prefs, config,
+                        cellEntry, grid, rowIndex, column, fuelReading));
                 if (index < shown) {
                     AppEntry entry = entries.get(index);
-                    int iconDp = Math.min(96, Math.max(24, config.iconSizeDp));
-                    int cellWidthDp = Math.max(24, (widthDp - 2 * padding) / grid.columns - 4);
-                    int cellHeightDp = Math.max(24,
-                            (heightDp - 2 * padding) / rowCount
-                                    - (config.showAppLabels ? 22 : 4));
-                    int iconPx = dp(context, Math.min(iconDp, Math.min(cellWidthDp, cellHeightDp)));
-                    cell.setImageViewBitmap(R.id.widget_icon,
-                            icon(context, prefs, config, entry, iconPx, fuelReading));
-                    if (config.showAppLabels) {
-                        cell.setViewVisibility(R.id.widget_label, View.VISIBLE);
-                        cell.setTextViewText(R.id.widget_label, entry.label);
-                        cell.setTextViewTextSize(R.id.widget_label,
-                                TypedValue.COMPLEX_UNIT_SP, config.appLabelTextSizeSp);
+                    if (widgetId != AppWidgetManager.INVALID_APPWIDGET_ID) {
+                        Intent launch = new Intent(context, entry.isFuel()
+                                ? WidgetFuelActivity.class : WidgetLaunchActivity.class)
+                                .putExtra(WidgetLaunchActivity.EXTRA_ENTRY_KEY, entry.componentKey)
+                                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                .setData(Uri.parse("atlaswidget://launch/" + widgetId + "/" + index));
+                        PendingIntent click = PendingIntent.getActivity(context,
+                                widgetId * 100 + index, launch,
+                                PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+                        cell.setOnClickPendingIntent(R.id.widget_cell, click);
                     }
-                    Intent launch = new Intent(context, entry.isFuel()
-                            ? WidgetFuelActivity.class : WidgetLaunchActivity.class)
-                            .putExtra(WidgetLaunchActivity.EXTRA_ENTRY_KEY, entry.componentKey)
-                            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                            .setData(Uri.parse("atlaswidget://launch/" + widgetId + "/" + index));
-                    PendingIntent click = PendingIntent.getActivity(context,
-                            widgetId * 100 + index, launch,
-                            PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
-                    cell.setOnClickPendingIntent(R.id.widget_cell, click);
                     cell.setContentDescription(R.id.widget_cell, entry.isFuel()
                             ? fuelReading.isAvailable()
                                     ? context.getString(R.string.fuel_tile_content_description,
@@ -174,6 +196,43 @@ public final class AtlasAppWidgetProvider extends AppWidgetProvider {
             panel.addView(R.id.widget_grid, row);
         }
         return panel;
+    }
+
+    private static Bitmap cellBitmap(Context context, Prefs prefs, PanelConfig config,
+            AppEntry entry, WidgetGrid grid, int row, int column,
+            FuelLevelProvider.Reading fuelReading) {
+        PanelLayout layout = grid.layout;
+        int left = column == 0 ? 0 : layout.horizontalGap;
+        int top = row == 0 ? 0 : layout.verticalGap;
+        Bitmap bitmap = Bitmap.createBitmap(layout.cellWidth + left, layout.cellHeight + top,
+                Bitmap.Config.ARGB_8888);
+        bitmap.setDensity(context.getResources().getDisplayMetrics().densityDpi);
+        if (entry == null) return bitmap;
+        Canvas canvas = new Canvas(bitmap);
+        canvas.drawBitmap(icon(context, prefs, config, entry, layout.iconSize, fuelReading),
+                left + (layout.cellWidth - layout.iconSize) / 2f, top, null);
+        if (config.showAppLabels && grid.labelScale > 0) {
+            TextPaint paint = new TextPaint(Paint.ANTI_ALIAS_FLAG);
+            paint.setColor(Color.rgb(245, 245, 245));
+            paint.setTextSize(TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_SP,
+                    config.appLabelTextSizeSp, context.getResources().getDisplayMetrics())
+                    * grid.labelScale);
+            int inset = Math.round(dp(context, 2) * grid.labelScale);
+            if (config.appLabelOutlineEnabled) {
+                paint.setShadowLayer(dp(context, 2) * grid.labelScale, 0,
+                        dp(context, 1) * grid.labelScale, Color.BLACK);
+            }
+            String label = TextUtils.ellipsize(entry.label, paint,
+                    Math.max(0, layout.cellWidth - inset * 2), TextUtils.TruncateAt.END).toString();
+            Paint.FontMetrics metrics = paint.getFontMetrics();
+            int labelTop = top + layout.iconSize
+                    + (int) (dp(context, config.appLabelGapDp) * grid.labelScale);
+            float baseline = (labelTop + top + layout.cellHeight
+                    - metrics.ascent - metrics.descent) / 2f;
+            canvas.drawText(label, left + (layout.cellWidth - paint.measureText(label)) / 2f,
+                    baseline, paint);
+        }
+        return bitmap;
     }
 
     private static Bitmap background(Context context, PanelConfig config,
@@ -211,6 +270,7 @@ public final class AtlasAppWidgetProvider extends AppWidgetProvider {
             AppEntry entry, int size, FuelLevelProvider.Reading fuelReading) {
         Bitmap bitmap = Bitmap.createBitmap(Math.max(1, size), Math.max(1, size),
                 Bitmap.Config.ARGB_8888);
+        bitmap.setDensity(context.getResources().getDisplayMetrics().densityDpi);
         Canvas canvas = new Canvas(bitmap);
         float radius = size * Math.max(0, Math.min(50, config.iconCornerPercent)) / 100f;
         Path clip = new Path();

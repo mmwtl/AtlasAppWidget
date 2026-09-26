@@ -4,6 +4,7 @@ import android.Manifest;
 import android.app.AlertDialog;
 import android.appwidget.AppWidgetManager;
 import android.content.ComponentName;
+import android.content.Context;
 import android.content.ActivityNotFoundException;
 import android.content.Intent;
 import android.content.SharedPreferences;
@@ -37,6 +38,7 @@ import android.widget.Switch;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -97,6 +99,9 @@ public final class MainActivity extends ScaledActivity
     private boolean savingPosition;
     private Switch backgroundStrokeSwitch;
     private FrameLayout previewContainer;
+    private TextView previewTitle;
+    private final List<View> overlayOnlyViews = new ArrayList<>();
+    private TextView widgetGeometryHint;
     private Button backgroundColorButton;
     private Button backgroundStrokeColorButton;
     private Switch manualHeightSwitch;
@@ -146,6 +151,7 @@ public final class MainActivity extends ScaledActivity
         main.removeCallbacks(delayedPositionSave);
         main.removeCallbacks(delayedWidgetRefresh);
         savePosition();
+        AtlasAppWidgetProvider.updateAll(this);
         super.onPause();
     }
 
@@ -766,7 +772,7 @@ public final class MainActivity extends ScaledActivity
                 ViewGroup.LayoutParams.WRAP_CONTENT,
                 1f
         ));
-        TextView previewTitle = Ui.text(this,
+        previewTitle = Ui.text(this,
                 R.string.preview_title,
                 13,
                 Ui.TEXT_SECONDARY
@@ -826,13 +832,24 @@ public final class MainActivity extends ScaledActivity
         content.addView(apps);
         content.addView(fuelSettings);
         content.addView(movement);
-        content.addView(buildWindowVisibilityCard());
+        View visibilityCard = buildWindowVisibilityCard();
+        content.addView(visibilityCard);
+        overlayOnlyViews.add(overlayPermissionButton);
+        overlayOnlyViews.add(usagePermissionButton);
+        overlayOnlyViews.add(accessibilityPermissionButton);
+        overlayOnlyViews.add(movement);
+        overlayOnlyViews.add(visibilityCard);
+        overlayOnlyViews.add(systemStatusSwitch);
+        overlayOnlyViews.add(systemStatusOptions);
 
         addSectionHeading(content, R.string.settings_section_visual, false);
         content.addView(systemStatus);
         content.addView(buildGeometryCard());
         content.addView(buildBackgroundCard());
         content.addView(scale);
+        if (getIntent().hasExtra(AppWidgetManager.EXTRA_APPWIDGET_ID)) {
+            scroll.post(() -> scroll.smoothScrollTo(0, systemStatus.getTop()));
+        }
 
         root.addView(stickyPreview, new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
@@ -894,7 +911,13 @@ public final class MainActivity extends ScaledActivity
     private LinearLayout buildGeometryCard() {
         LinearLayout geometry = Ui.card(this);
         geometry.addView(Ui.heading(this, R.string.geometry_title, 20));
-        addSlider(geometry, getString(R.string.panel_width),
+        widgetGeometryHint = Ui.text(this, R.string.widget_geometry_hint, 13, Ui.TEXT_SECONDARY);
+        geometry.addView(widgetGeometryHint);
+        LinearLayout sizeControls = new LinearLayout(this);
+        sizeControls.setOrientation(LinearLayout.VERTICAL);
+        geometry.addView(sizeControls);
+        overlayOnlyViews.add(sizeControls);
+        addSlider(sizeControls, getString(R.string.panel_width),
                 PanelConfig.WIDTH_MIN_PIXELS,
                 PanelConfig.WIDTH_MAX_PIXELS,
                 prefs.getInt(Prefs.KEY_WIDTH_PIXELS, PanelConfig.WIDTH_DEFAULT_PIXELS),
@@ -914,10 +937,10 @@ public final class MainActivity extends ScaledActivity
             }
             prefs.putBoolean(Prefs.KEY_MANUAL_HEIGHT_ENABLED, !checked);
         });
-        geometry.addView(manualHeightSwitch);
+        sizeControls.addView(manualHeightSwitch);
         manualHeightRange = Ui.text(this, "", 13, Ui.TEXT_SECONDARY);
         manualHeightRange.setLineSpacing(0, 1.1f);
-        geometry.addView(manualHeightRange);
+        sizeControls.addView(manualHeightRange);
         manualHeightSlider = new SeekBar(this);
         manualHeightSlider.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
             @Override
@@ -936,7 +959,7 @@ public final class MainActivity extends ScaledActivity
             @Override public void onStartTrackingTouch(SeekBar bar) { }
             @Override public void onStopTrackingTouch(SeekBar bar) { }
         });
-        geometry.addView(manualHeightSlider, new LinearLayout.LayoutParams(
+        sizeControls.addView(manualHeightSlider, new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
         manualHeightInput = numberInput();
         manualHeightInput.setHint(R.string.panel_height);
@@ -962,7 +985,7 @@ public final class MainActivity extends ScaledActivity
         manualHeightInput.setOnFocusChangeListener((view, focused) -> {
             if (!focused) updateManualHeightControls();
         });
-        geometry.addView(manualHeightInput, new LinearLayout.LayoutParams(
+        sizeControls.addView(manualHeightInput, new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
         updateManualHeightControls();
         addSlider(geometry, getString(R.string.columns), 1, 10,
@@ -1339,6 +1362,10 @@ public final class MainActivity extends ScaledActivity
         boolean serviceEnabled = prefs.getBoolean(Prefs.KEY_SERVICE_ENABLED, false);
         boolean serviceRunning = OverlayService.isRunning();
         boolean widgetMode = prefs.isWidgetMode();
+        for (View view : overlayOnlyViews) {
+            view.setVisibility(widgetMode ? View.GONE : View.VISIBLE);
+        }
+        widgetGeometryHint.setVisibility(widgetMode ? View.VISIBLE : View.GONE);
         setStatus(serviceStatus,
                 widgetMode
                         ? getString(R.string.status_widget_mode,
@@ -1397,9 +1424,7 @@ public final class MainActivity extends ScaledActivity
         List<String> selected = prefs.selectedComponents();
         PanelConfig config = prefs.panelConfig();
         int capacity = config.rows * config.columns;
-        selectedSummary.setText(widgetMode
-                ? getString(R.string.selected_widget_summary, selected.size())
-                : getString(selected.size() > capacity
+        selectedSummary.setText(getString(selected.size() > capacity
                                 ? R.string.selected_overflow_summary
                                 : R.string.selected_summary,
                         selected.size(), capacity));
@@ -2048,6 +2073,11 @@ public final class MainActivity extends ScaledActivity
         }
         int available = Math.max(1,
                 previewContainer.getWidth() - previewContainer.getPaddingLeft() - previewContainer.getPaddingRight());
+        if (prefs.isWidgetMode()) {
+            refreshWidgetPreview(available);
+            return;
+        }
+        previewTitle.setText(R.string.preview_title);
         PanelView panelPreview = new PanelView(
                 getApplicationContext(),
                 prefs,
@@ -2082,6 +2112,39 @@ public final class MainActivity extends ScaledActivity
         containerParams.height = Math.round(panelPreview.panelHeight() * previewScale)
                 + verticalPadding;
         previewContainer.setLayoutParams(containerParams);
+    }
+
+    private void refreshWidgetPreview(int available) {
+        Context app = getApplicationContext();
+        AppWidgetManager manager = AppWidgetManager.getInstance(app);
+        int[] ids = manager.getAppWidgetIds(new ComponentName(app, AtlasAppWidgetProvider.class));
+        int requestedId = getIntent().getIntExtra(AppWidgetManager.EXTRA_APPWIDGET_ID,
+                AppWidgetManager.INVALID_APPWIDGET_ID);
+        int widgetId = ids.length == 0 ? AppWidgetManager.INVALID_APPWIDGET_ID : ids[0];
+        for (int id : ids) {
+            if (id == requestedId) widgetId = id;
+        }
+        Bundle options = widgetId == AppWidgetManager.INVALID_APPWIDGET_ID
+                ? new Bundle() : manager.getAppWidgetOptions(widgetId);
+        int widthDp = AtlasAppWidgetProvider.widthDp(app, options);
+        int heightDp = AtlasAppWidgetProvider.heightDp(app, options);
+        previewTitle.setText(getString(widgetId == AppWidgetManager.INVALID_APPWIDGET_ID
+                ? R.string.widget_preview_example : R.string.widget_preview_size, widthDp, heightDp));
+        View preview = AtlasAppWidgetProvider.panelViews(app, prefs, prefs.panelConfig(),
+                AppRepository.loadSelectedActivities(app, prefs), options,
+                AppWidgetManager.INVALID_APPWIDGET_ID).apply(app, previewContainer);
+        int width = Ui.dp(app, widthDp);
+        int height = Ui.dp(app, heightDp);
+        int maxHeight = Math.round(getWindowManager().getCurrentWindowMetrics().getBounds().height() * 0.30f);
+        float scale = Math.min(1f, Math.min(available / (float) width, maxHeight / (float) height));
+        preview.setScaleX(scale);
+        preview.setScaleY(scale);
+        previewContainer.removeAllViews();
+        previewContainer.addView(preview, new FrameLayout.LayoutParams(width, height, Gravity.CENTER));
+        ViewGroup.LayoutParams params = previewContainer.getLayoutParams();
+        params.height = Math.round(height * scale) + previewContainer.getPaddingTop()
+                + previewContainer.getPaddingBottom();
+        previewContainer.setLayoutParams(params);
     }
 
     private void startPanel() {
