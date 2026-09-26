@@ -143,7 +143,7 @@ public final class AtlasAppWidgetProvider extends AppWidgetProvider {
         int heightDp = heightDp(context, options);
         int labelHeight = config.showAppLabels
                 ? PanelConfig.appLabelHeightPixels(context, config.appLabelTextSizeSp) : 0;
-        WidgetGrid grid = WidgetGrid.forSize(dp(context, Math.max(1, widthDp - 40)),
+        WidgetGrid grid = WidgetGrid.forSize(dp(context, widthDp),
                 dp(context, heightDp), config.columns, config.rows, dp(context, config.iconSizeDp),
                 dp(context, config.paddingDp + (config.backgroundStrokeEnabled
                         ? config.backgroundStrokeWidthDp : 0)),
@@ -152,13 +152,6 @@ public final class AtlasAppWidgetProvider extends AppWidgetProvider {
         RemoteViews panel = new RemoteViews(context.getPackageName(), R.layout.widget_panel);
         panel.setImageViewBitmap(R.id.widget_background,
                 background(context, config, widthDp, heightDp));
-        Intent settings = new Intent(context, MainActivity.class)
-                .putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, widgetId)
-                .setData(Uri.parse("atlaswidget://settings/" + widgetId));
-        if (widgetId != AppWidgetManager.INVALID_APPWIDGET_ID) {
-            panel.setOnClickPendingIntent(R.id.widget_settings, PendingIntent.getActivity(context,
-                    widgetId, settings, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE));
-        }
         panel.removeAllViews(R.id.widget_grid);
         int shown = Math.min(entries.size(), grid.capacity());
         FuelLevelProvider.Reading fuelReading = WidgetFuelService.reading();

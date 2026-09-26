@@ -3,6 +3,7 @@ package com.mmwtl.atlasappwidget;
 import android.Manifest;
 import android.app.AlertDialog;
 import android.appwidget.AppWidgetManager;
+import android.appwidget.AppWidgetProviderInfo;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.ActivityNotFoundException;
@@ -59,6 +60,7 @@ public final class MainActivity extends ScaledActivity
     private final Handler main = new Handler(Looper.getMainLooper());
     private final ExecutorService ioExecutor = Executors.newSingleThreadExecutor();
     private Prefs prefs;
+    private int configuringWidgetId = AppWidgetManager.INVALID_APPWIDGET_ID;
     private Button overlayPermissionButton;
     private Button usagePermissionButton;
     private Button accessibilityPermissionButton;
@@ -125,6 +127,19 @@ public final class MainActivity extends ScaledActivity
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         prefs = new Prefs(this);
+        if (AppWidgetManager.ACTION_APPWIDGET_CONFIGURE.equals(getIntent().getAction())) {
+            configuringWidgetId = getIntent().getIntExtra(AppWidgetManager.EXTRA_APPWIDGET_ID,
+                    AppWidgetManager.INVALID_APPWIDGET_ID);
+            setResult(RESULT_CANCELED, new Intent().putExtra(
+                    AppWidgetManager.EXTRA_APPWIDGET_ID, configuringWidgetId));
+            AppWidgetProviderInfo info = AppWidgetManager.getInstance(this)
+                    .getAppWidgetInfo(configuringWidgetId);
+            if (info == null || !new ComponentName(this, AtlasAppWidgetProvider.class)
+                    .equals(info.provider)) {
+                finish();
+                return;
+            }
+        }
         View content = buildContent();
         setContentView(content);
         Ui.applySystemBarInsets(content);
@@ -778,6 +793,19 @@ public final class MainActivity extends ScaledActivity
                 Ui.TEXT_SECONDARY
         );
         previewTitleRow.addView(previewTitle);
+        if (configuringWidgetId != AppWidgetManager.INVALID_APPWIDGET_ID) {
+            Button done = Ui.button(this, R.string.done);
+            done.setOnClickListener(view -> {
+                AtlasAppWidgetProvider.updateAll(this);
+                setResult(RESULT_OK, new Intent().putExtra(
+                        AppWidgetManager.EXTRA_APPWIDGET_ID, configuringWidgetId));
+                finish();
+            });
+            LinearLayout.LayoutParams doneParams = new LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+            doneParams.leftMargin = Ui.dp(this, 12);
+            previewTitleRow.addView(done, doneParams);
+        }
         stickyPreview.addView(previewTitleRow);
 
         previewContainer = new FrameLayout(this);
