@@ -4,7 +4,7 @@
     android:minHeight="90dp"
     android:minResizeWidth="120dp"
     android:minResizeHeight="72dp"
-    android:configure="com.mmwtl.atlasappwidget.MainActivity"
+    android:configure="com.mmwtl.atlasappwidget.WidgetSetupActivity"
     android:widgetFeatures="reconfigurable|configuration_optional"
     android:initialLayout="@layout/widget_empty"
     android:previewImage="@drawable/atlas_app_widget_preview"

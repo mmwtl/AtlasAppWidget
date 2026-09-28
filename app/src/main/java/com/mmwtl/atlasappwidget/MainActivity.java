@@ -3,7 +3,6 @@ package com.mmwtl.atlasappwidget;
 import android.Manifest;
 import android.app.AlertDialog;
 import android.appwidget.AppWidgetManager;
-import android.appwidget.AppWidgetProviderInfo;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.ActivityNotFoundException;
@@ -53,21 +52,33 @@ public final class MainActivity extends ScaledActivity
     private static final int REQUEST_NOTIFICATIONS = 301;
     private static final int REQUEST_EXPORT_SETTINGS = 302;
     private static final int REQUEST_IMPORT_SETTINGS = 303;
-    private static final int ON_ACCENT = Color.rgb(7, 16, 20);
+    private static final String STATE_TAB = "settings_tab";
+    private static final int TAB_PANEL = 0;
+    private static final int TAB_SHORTCUTS = 1;
+    private static final int TAB_LOOK = 2;
+    private static final int TAB_SYSTEM = 3;
+    private static final int[] TAB_LABELS = {R.string.tab_panel, R.string.tab_shortcuts,
+            R.string.tab_look, R.string.tab_system};
     private static final long ACCESSIBILITY_STATUS_REFRESH_DELAY_MS = 1_000L;
     private static final long POSITION_SAVE_DEBOUNCE_DELAY_MS = 400L;
 
     private final Handler main = new Handler(Looper.getMainLooper());
     private final ExecutorService ioExecutor = Executors.newSingleThreadExecutor();
     private Prefs prefs;
-    private int configuringWidgetId = AppWidgetManager.INVALID_APPWIDGET_ID;
+    private final LinearLayout[] tabPages = new LinearLayout[TAB_LABELS.length];
+    private final TextView[] tabButtons = new TextView[TAB_LABELS.length];
+    private int selectedTab;
+    private ScrollView settingsScroll;
+    private TextView overlayModeSegment;
+    private TextView widgetModeSegment;
+    private TextView displayModeHint;
+    private TextView widgetPlacementStatus;
     private Button overlayPermissionButton;
     private Button usagePermissionButton;
     private Button accessibilityPermissionButton;
     private Button notificationPermissionButton;
     private TextView serviceStatus;
     private TextView selectedSummary;
-    private Switch widgetModeSwitch;
     private Button startPanelButton;
     private Button stopPanelButton;
     private Button addWidgetButton;
@@ -82,8 +93,7 @@ public final class MainActivity extends ScaledActivity
     private Switch fuelStatusSwitch;
     private Spinner systemStatusPositionSpinner;
     private LinearLayout systemStatusOptions;
-    private Button fuelFormulaDisclosureButton;
-    private LinearLayout fuelFormulaOptions;
+    private LinearLayout systemStatusFineTune;
     private TextView fuelFormulaSummary;
     private Switch fuelCustomFormulaSwitch;
     private Button fuelFormulaButton;
@@ -103,6 +113,7 @@ public final class MainActivity extends ScaledActivity
     private FrameLayout previewContainer;
     private TextView previewTitle;
     private final List<View> overlayOnlyViews = new ArrayList<>();
+    private final List<View> widgetOnlyViews = new ArrayList<>();
     private TextView widgetGeometryHint;
     private Button backgroundColorButton;
     private Button backgroundStrokeColorButton;
@@ -127,23 +138,17 @@ public final class MainActivity extends ScaledActivity
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         prefs = new Prefs(this);
-        if (AppWidgetManager.ACTION_APPWIDGET_CONFIGURE.equals(getIntent().getAction())) {
-            configuringWidgetId = getIntent().getIntExtra(AppWidgetManager.EXTRA_APPWIDGET_ID,
-                    AppWidgetManager.INVALID_APPWIDGET_ID);
-            setResult(RESULT_CANCELED, new Intent().putExtra(
-                    AppWidgetManager.EXTRA_APPWIDGET_ID, configuringWidgetId));
-            AppWidgetProviderInfo info = AppWidgetManager.getInstance(this)
-                    .getAppWidgetInfo(configuringWidgetId);
-            if (info == null || !new ComponentName(this, AtlasAppWidgetProvider.class)
-                    .equals(info.provider)) {
-                finish();
-                return;
-            }
-        }
-        View content = buildContent();
+        View content = buildContent(savedInstanceState == null
+                ? TAB_PANEL : savedInstanceState.getInt(STATE_TAB, TAB_PANEL));
         setContentView(content);
         Ui.applySystemBarInsets(content);
         prefs.raw().registerOnSharedPreferenceChangeListener(this);
+    }
+
+    @Override
+    protected void onSaveInstanceState(Bundle outState) {
+        super.onSaveInstanceState(outState);
+        outState.putInt(STATE_TAB, selectedTab);
     }
 
     @Override
@@ -221,270 +226,353 @@ public final class MainActivity extends ScaledActivity
         });
     }
 
-    private View buildContent() {
+    private View buildContent(int initialTab) {
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
         root.setBackgroundColor(Ui.BACKGROUND);
 
-        ScrollView scroll = new ScrollView(this);
-        scroll.setFillViewport(true);
-        scroll.setBackgroundColor(Ui.BACKGROUND);
+        LinearLayout stickyHeader = new LinearLayout(this);
+        stickyHeader.setOrientation(LinearLayout.VERTICAL);
+        stickyHeader.setClipChildren(false);
+        stickyHeader.setPadding(
+                Ui.dp(this, 24),
+                Ui.dp(this, 16),
+                Ui.dp(this, 24),
+                Ui.dp(this, 12)
+        );
+        stickyHeader.setBackgroundColor(Ui.BACKGROUND);
 
+        LinearLayout titleRow = new LinearLayout(this);
+        titleRow.setOrientation(LinearLayout.HORIZONTAL);
+        titleRow.setGravity(Gravity.CENTER_VERTICAL);
+        TextView title = Ui.heading(this, R.string.app_name, 24);
+        titleRow.addView(title, new LinearLayout.LayoutParams(
+                0,
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                1f
+        ));
+        previewTitle = Ui.text(this,
+                R.string.preview_title,
+                13,
+                Ui.TEXT_SECONDARY
+        );
+        titleRow.addView(previewTitle);
+        stickyHeader.addView(titleRow);
+
+        LinearLayout tabs = new LinearLayout(this);
+        tabs.setOrientation(LinearLayout.HORIZONTAL);
+        for (int index = 0; index < TAB_LABELS.length; index++) {
+            int tab = index;
+            TextView button = Ui.segment(this, getString(TAB_LABELS[index]));
+            button.setTextSize(15);
+            button.setOnClickListener(view -> selectTab(tab));
+            tabButtons[index] = button;
+            Ui.addSegment(tabs, button);
+        }
+        // Tabs sit above the preview so they stay put when a tab hides the preview.
+        Ui.topMargin(tabs, 12);
+        stickyHeader.addView(tabs);
+
+        previewContainer = new FrameLayout(this);
+        previewContainer.setClipChildren(false);
+        previewContainer.setClipToPadding(false);
+        previewContainer.setPadding(Ui.dp(this, 8), Ui.dp(this, 10),
+                Ui.dp(this, 8), Ui.dp(this, 10));
+        previewContainer.setBackground(Ui.rounded(Ui.SURFACE_RAISED, Ui.dp(this, 8)));
+        previewContainer.setContentDescription(getString(R.string.preview_title));
+        LinearLayout.LayoutParams previewParams = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                Ui.dp(this, 110)
+        );
+        previewParams.topMargin = Ui.dp(this, 10);
+        stickyHeader.addView(previewContainer, previewParams);
+
+        settingsScroll = new ScrollView(this);
+        settingsScroll.setFillViewport(true);
+        settingsScroll.setBackgroundColor(Ui.BACKGROUND);
         LinearLayout content = new LinearLayout(this);
         content.setOrientation(LinearLayout.VERTICAL);
-        content.setPadding(Ui.dp(this, 24), Ui.dp(this, 12), Ui.dp(this, 24), Ui.dp(this, 42));
-        scroll.addView(content, new ScrollView.LayoutParams(
+        content.setPadding(Ui.dp(this, 24), Ui.dp(this, 8), Ui.dp(this, 24), Ui.dp(this, 42));
+        settingsScroll.addView(content, new ScrollView.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.WRAP_CONTENT
         ));
+        for (int index = 0; index < tabPages.length; index++) {
+            tabPages[index] = new LinearLayout(this);
+            tabPages[index].setOrientation(LinearLayout.VERTICAL);
+            content.addView(tabPages[index], new LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT
+            ));
+        }
+        buildPanelTab(tabPages[TAB_PANEL]);
+        buildShortcutsTab(tabPages[TAB_SHORTCUTS]);
+        buildLookTab(tabPages[TAB_LOOK]);
+        buildSystemTab(tabPages[TAB_SYSTEM]);
 
-        TextView subtitle = Ui.text(this,
-                R.string.main_subtitle,
-                15,
-                Ui.TEXT_SECONDARY
-        );
-        subtitle.setLineSpacing(0, 1.12f);
-        Ui.topMargin(subtitle, 6);
-        content.addView(subtitle);
+        root.addView(stickyHeader, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+        ));
+        root.addView(settingsScroll, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                0,
+                1f
+        ));
+        selectTab(initialTab >= 0 && initialTab < tabPages.length ? initialTab : TAB_PANEL);
+        return root;
+    }
 
-        LinearLayout permissions = Ui.card(this);
-        permissions.addView(Ui.heading(this, R.string.permissions_title, 20));
-        overlayPermissionButton = permissionButton(permissions, R.string.allow_overlay,
-                view -> openOverlaySettings());
-        usagePermissionButton = permissionButton(permissions, R.string.allow_usage,
-                view -> openUsageSettings());
-        accessibilityPermissionButton = permissionButton(permissions, R.string.allow_accessibility,
-                view -> openAccessibilitySettings());
-        notificationPermissionButton = permissionButton(permissions, R.string.allow_notifications,
-                view -> requestNotificationPermission());
+    private void selectTab(int tab) {
+        selectedTab = tab;
+        for (int index = 0; index < tabPages.length; index++) {
+            tabPages[index].setVisibility(index == tab ? View.VISIBLE : View.GONE);
+            Ui.setSegmentSelected(this, tabButtons[index], index == tab);
+        }
+        boolean preview = tab == TAB_SHORTCUTS || tab == TAB_LOOK;
+        previewContainer.setVisibility(preview ? View.VISIBLE : View.GONE);
+        previewTitle.setVisibility(preview ? View.VISIBLE : View.GONE);
+        settingsScroll.scrollTo(0, 0);
+        // A hidden preview is not redrawn on preference changes; catch up on return.
+        refreshPreviewSoon();
+    }
+
+    private void buildPanelTab(LinearLayout page) {
+        page.addView(buildDisplayModeCard());
+        LinearLayout placement = buildWidgetPlacementCard();
+        page.addView(placement);
+        widgetOnlyViews.add(placement);
+        LinearLayout overlay = buildOverlayCard();
+        page.addView(overlay);
+        overlayOnlyViews.add(overlay);
+        LinearLayout movement = buildMovementCard();
+        page.addView(movement);
+        overlayOnlyViews.add(movement);
+        LinearLayout visibility = buildWindowVisibilityCard();
+        page.addView(visibility);
+        overlayOnlyViews.add(visibility);
+    }
+
+    private void buildShortcutsTab(LinearLayout page) {
         LinearLayout apps = Ui.card(this);
         apps.addView(Ui.heading(this, R.string.panel_apps_title, 20));
         selectedSummary = Ui.text(this, "", 14, Ui.TEXT_SECONDARY);
         Ui.topMargin(selectedSummary, 8);
         apps.addView(selectedSummary);
-
         Button appsButton = Ui.button(this, R.string.choose_apps);
         Ui.topMargin(appsButton, 12);
         appsButton.setOnClickListener(view -> startActivity(new Intent(this, AppPickerActivity.class)));
         apps.addView(appsButton);
-        addClimateTransitionDurationSlider(apps);
+        page.addView(apps);
 
-        appLabelsSwitch = new Switch(this);
-        appLabelsSwitch.setText(R.string.show_app_labels);
-        appLabelsSwitch.setTextColor(Ui.TEXT);
-        appLabelsSwitch.setTextSize(15);
-        appLabelsSwitch.setPadding(0, Ui.dp(this, 14), 0, Ui.dp(this, 4));
-        appLabelsSwitch.setOnCheckedChangeListener((button, checked) -> {
-            if (!updatingSwitch) {
-                prefs.putBoolean(Prefs.KEY_SHOW_APP_LABELS, checked);
-            }
-        });
-        LinearLayout systemStatus = Ui.card(this);
-        systemStatus.addView(Ui.heading(this, R.string.system_status_title, 20));
+        page.addView(buildAppLabelsCard());
+        addClimateTransitionDurationSlider(collapsibleCard(page,
+                R.string.climate_transition_title, R.string.climate_transition_summary));
+        page.addView(buildFuelCard());
+    }
 
+    private void buildLookTab(LinearLayout page) {
+        LinearLayout preset = Ui.card(this);
+        preset.addView(Ui.heading(this, R.string.oneos_preset_title, 20));
+        TextView presetHint = Ui.text(this, R.string.oneos_preset_hint, 13, Ui.TEXT_SECONDARY);
+        presetHint.setLineSpacing(0, 1.1f);
+        Ui.topMargin(presetHint, 6);
+        preset.addView(presetHint);
         Button oneOsPresetButton = Ui.button(this, R.string.apply_oneos_preset);
         Ui.topMargin(oneOsPresetButton, 12);
         oneOsPresetButton.setOnClickListener(view -> {
             prefs.applyOneOsPreset();
             recreate();
         });
-        systemStatus.addView(oneOsPresetButton);
+        preset.addView(oneOsPresetButton);
+        page.addView(preset);
 
-        systemStatus.addView(appLabelsSwitch);
-        appLabelOutlineSwitch = new Switch(this);
-        appLabelOutlineSwitch.setText(R.string.app_label_outline);
-        appLabelOutlineSwitch.setTextColor(Ui.TEXT);
-        appLabelOutlineSwitch.setTextSize(15);
-        appLabelOutlineSwitch.setPadding(0, Ui.dp(this, 8), 0, Ui.dp(this, 4));
-        appLabelOutlineSwitch.setOnCheckedChangeListener((button, checked) -> {
-            if (!updatingSwitch) {
-                prefs.putBoolean(Prefs.KEY_APP_LABEL_OUTLINE_ENABLED, checked);
-            }
-        });
-        systemStatus.addView(appLabelOutlineSwitch);
-        addSlider(systemStatus, getString(R.string.app_label_text_size),
-                PanelConfig.APP_LABEL_TEXT_SIZE_MIN_SP,
-                PanelConfig.APP_LABEL_TEXT_SIZE_MAX_SP,
-                prefs.getInt(Prefs.KEY_APP_LABEL_TEXT_SIZE_SP,
-                        PanelConfig.APP_LABEL_TEXT_SIZE_DEFAULT_SP),
-                value -> getString(R.string.sp_value, value),
-                value -> prefs.putInt(Prefs.KEY_APP_LABEL_TEXT_SIZE_SP, value));
-        addSlider(systemStatus, getString(R.string.app_label_gap),
-                PanelConfig.APP_LABEL_GAP_MIN_DP,
-                PanelConfig.APP_LABEL_GAP_MAX_DP,
-                prefs.getInt(Prefs.KEY_APP_LABEL_GAP_DP,
-                        PanelConfig.APP_LABEL_GAP_DEFAULT_DP),
-                value -> getString(R.string.dp_value, value),
-                value -> prefs.putInt(Prefs.KEY_APP_LABEL_GAP_DP, value));
+        page.addView(buildGridCard());
+        LinearLayout panelSize = buildPanelSizeCard();
+        page.addView(panelSize);
+        overlayOnlyViews.add(panelSize);
+        page.addView(buildBackgroundCard());
+        LinearLayout systemStatus = buildSystemStatusCard();
+        page.addView(systemStatus);
+        overlayOnlyViews.add(systemStatus);
+    }
 
-        systemStatusSwitch = new Switch(this);
-        systemStatusSwitch.setText(R.string.show_system_status);
-        systemStatusSwitch.setTextColor(Ui.TEXT);
-        systemStatusSwitch.setTextSize(15);
-        systemStatusSwitch.setPadding(0, Ui.dp(this, 14), 0, Ui.dp(this, 4));
-        systemStatusSwitch.setOnCheckedChangeListener((button, checked) -> {
-            if (!updatingSwitch) {
-                prefs.putBoolean(Prefs.KEY_SHOW_SYSTEM_STATUS, checked);
-            }
-            if (systemStatusOptions != null) {
-                setSettingsGroupEnabled(systemStatusOptions, checked);
-            }
-        });
-        systemStatus.addView(systemStatusSwitch);
-
-        systemStatusOptions = settingsGroup();
-        systemStatus.addView(systemStatusOptions);
-
-        TextView visibleMetrics = Ui.text(this,
-                R.string.system_status_visible_metrics,
-                14,
-                Ui.TEXT
-        );
-        Ui.topMargin(visibleMetrics, 8);
-        systemStatusOptions.addView(visibleMetrics);
-        cpuStatusSwitch = addMetricSwitch(
-                systemStatusOptions,
-                R.string.show_cpu_status,
-                Prefs.KEY_SHOW_CPU_STATUS
-        );
-        ramStatusSwitch = addMetricSwitch(
-                systemStatusOptions,
-                R.string.show_ram_status,
-                Prefs.KEY_SHOW_RAM_STATUS
-        );
-        fuelStatusSwitch = addMetricSwitch(
-                systemStatusOptions,
-                R.string.show_fuel_status,
-                Prefs.KEY_SHOW_FUEL_STATUS
-        );
-
-        TextView systemStatusPositionLabel = Ui.text(this,
-                R.string.system_status_position,
-                14,
-                Ui.TEXT
-        );
-        Ui.topMargin(systemStatusPositionLabel, 8);
-        systemStatusOptions.addView(systemStatusPositionLabel);
-        systemStatusPositionSpinner = new Spinner(this);
-        String[] systemStatusPositions = getResources().getStringArray(
-                R.array.system_status_positions);
-        ArrayAdapter<String> systemStatusPositionAdapter = new ArrayAdapter<>(
-                this,
-                android.R.layout.simple_spinner_item,
-                systemStatusPositions
-        );
-        systemStatusPositionAdapter.setDropDownViewResource(
-                android.R.layout.simple_spinner_dropdown_item);
-        systemStatusPositionSpinner.setAdapter(systemStatusPositionAdapter);
-        systemStatusPositionSpinner.setSelection(Math.max(
-                PanelConfig.STATUS_TOP,
-                Math.min(PanelConfig.STATUS_RIGHT,
-                        prefs.getInt(Prefs.KEY_SYSTEM_STATUS_POSITION,
-                                PanelConfig.STATUS_BOTTOM))
-        ));
-        systemStatusPositionSpinner.setOnItemSelectedListener(
-                new android.widget.AdapterView.OnItemSelectedListener() {
-                    @Override
-                    public void onItemSelected(
-                            android.widget.AdapterView<?> parent,
-                            View view,
-                            int position,
-                            long id
-                    ) {
-                        if (!updatingSwitch) {
-                            prefs.putInt(Prefs.KEY_SYSTEM_STATUS_POSITION, position);
-                        }
-                    }
-
-                    @Override
-                    public void onNothingSelected(android.widget.AdapterView<?> parent) {
-                    }
-                });
-        systemStatusOptions.addView(systemStatusPositionSpinner);
-
-        addSlider(systemStatusOptions, getString(R.string.system_status_line_height),
-                PanelConfig.STATUS_LINE_HEIGHT_MIN_DP,
-                PanelConfig.STATUS_LINE_HEIGHT_MAX_DP,
-                prefs.getInt(Prefs.KEY_SYSTEM_STATUS_LINE_HEIGHT_DP,
-                        PanelConfig.STATUS_LINE_HEIGHT_DEFAULT_DP),
-                value -> getString(R.string.dp_value, value),
-                value -> prefs.putInt(Prefs.KEY_SYSTEM_STATUS_LINE_HEIGHT_DP, value));
-        addSlider(systemStatusOptions, getString(R.string.system_status_text_size),
-                PanelConfig.STATUS_TEXT_SIZE_MIN_SP,
-                PanelConfig.STATUS_TEXT_SIZE_MAX_SP,
-                prefs.getInt(Prefs.KEY_SYSTEM_STATUS_TEXT_SIZE_SP,
-                        PanelConfig.STATUS_TEXT_SIZE_DEFAULT_SP),
-                value -> getString(R.string.sp_value, value),
-                value -> prefs.putInt(Prefs.KEY_SYSTEM_STATUS_TEXT_SIZE_SP, value));
-        int configuredStatusWeight = prefs.getInt(
-                Prefs.KEY_SYSTEM_STATUS_TEXT_WEIGHT,
-                PanelConfig.STATUS_TEXT_WEIGHT_DEFAULT
-        );
-        addSlider(systemStatusOptions, getString(R.string.system_status_text_weight),
-                PanelConfig.STATUS_TEXT_WEIGHT_MIN / 100,
-                PanelConfig.STATUS_TEXT_WEIGHT_MAX / 100,
-                Math.max(PanelConfig.STATUS_TEXT_WEIGHT_MIN,
-                        Math.min(PanelConfig.STATUS_TEXT_WEIGHT_MAX,
-                                configuredStatusWeight)) / 100,
-                value -> formatSystemStatusTextWeight(value * 100),
-                value -> prefs.putInt(Prefs.KEY_SYSTEM_STATUS_TEXT_WEIGHT, value * 100));
-
-        TextView systemStatusHint = Ui.text(this,
-                R.string.system_status_hint,
+    private void buildSystemTab(LinearLayout page) {
+        LinearLayout notifications = Ui.card(this);
+        notifications.addView(Ui.heading(this, R.string.notifications_title, 20));
+        TextView notificationsHint = Ui.text(this,
+                R.string.notifications_hint,
                 13,
                 Ui.TEXT_SECONDARY
         );
-        systemStatusHint.setLineSpacing(0, 1.1f);
-        systemStatusOptions.addView(systemStatusHint);
+        notificationsHint.setLineSpacing(0, 1.1f);
+        Ui.topMargin(notificationsHint, 6);
+        notifications.addView(notificationsHint);
+        notificationPermissionButton = permissionButton(notifications,
+                R.string.allow_notifications, view -> requestNotificationPermission());
+        page.addView(notifications);
 
-        LinearLayout fuelSettings = Ui.card(this);
-        fuelSettings.addView(Ui.heading(this, R.string.fuel_settings_title, 20));
-        TextView fuelTileHint = Ui.text(
-                this,
-                R.string.fuel_tile_settings_hint,
+        LinearLayout settingsBackup = Ui.card(this);
+        settingsBackup.addView(Ui.heading(this, R.string.settings_backup_title, 20));
+        TextView settingsBackupHint = Ui.text(this,
+                R.string.settings_backup_hint,
                 13,
                 Ui.TEXT_SECONDARY
         );
-        fuelTileHint.setLineSpacing(0, 1.1f);
-        Ui.topMargin(fuelTileHint, 8);
-        fuelSettings.addView(fuelTileHint);
+        settingsBackupHint.setLineSpacing(0, 1.1f);
+        Ui.topMargin(settingsBackupHint, 8);
+        settingsBackup.addView(settingsBackupHint);
+        exportSettingsButton = Ui.button(this, R.string.export_settings);
+        Ui.topMargin(exportSettingsButton, 12);
+        exportSettingsButton.setOnClickListener(view -> chooseSettingsExport());
+        settingsBackup.addView(exportSettingsButton);
+        importSettingsButton = Ui.button(this, R.string.import_settings);
+        Ui.topMargin(importSettingsButton, 10);
+        importSettingsButton.setOnClickListener(view -> chooseSettingsImport());
+        settingsBackup.addView(importSettingsButton);
+        page.addView(settingsBackup);
 
-        fuelFormulaDisclosureButton = Ui.button(
-                this,
-                R.string.show_fuel_formula_settings
+        LinearLayout scale = Ui.card(this);
+        scale.addView(Ui.heading(this, R.string.scale_title, 20));
+        TextView scaleHint = Ui.text(this,
+                R.string.scale_hint,
+                13,
+                Ui.TEXT_SECONDARY
         );
-        Ui.topMargin(fuelFormulaDisclosureButton, 10);
-        fuelFormulaDisclosureButton.setOnClickListener(view ->
-                setFuelFormulaOptionsExpanded(
-                        fuelFormulaOptions.getVisibility() != View.VISIBLE
-                ));
-        fuelSettings.addView(fuelFormulaDisclosureButton);
+        scaleHint.setLineSpacing(0, 1.1f);
+        Ui.topMargin(scaleHint, 6);
+        scale.addView(scaleHint);
+        addScaleSlider(scale);
+        page.addView(scale);
+    }
 
-        fuelFormulaOptions = settingsGroup();
-        fuelFormulaOptions.setVisibility(View.GONE);
-        fuelSettings.addView(fuelFormulaOptions);
-        fuelFormulaSummary = Ui.text(this, "", 14, Ui.TEXT_SECONDARY);
-        fuelFormulaSummary.setLineSpacing(0, 1.1f);
-        Ui.topMargin(fuelFormulaSummary, 7);
-        fuelFormulaOptions.addView(fuelFormulaSummary);
+    private LinearLayout buildDisplayModeCard() {
+        LinearLayout card = Ui.card(this);
+        card.addView(Ui.heading(this, R.string.display_mode_title, 20));
+        LinearLayout modes = new LinearLayout(this);
+        modes.setOrientation(LinearLayout.HORIZONTAL);
+        overlayModeSegment = Ui.segment(this, getString(R.string.display_mode_overlay));
+        overlayModeSegment.setOnClickListener(view -> changeDisplayMode(false));
+        Ui.addSegment(modes, overlayModeSegment);
+        widgetModeSegment = Ui.segment(this, getString(R.string.display_mode_widget));
+        widgetModeSegment.setOnClickListener(view -> changeDisplayMode(true));
+        Ui.addSegment(modes, widgetModeSegment);
+        Ui.topMargin(modes, 12);
+        card.addView(modes);
+        displayModeHint = Ui.text(this, "", 13, Ui.TEXT_SECONDARY);
+        displayModeHint.setLineSpacing(0, 1.1f);
+        Ui.topMargin(displayModeHint, 8);
+        card.addView(displayModeHint);
+        return card;
+    }
 
-        fuelCustomFormulaSwitch = new Switch(this);
-        fuelCustomFormulaSwitch.setText(R.string.use_custom_fuel_formula);
-        fuelCustomFormulaSwitch.setTextColor(Ui.TEXT);
-        fuelCustomFormulaSwitch.setTextSize(14);
-        fuelCustomFormulaSwitch.setPadding(0, Ui.dp(this, 7), 0, Ui.dp(this, 2));
-        fuelCustomFormulaSwitch.setOnCheckedChangeListener((button, checked) -> {
-            if (!updatingSwitch) {
-                prefs.putBoolean(Prefs.KEY_USE_CUSTOM_FUEL_FORMULA, checked);
+    private void changeDisplayMode(boolean widget) {
+        if (widget == prefs.isWidgetMode()) {
+            return;
+        }
+        applyDisplayMode(this, prefs, widget);
+        refreshStatus();
+    }
+
+    /**
+     * Switches between the overlay and the launcher widget. Widget mode stops the overlay
+     * service so the two never show the same panel twice. Shared with the setup dialog.
+     */
+    static void applyDisplayMode(Context context, Prefs prefs, boolean widget) {
+        prefs.setWidgetMode(widget);
+        if (widget) {
+            prefs.putBoolean(Prefs.KEY_SERVICE_ENABLED, false);
+            context.stopService(new Intent(context, OverlayService.class));
+        }
+        AtlasAppWidgetProvider.updateAll(context);
+    }
+
+    private LinearLayout buildWidgetPlacementCard() {
+        LinearLayout card = Ui.card(this);
+        card.addView(Ui.heading(this, R.string.widget_placement_title, 20));
+        widgetPlacementStatus = Ui.text(this, "", 15, Ui.TEXT);
+        Ui.topMargin(widgetPlacementStatus, 6);
+        card.addView(widgetPlacementStatus);
+        addWidgetButton = Ui.button(this, R.string.add_android_widget);
+        Ui.topMargin(addWidgetButton, 12);
+        addWidgetButton.setOnClickListener(view -> requestWidgetPlacement());
+        card.addView(addWidgetButton);
+        TextView hint = Ui.text(this, R.string.widget_placement_hint, 13, Ui.TEXT_SECONDARY);
+        hint.setLineSpacing(0, 1.1f);
+        Ui.topMargin(hint, 10);
+        card.addView(hint);
+        return card;
+    }
+
+    private LinearLayout buildOverlayCard() {
+        LinearLayout service = Ui.card(this);
+        service.addView(Ui.heading(this, R.string.overlay_title, 20));
+        TextView permissionsLabel = Ui.text(this, R.string.permissions_title, 14, Ui.TEXT_SECONDARY);
+        Ui.topMargin(permissionsLabel, 10);
+        service.addView(permissionsLabel);
+        overlayPermissionButton = permissionButton(service, R.string.allow_overlay,
+                view -> openOverlaySettings());
+        usagePermissionButton = permissionButton(service, R.string.allow_usage,
+                view -> openUsageSettings());
+        accessibilityPermissionButton = permissionButton(service, R.string.allow_accessibility,
+                view -> openAccessibilitySettings());
+
+        serviceStatus = Ui.text(this, "", 14, Ui.TEXT_SECONDARY);
+        Ui.topMargin(serviceStatus, 16);
+        service.addView(serviceStatus);
+
+        LinearLayout serviceButtons = new LinearLayout(this);
+        serviceButtons.setOrientation(LinearLayout.HORIZONTAL);
+        serviceButtons.setGravity(Gravity.START);
+        Ui.topMargin(serviceButtons, 10);
+        startPanelButton = Ui.button(this, R.string.start_panel);
+        Ui.setButtonAccent(this, startPanelButton, true);
+        startPanelButton.setOnClickListener(view -> startPanel());
+        serviceButtons.addView(startPanelButton);
+        stopPanelButton = Ui.button(this, R.string.stop);
+        LinearLayout.LayoutParams stopParams = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+        );
+        stopParams.leftMargin = Ui.dp(this, 10);
+        serviceButtons.addView(stopPanelButton, stopParams);
+        stopPanelButton.setOnClickListener(view -> stopPanel());
+        service.addView(serviceButtons);
+
+        autoStartSwitch = new Switch(this);
+        autoStartSwitch.setText(R.string.auto_start);
+        autoStartSwitch.setTextColor(Ui.TEXT);
+        autoStartSwitch.setTextSize(15);
+        autoStartSwitch.setPadding(0, Ui.dp(this, 14), 0, Ui.dp(this, 8));
+        autoStartSwitch.setOnCheckedChangeListener((button, checked) -> {
+            if (updatingSwitch) {
+                return;
             }
-            updateFuelFormulaControls(checked);
+            prefs.putBoolean(Prefs.KEY_AUTO_START, checked);
+            if (checked && (!Settings.canDrawOverlays(this)
+                    || !ForegroundAppDetector.hasUsageAccess(this)
+                    || !AccessibilityWindowState.isEnabled(this))) {
+                Toast.makeText(this,
+                        R.string.auto_start_permission_warning,
+                        Toast.LENGTH_LONG).show();
+            }
         });
-        fuelFormulaOptions.addView(fuelCustomFormulaSwitch);
+        service.addView(autoStartSwitch);
 
-        fuelFormulaButton = Ui.button(this, R.string.change_fuel_formula);
-        Ui.topMargin(fuelFormulaButton, 10);
-        fuelFormulaButton.setOnClickListener(view -> showFuelFormulaDialog());
-        fuelFormulaOptions.addView(fuelFormulaButton);
+        LinearLayout notes = collapsible(service, R.string.head_unit_note_title,
+                R.string.head_unit_note_summary, 16, 8);
+        TextView note = Ui.text(this,
+                R.string.head_unit_note,
+                14,
+                Ui.TEXT_SECONDARY
+        );
+        note.setLineSpacing(0, 1.15f);
+        Ui.topMargin(note, 7);
+        notes.addView(note);
+        return service;
+    }
+
+    private LinearLayout buildMovementCard() {
         LinearLayout movement = Ui.card(this);
         movement.addView(Ui.heading(this, R.string.movement_title, 20));
 
@@ -685,223 +773,272 @@ public final class MainActivity extends ScaledActivity
             Toast.makeText(this, R.string.position_reset, Toast.LENGTH_SHORT).show();
         });
         movement.addView(resetPosition);
-        LinearLayout service = Ui.card(this);
-        service.addView(Ui.heading(this, R.string.service_title, 20));
-
-        widgetModeSwitch = new Switch(this);
-        widgetModeSwitch.setText(R.string.widget_mode);
-        widgetModeSwitch.setTextColor(Ui.TEXT);
-        widgetModeSwitch.setTextSize(15);
-        widgetModeSwitch.setPadding(0, Ui.dp(this, 14), 0, Ui.dp(this, 4));
-        widgetModeSwitch.setChecked(prefs.isWidgetMode());
-        widgetModeSwitch.setOnCheckedChangeListener((button, checked) -> {
-            if (updatingSwitch) return;
-            prefs.setWidgetMode(checked);
-            if (checked) {
-                prefs.putBoolean(Prefs.KEY_SERVICE_ENABLED, false);
-                stopService(new Intent(this, OverlayService.class));
-            }
-            AtlasAppWidgetProvider.updateAll(this);
-            refreshStatus();
-        });
-        service.addView(widgetModeSwitch);
-        TextView widgetHint = Ui.text(this, R.string.widget_mode_hint, 13, Ui.TEXT_SECONDARY);
-        widgetHint.setLineSpacing(0, 1.1f);
-        Ui.topMargin(widgetHint, 5);
-        service.addView(widgetHint);
-        addWidgetButton = Ui.button(this, R.string.add_android_widget);
-        Ui.topMargin(addWidgetButton, 10);
-        addWidgetButton.setOnClickListener(view -> requestWidgetPlacement());
-        service.addView(addWidgetButton);
-
-        serviceStatus = Ui.text(this, "", 14, Ui.TEXT_SECONDARY);
-        Ui.topMargin(serviceStatus, 12);
-        service.addView(serviceStatus);
-
-        LinearLayout serviceButtons = new LinearLayout(this);
-        serviceButtons.setOrientation(LinearLayout.HORIZONTAL);
-        serviceButtons.setGravity(Gravity.START);
-        Ui.topMargin(serviceButtons, 10);
-        startPanelButton = Ui.button(this, R.string.start_panel);
-        startPanelButton.setBackground(Ui.rounded(Ui.ACCENT, Ui.dp(this, 8)));
-        startPanelButton.setOnClickListener(view -> startPanel());
-        serviceButtons.addView(startPanelButton);
-        stopPanelButton = Ui.button(this, R.string.stop);
-        LinearLayout.LayoutParams stopParams = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.WRAP_CONTENT,
-                ViewGroup.LayoutParams.WRAP_CONTENT
-        );
-        stopParams.leftMargin = Ui.dp(this, 10);
-        serviceButtons.addView(stopPanelButton, stopParams);
-        stopPanelButton.setOnClickListener(view -> stopPanel());
-        service.addView(serviceButtons);
-
-        autoStartSwitch = new Switch(this);
-        autoStartSwitch.setText(R.string.auto_start);
-        autoStartSwitch.setTextColor(Ui.TEXT);
-        autoStartSwitch.setTextSize(15);
-        autoStartSwitch.setPadding(0, Ui.dp(this, 14), 0, Ui.dp(this, 8));
-        autoStartSwitch.setOnCheckedChangeListener((button, checked) -> {
-            if (updatingSwitch) {
-                return;
-            }
-            prefs.putBoolean(Prefs.KEY_AUTO_START, checked);
-            if (checked && (!Settings.canDrawOverlays(this)
-                    || !ForegroundAppDetector.hasUsageAccess(this)
-                    || !AccessibilityWindowState.isEnabled(this))) {
-                Toast.makeText(this,
-                        R.string.auto_start_permission_warning,
-                        Toast.LENGTH_LONG).show();
-            }
-        });
-        service.addView(autoStartSwitch);
-        LinearLayout notes = settingsGroup();
-        notes.addView(Ui.heading(this, R.string.head_unit_note_title, 18));
-        TextView note = Ui.text(this,
-                R.string.head_unit_note,
-                14,
-                Ui.TEXT_SECONDARY
-        );
-        note.setLineSpacing(0, 1.15f);
-        Ui.topMargin(note, 7);
-        notes.addView(note);
-        service.addView(notes);
-
-        LinearLayout stickyPreview = new LinearLayout(this);
-        stickyPreview.setOrientation(LinearLayout.VERTICAL);
-        stickyPreview.setClipChildren(false);
-        stickyPreview.setPadding(
-                Ui.dp(this, 24),
-                Ui.dp(this, 16),
-                Ui.dp(this, 24),
-                Ui.dp(this, 12)
-        );
-        stickyPreview.setBackgroundColor(Ui.BACKGROUND);
-
-        LinearLayout previewTitleRow = new LinearLayout(this);
-        previewTitleRow.setOrientation(LinearLayout.HORIZONTAL);
-        previewTitleRow.setGravity(Gravity.CENTER_VERTICAL);
-        TextView title = Ui.heading(this, R.string.app_name, 24);
-        previewTitleRow.addView(title, new LinearLayout.LayoutParams(
-                0,
-                ViewGroup.LayoutParams.WRAP_CONTENT,
-                1f
-        ));
-        previewTitle = Ui.text(this,
-                R.string.preview_title,
-                13,
-                Ui.TEXT_SECONDARY
-        );
-        previewTitleRow.addView(previewTitle);
-        if (configuringWidgetId != AppWidgetManager.INVALID_APPWIDGET_ID) {
-            Button done = Ui.button(this, R.string.done);
-            done.setOnClickListener(view -> {
-                AtlasAppWidgetProvider.updateAll(this);
-                setResult(RESULT_OK, new Intent().putExtra(
-                        AppWidgetManager.EXTRA_APPWIDGET_ID, configuringWidgetId));
-                finish();
-            });
-            LinearLayout.LayoutParams doneParams = new LinearLayout.LayoutParams(
-                    ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-            doneParams.leftMargin = Ui.dp(this, 12);
-            previewTitleRow.addView(done, doneParams);
-        }
-        stickyPreview.addView(previewTitleRow);
-
-        previewContainer = new FrameLayout(this);
-        previewContainer.setClipChildren(false);
-        previewContainer.setClipToPadding(false);
-        previewContainer.setPadding(Ui.dp(this, 8), Ui.dp(this, 10),
-                Ui.dp(this, 8), Ui.dp(this, 10));
-        previewContainer.setBackground(Ui.rounded(Ui.SURFACE_RAISED, Ui.dp(this, 8)));
-        Ui.topMargin(previewContainer, 8);
-        stickyPreview.addView(previewContainer, new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                Ui.dp(this, 110)
-        ));
-
-        LinearLayout scale = Ui.card(this);
-        scale.addView(Ui.heading(this, R.string.scale_title, 20));
-        TextView scaleHint = Ui.text(this,
-                R.string.scale_hint,
-                13,
-                Ui.TEXT_SECONDARY
-        );
-        scaleHint.setLineSpacing(0, 1.1f);
-        Ui.topMargin(scaleHint, 6);
-        scale.addView(scaleHint);
-        addScaleSlider(scale);
-
-        LinearLayout settingsBackup = Ui.card(this);
-        settingsBackup.addView(Ui.heading(this, R.string.settings_backup_title, 20));
-        TextView settingsBackupHint = Ui.text(this,
-                R.string.settings_backup_hint,
-                13,
-                Ui.TEXT_SECONDARY
-        );
-        settingsBackupHint.setLineSpacing(0, 1.1f);
-        Ui.topMargin(settingsBackupHint, 8);
-        settingsBackup.addView(settingsBackupHint);
-        exportSettingsButton = Ui.button(this, R.string.export_settings);
-        Ui.topMargin(exportSettingsButton, 12);
-        exportSettingsButton.setOnClickListener(view -> chooseSettingsExport());
-        settingsBackup.addView(exportSettingsButton);
-        importSettingsButton = Ui.button(this, R.string.import_settings);
-        Ui.topMargin(importSettingsButton, 10);
-        importSettingsButton.setOnClickListener(view -> chooseSettingsImport());
-        settingsBackup.addView(importSettingsButton);
-
-        addSectionHeading(content, R.string.settings_section_system, true);
-        content.addView(permissions);
-        content.addView(service);
-        content.addView(settingsBackup);
-
-        addSectionHeading(content, R.string.settings_section_content, false);
-        content.addView(apps);
-        content.addView(fuelSettings);
-        content.addView(movement);
-        View visibilityCard = buildWindowVisibilityCard();
-        content.addView(visibilityCard);
-        overlayOnlyViews.add(overlayPermissionButton);
-        overlayOnlyViews.add(usagePermissionButton);
-        overlayOnlyViews.add(accessibilityPermissionButton);
-        overlayOnlyViews.add(movement);
-        overlayOnlyViews.add(visibilityCard);
-        overlayOnlyViews.add(systemStatusSwitch);
-        overlayOnlyViews.add(systemStatusOptions);
-
-        addSectionHeading(content, R.string.settings_section_visual, false);
-        content.addView(systemStatus);
-        content.addView(buildGeometryCard());
-        content.addView(buildBackgroundCard());
-        content.addView(scale);
-        if (configuringWidgetId != AppWidgetManager.INVALID_APPWIDGET_ID) {
-            scroll.post(() -> scroll.smoothScrollTo(0, systemStatus.getTop()));
-        }
-
-        root.addView(stickyPreview, new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                ViewGroup.LayoutParams.WRAP_CONTENT
-        ));
-        root.addView(scroll, new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                0,
-                1f
-        ));
-        return root;
+        return movement;
     }
 
-    private void addSectionHeading(LinearLayout content, int titleRes, boolean first) {
-        TextView heading = Ui.heading(this, titleRes, 16);
-        heading.setTextColor(Ui.ACCENT);
-        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
+    private LinearLayout buildAppLabelsCard() {
+        LinearLayout labels = Ui.card(this);
+        labels.addView(Ui.heading(this, R.string.app_labels_title, 20));
+        appLabelsSwitch = new Switch(this);
+        appLabelsSwitch.setText(R.string.show_app_labels);
+        appLabelsSwitch.setTextColor(Ui.TEXT);
+        appLabelsSwitch.setTextSize(15);
+        appLabelsSwitch.setPadding(0, Ui.dp(this, 14), 0, Ui.dp(this, 4));
+        appLabelsSwitch.setOnCheckedChangeListener((button, checked) -> {
+            if (!updatingSwitch) {
+                prefs.putBoolean(Prefs.KEY_SHOW_APP_LABELS, checked);
+            }
+        });
+        labels.addView(appLabelsSwitch);
+        appLabelOutlineSwitch = new Switch(this);
+        appLabelOutlineSwitch.setText(R.string.app_label_outline);
+        appLabelOutlineSwitch.setTextColor(Ui.TEXT);
+        appLabelOutlineSwitch.setTextSize(15);
+        appLabelOutlineSwitch.setPadding(0, Ui.dp(this, 8), 0, Ui.dp(this, 4));
+        appLabelOutlineSwitch.setOnCheckedChangeListener((button, checked) -> {
+            if (!updatingSwitch) {
+                prefs.putBoolean(Prefs.KEY_APP_LABEL_OUTLINE_ENABLED, checked);
+            }
+        });
+        labels.addView(appLabelOutlineSwitch);
+        LinearLayout fineTune = collapsible(labels, R.string.app_labels_fine_title,
+                R.string.app_labels_fine_summary, 16, 10);
+        addSlider(fineTune, getString(R.string.app_label_text_size),
+                PanelConfig.APP_LABEL_TEXT_SIZE_MIN_SP,
+                PanelConfig.APP_LABEL_TEXT_SIZE_MAX_SP,
+                prefs.getInt(Prefs.KEY_APP_LABEL_TEXT_SIZE_SP,
+                        PanelConfig.APP_LABEL_TEXT_SIZE_DEFAULT_SP),
+                value -> getString(R.string.sp_value, value),
+                value -> prefs.putInt(Prefs.KEY_APP_LABEL_TEXT_SIZE_SP, value));
+        addSlider(fineTune, getString(R.string.app_label_gap),
+                PanelConfig.APP_LABEL_GAP_MIN_DP,
+                PanelConfig.APP_LABEL_GAP_MAX_DP,
+                prefs.getInt(Prefs.KEY_APP_LABEL_GAP_DP,
+                        PanelConfig.APP_LABEL_GAP_DEFAULT_DP),
+                value -> getString(R.string.dp_value, value),
+                value -> prefs.putInt(Prefs.KEY_APP_LABEL_GAP_DP, value));
+        return labels;
+    }
+
+    private LinearLayout buildFuelCard() {
+        LinearLayout fuelSettings = Ui.card(this);
+        fuelSettings.addView(Ui.heading(this, R.string.fuel_settings_title, 20));
+        TextView fuelTileHint = Ui.text(
+                this,
+                R.string.fuel_tile_settings_hint,
+                13,
+                Ui.TEXT_SECONDARY
+        );
+        fuelTileHint.setLineSpacing(0, 1.1f);
+        Ui.topMargin(fuelTileHint, 8);
+        fuelSettings.addView(fuelTileHint);
+
+        LinearLayout fuelFormulaOptions = collapsible(fuelSettings,
+                R.string.fuel_formula_title, R.string.fuel_formula_summary, 16, 10);
+        fuelFormulaSummary = Ui.text(this, "", 14, Ui.TEXT_SECONDARY);
+        fuelFormulaSummary.setLineSpacing(0, 1.1f);
+        Ui.topMargin(fuelFormulaSummary, 7);
+        fuelFormulaOptions.addView(fuelFormulaSummary);
+
+        fuelCustomFormulaSwitch = new Switch(this);
+        fuelCustomFormulaSwitch.setText(R.string.use_custom_fuel_formula);
+        fuelCustomFormulaSwitch.setTextColor(Ui.TEXT);
+        fuelCustomFormulaSwitch.setTextSize(14);
+        fuelCustomFormulaSwitch.setPadding(0, Ui.dp(this, 7), 0, Ui.dp(this, 2));
+        fuelCustomFormulaSwitch.setOnCheckedChangeListener((button, checked) -> {
+            if (!updatingSwitch) {
+                prefs.putBoolean(Prefs.KEY_USE_CUSTOM_FUEL_FORMULA, checked);
+            }
+            updateFuelFormulaControls(checked);
+        });
+        fuelFormulaOptions.addView(fuelCustomFormulaSwitch);
+
+        fuelFormulaButton = Ui.button(this, R.string.change_fuel_formula);
+        Ui.topMargin(fuelFormulaButton, 10);
+        fuelFormulaButton.setOnClickListener(view -> showFuelFormulaDialog());
+        fuelFormulaOptions.addView(fuelFormulaButton);
+        return fuelSettings;
+    }
+
+    private LinearLayout buildSystemStatusCard() {
+        LinearLayout systemStatus = Ui.card(this);
+        systemStatus.addView(Ui.heading(this, R.string.system_status_title, 20));
+        systemStatusSwitch = new Switch(this);
+        systemStatusSwitch.setText(R.string.show_system_status);
+        systemStatusSwitch.setTextColor(Ui.TEXT);
+        systemStatusSwitch.setTextSize(15);
+        systemStatusSwitch.setPadding(0, Ui.dp(this, 14), 0, Ui.dp(this, 4));
+        systemStatusSwitch.setOnCheckedChangeListener((button, checked) -> {
+            if (!updatingSwitch) {
+                prefs.putBoolean(Prefs.KEY_SHOW_SYSTEM_STATUS, checked);
+            }
+            if (systemStatusOptions != null && systemStatusFineTune != null) {
+                setSettingsGroupEnabled(systemStatusOptions, checked);
+                setSettingsGroupEnabled(systemStatusFineTune, checked);
+            }
+        });
+        systemStatus.addView(systemStatusSwitch);
+
+        systemStatusOptions = settingsGroup();
+        systemStatus.addView(systemStatusOptions);
+
+        TextView visibleMetrics = Ui.text(this,
+                R.string.system_status_visible_metrics,
+                14,
+                Ui.TEXT
+        );
+        Ui.topMargin(visibleMetrics, 8);
+        systemStatusOptions.addView(visibleMetrics);
+        cpuStatusSwitch = addMetricSwitch(
+                systemStatusOptions,
+                R.string.show_cpu_status,
+                Prefs.KEY_SHOW_CPU_STATUS
+        );
+        ramStatusSwitch = addMetricSwitch(
+                systemStatusOptions,
+                R.string.show_ram_status,
+                Prefs.KEY_SHOW_RAM_STATUS
+        );
+        fuelStatusSwitch = addMetricSwitch(
+                systemStatusOptions,
+                R.string.show_fuel_status,
+                Prefs.KEY_SHOW_FUEL_STATUS
+        );
+
+        TextView systemStatusPositionLabel = Ui.text(this,
+                R.string.system_status_position,
+                14,
+                Ui.TEXT
+        );
+        Ui.topMargin(systemStatusPositionLabel, 8);
+        systemStatusOptions.addView(systemStatusPositionLabel);
+        systemStatusPositionSpinner = new Spinner(this);
+        String[] systemStatusPositions = getResources().getStringArray(
+                R.array.system_status_positions);
+        ArrayAdapter<String> systemStatusPositionAdapter = new ArrayAdapter<>(
+                this,
+                android.R.layout.simple_spinner_item,
+                systemStatusPositions
+        );
+        systemStatusPositionAdapter.setDropDownViewResource(
+                android.R.layout.simple_spinner_dropdown_item);
+        systemStatusPositionSpinner.setAdapter(systemStatusPositionAdapter);
+        systemStatusPositionSpinner.setSelection(Math.max(
+                PanelConfig.STATUS_TOP,
+                Math.min(PanelConfig.STATUS_RIGHT,
+                        prefs.getInt(Prefs.KEY_SYSTEM_STATUS_POSITION,
+                                PanelConfig.STATUS_BOTTOM))
+        ));
+        systemStatusPositionSpinner.setOnItemSelectedListener(
+                new android.widget.AdapterView.OnItemSelectedListener() {
+                    @Override
+                    public void onItemSelected(
+                            android.widget.AdapterView<?> parent,
+                            View view,
+                            int position,
+                            long id
+                    ) {
+                        if (!updatingSwitch) {
+                            prefs.putInt(Prefs.KEY_SYSTEM_STATUS_POSITION, position);
+                        }
+                    }
+
+                    @Override
+                    public void onNothingSelected(android.widget.AdapterView<?> parent) {
+                    }
+                });
+        systemStatusOptions.addView(systemStatusPositionSpinner);
+
+        systemStatusFineTune = collapsible(systemStatus, R.string.system_status_fine_title,
+                R.string.system_status_fine_summary, 16, 10);
+        TextView systemStatusHint = Ui.text(this,
+                R.string.system_status_hint,
+                13,
+                Ui.TEXT_SECONDARY
+        );
+        systemStatusHint.setLineSpacing(0, 1.1f);
+        Ui.topMargin(systemStatusHint, 6);
+        systemStatusFineTune.addView(systemStatusHint);
+        addSlider(systemStatusFineTune, getString(R.string.system_status_line_height),
+                PanelConfig.STATUS_LINE_HEIGHT_MIN_DP,
+                PanelConfig.STATUS_LINE_HEIGHT_MAX_DP,
+                prefs.getInt(Prefs.KEY_SYSTEM_STATUS_LINE_HEIGHT_DP,
+                        PanelConfig.STATUS_LINE_HEIGHT_DEFAULT_DP),
+                value -> getString(R.string.dp_value, value),
+                value -> prefs.putInt(Prefs.KEY_SYSTEM_STATUS_LINE_HEIGHT_DP, value));
+        addSlider(systemStatusFineTune, getString(R.string.system_status_text_size),
+                PanelConfig.STATUS_TEXT_SIZE_MIN_SP,
+                PanelConfig.STATUS_TEXT_SIZE_MAX_SP,
+                prefs.getInt(Prefs.KEY_SYSTEM_STATUS_TEXT_SIZE_SP,
+                        PanelConfig.STATUS_TEXT_SIZE_DEFAULT_SP),
+                value -> getString(R.string.sp_value, value),
+                value -> prefs.putInt(Prefs.KEY_SYSTEM_STATUS_TEXT_SIZE_SP, value));
+        int configuredStatusWeight = prefs.getInt(
+                Prefs.KEY_SYSTEM_STATUS_TEXT_WEIGHT,
+                PanelConfig.STATUS_TEXT_WEIGHT_DEFAULT
+        );
+        addSlider(systemStatusFineTune, getString(R.string.system_status_text_weight),
+                PanelConfig.STATUS_TEXT_WEIGHT_MIN / 100,
+                PanelConfig.STATUS_TEXT_WEIGHT_MAX / 100,
+                Math.max(PanelConfig.STATUS_TEXT_WEIGHT_MIN,
+                        Math.min(PanelConfig.STATUS_TEXT_WEIGHT_MAX,
+                                configuredStatusWeight)) / 100,
+                value -> formatSystemStatusTextWeight(value * 100),
+                value -> prefs.putInt(Prefs.KEY_SYSTEM_STATUS_TEXT_WEIGHT, value * 100));
+        return systemStatus;
+    }
+
+    /** Adds a card whose body starts collapsed and returns the body for its controls. */
+    private LinearLayout collapsibleCard(LinearLayout page, int titleRes, int summaryRes) {
+        LinearLayout card = Ui.card(this);
+        LinearLayout body = collapsible(card, titleRes, summaryRes, 20, 0);
+        page.addView(card);
+        return body;
+    }
+
+    /**
+     * Adds a collapsed section to {@code parent} and returns its body. The header stays
+     * outside the body so {@link #setSettingsGroupEnabled} on the body never disables it.
+     */
+    private LinearLayout collapsible(LinearLayout parent, int titleRes, int summaryRes,
+            float titleSizeSp, int topMarginDp) {
+        String title = getString(titleRes);
+        LinearLayout header = new LinearLayout(this);
+        header.setOrientation(LinearLayout.VERTICAL);
+        header.setMinimumHeight(Ui.dp(this, 40));
+        header.setClickable(true);
+        LinearLayout titleRow = new LinearLayout(this);
+        titleRow.setOrientation(LinearLayout.HORIZONTAL);
+        titleRow.setGravity(Gravity.CENTER_VERTICAL);
+        titleRow.addView(Ui.heading(this, title, titleSizeSp), new LinearLayout.LayoutParams(
+                0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+        TextView chevron = Ui.heading(this, "▸", 26);
+        chevron.setTextColor(Ui.ACCENT);
+        chevron.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
+        titleRow.addView(chevron);
+        header.addView(titleRow);
+        TextView summary = Ui.text(this, summaryRes, 13, Ui.TEXT_SECONDARY);
+        summary.setLineSpacing(0, 1.1f);
+        header.addView(summary);
+        Ui.topMargin(header, topMarginDp);
+        parent.addView(header);
+
+        LinearLayout body = new LinearLayout(this);
+        body.setOrientation(LinearLayout.VERTICAL);
+        body.setVisibility(View.GONE);
+        parent.addView(body, new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.WRAP_CONTENT
-        );
-        params.topMargin = Ui.dp(this, first ? 20 : 14);
-        params.bottomMargin = Ui.dp(this, 10);
-        heading.setLayoutParams(params);
-        content.addView(heading);
+        ));
+        header.setContentDescription(getString(R.string.collapsed_section, title));
+        header.setOnClickListener(view -> {
+            boolean expand = body.getVisibility() != View.VISIBLE;
+            body.setVisibility(expand ? View.VISIBLE : View.GONE);
+            chevron.setText(expand ? "▾" : "▸");
+            header.setContentDescription(getString(expand
+                    ? R.string.expanded_section : R.string.collapsed_section, title));
+        });
+        return body;
     }
 
     private LinearLayout settingsGroup() {
@@ -931,25 +1068,54 @@ public final class MainActivity extends ScaledActivity
                 setSettingsGroupEnabled(group.getChildAt(index), enabled);
             }
         }
-        if (view == systemStatusOptions || view == dragHandleOptions) {
+        if (view == systemStatusOptions || view == systemStatusFineTune
+                || view == dragHandleOptions) {
             view.setAlpha(enabled ? 1f : 0.42f);
         }
     }
 
-    private static void setModeButtonEnabled(Button button, boolean enabled) {
-        button.setEnabled(enabled);
-        button.setAlpha(enabled ? 1f : 0.42f);
+    private LinearLayout buildGridCard() {
+        LinearLayout grid = Ui.card(this);
+        grid.addView(Ui.heading(this, R.string.grid_title, 20));
+        widgetGeometryHint = Ui.text(this, R.string.widget_geometry_hint, 13, Ui.TEXT_SECONDARY);
+        widgetGeometryHint.setLineSpacing(0, 1.1f);
+        Ui.topMargin(widgetGeometryHint, 6);
+        grid.addView(widgetGeometryHint);
+        widgetOnlyViews.add(widgetGeometryHint);
+        addSlider(grid, getString(R.string.columns), 1, 10,
+                prefs.getInt(Prefs.KEY_COLUMNS, 5), String::valueOf,
+                value -> prefs.putInt(Prefs.KEY_COLUMNS, value));
+        addSlider(grid, getString(R.string.rows), 1, 4,
+                prefs.getInt(Prefs.KEY_ROWS, 1), String::valueOf,
+                value -> prefs.putInt(Prefs.KEY_ROWS, value));
+        addSlider(grid, getString(R.string.icon_size), 40, 240,
+                prefs.getInt(Prefs.KEY_ICON_SIZE_DP, 72),
+                value -> getString(R.string.dp_value, value),
+                value -> prefs.putInt(Prefs.KEY_ICON_SIZE_DP, value));
+        addSlider(grid, getString(R.string.icon_shape), 0, 50,
+                prefs.getInt(Prefs.KEY_ICON_CORNER_PERCENT, 12),
+                value -> value == 0
+                        ? getString(R.string.shape_square)
+                        : value == 50
+                        ? getString(R.string.shape_circle)
+                        : getString(R.string.percent_value, value),
+                value -> prefs.putInt(Prefs.KEY_ICON_CORNER_PERCENT, value));
+        LinearLayout spacing = collapsible(grid, R.string.spacing_title,
+                R.string.spacing_summary, 16, 14);
+        addSlider(spacing, getString(R.string.padding), 4, 40,
+                prefs.getInt(Prefs.KEY_PADDING_DP, 14),
+                value -> getString(R.string.dp_value, value),
+                value -> prefs.putInt(Prefs.KEY_PADDING_DP, value));
+        addSlider(spacing, getString(R.string.icon_gap), 0, 40,
+                prefs.getInt(Prefs.KEY_GAP_DP, 12),
+                value -> getString(R.string.dp_value, value),
+                value -> prefs.putInt(Prefs.KEY_GAP_DP, value));
+        return grid;
     }
 
-    private LinearLayout buildGeometryCard() {
-        LinearLayout geometry = Ui.card(this);
-        geometry.addView(Ui.heading(this, R.string.geometry_title, 20));
-        widgetGeometryHint = Ui.text(this, R.string.widget_geometry_hint, 13, Ui.TEXT_SECONDARY);
-        geometry.addView(widgetGeometryHint);
-        LinearLayout sizeControls = new LinearLayout(this);
-        sizeControls.setOrientation(LinearLayout.VERTICAL);
-        geometry.addView(sizeControls);
-        overlayOnlyViews.add(sizeControls);
+    private LinearLayout buildPanelSizeCard() {
+        LinearLayout sizeControls = Ui.card(this);
+        sizeControls.addView(Ui.heading(this, R.string.panel_size_title, 20));
         addSlider(sizeControls, getString(R.string.panel_width),
                 PanelConfig.WIDTH_MIN_PIXELS,
                 PanelConfig.WIDTH_MAX_PIXELS,
@@ -1021,33 +1187,7 @@ public final class MainActivity extends ScaledActivity
         sizeControls.addView(manualHeightInput, new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
         updateManualHeightControls();
-        addSlider(geometry, getString(R.string.columns), 1, 10,
-                prefs.getInt(Prefs.KEY_COLUMNS, 5), String::valueOf,
-                value -> prefs.putInt(Prefs.KEY_COLUMNS, value));
-        addSlider(geometry, getString(R.string.rows), 1, 4,
-                prefs.getInt(Prefs.KEY_ROWS, 1), String::valueOf,
-                value -> prefs.putInt(Prefs.KEY_ROWS, value));
-        addSlider(geometry, getString(R.string.icon_size), 40, 240,
-                prefs.getInt(Prefs.KEY_ICON_SIZE_DP, 72),
-                value -> getString(R.string.dp_value, value),
-                value -> prefs.putInt(Prefs.KEY_ICON_SIZE_DP, value));
-        addSlider(geometry, getString(R.string.icon_shape), 0, 50,
-                prefs.getInt(Prefs.KEY_ICON_CORNER_PERCENT, 12),
-                value -> value == 0
-                        ? getString(R.string.shape_square)
-                        : value == 50
-                        ? getString(R.string.shape_circle)
-                        : getString(R.string.percent_value, value),
-                value -> prefs.putInt(Prefs.KEY_ICON_CORNER_PERCENT, value));
-        addSlider(geometry, getString(R.string.padding), 4, 40,
-                prefs.getInt(Prefs.KEY_PADDING_DP, 14),
-                value -> getString(R.string.dp_value, value),
-                value -> prefs.putInt(Prefs.KEY_PADDING_DP, value));
-        addSlider(geometry, getString(R.string.icon_gap), 0, 40,
-                prefs.getInt(Prefs.KEY_GAP_DP, 12),
-                value -> getString(R.string.dp_value, value),
-                value -> prefs.putInt(Prefs.KEY_GAP_DP, value));
-        return geometry;
+        return sizeControls;
     }
 
     private boolean isManualHeightKey(String key) {
@@ -1172,6 +1312,8 @@ public final class MainActivity extends ScaledActivity
         ));
         background.addView(backgroundColorButton);
 
+        LinearLayout stroke = collapsible(background, R.string.stroke_title,
+                R.string.stroke_summary, 16, 14);
         backgroundStrokeSwitch = new Switch(this);
         backgroundStrokeSwitch.setText(R.string.show_background_stroke);
         backgroundStrokeSwitch.setTextColor(Ui.TEXT);
@@ -1182,7 +1324,7 @@ public final class MainActivity extends ScaledActivity
                 prefs.putBoolean(Prefs.KEY_BACKGROUND_STROKE_ENABLED, checked);
             }
         });
-        background.addView(backgroundStrokeSwitch);
+        stroke.addView(backgroundStrokeSwitch);
 
         backgroundStrokeColorButton = Ui.button(this, R.string.change_stroke_color);
         Ui.topMargin(backgroundStrokeColorButton, 8);
@@ -1192,12 +1334,12 @@ public final class MainActivity extends ScaledActivity
                 prefs.getInt(Prefs.KEY_BACKGROUND_STROKE_COLOR, Ui.ACCENT),
                 color -> prefs.putInt(Prefs.KEY_BACKGROUND_STROKE_COLOR, color)
         ));
-        background.addView(backgroundStrokeColorButton);
-        addSlider(background, getString(R.string.stroke_width), 1, 20,
+        stroke.addView(backgroundStrokeColorButton);
+        addSlider(stroke, getString(R.string.stroke_width), 1, 20,
                 prefs.getInt(Prefs.KEY_BACKGROUND_STROKE_WIDTH_DP, 2),
                 value -> getString(R.string.dp_value, value),
                 value -> prefs.putInt(Prefs.KEY_BACKGROUND_STROKE_WIDTH_DP, value));
-        addSlider(background, getString(R.string.stroke_opacity), 0, 255,
+        addSlider(stroke, getString(R.string.stroke_opacity), 0, 255,
                 prefs.getInt(Prefs.KEY_BACKGROUND_STROKE_ALPHA, 200),
                 value -> getString(R.string.percent_value,
                         Math.round(value * 100f / 255f)),
@@ -1398,26 +1540,27 @@ public final class MainActivity extends ScaledActivity
         for (View view : overlayOnlyViews) {
             view.setVisibility(widgetMode ? View.GONE : View.VISIBLE);
         }
-        widgetGeometryHint.setVisibility(widgetMode ? View.VISIBLE : View.GONE);
+        for (View view : widgetOnlyViews) {
+            view.setVisibility(widgetMode ? View.VISIBLE : View.GONE);
+        }
+        Ui.setSegmentSelected(this, overlayModeSegment, !widgetMode);
+        Ui.setSegmentSelected(this, widgetModeSegment, widgetMode);
+        displayModeHint.setText(widgetMode
+                ? R.string.display_mode_widget_hint : R.string.display_mode_overlay_hint);
+        int placedWidgets = AtlasAppWidgetProvider.ids(this).length;
+        widgetPlacementStatus.setText(placedWidgets == 0
+                ? getString(R.string.widget_not_placed)
+                : getString(R.string.widget_placed_count, placedWidgets));
+        Ui.setButtonAccent(this, addWidgetButton, placedWidgets == 0);
         setStatus(serviceStatus,
-                widgetMode
-                        ? getString(R.string.status_widget_mode,
-                                AppWidgetManager.getInstance(this).getAppWidgetIds(
-                                        new ComponentName(this,
-                                                AtlasAppWidgetProvider.class)).length)
-                        : serviceEnabled && serviceRunning
+                serviceEnabled && serviceRunning
                         ? getString(R.string.status_service_running)
                         : serviceEnabled
                         ? getString(R.string.status_service_waiting)
                         : getString(R.string.status_service_stopped),
-                widgetMode || serviceEnabled && serviceRunning);
+                serviceEnabled && serviceRunning);
         updatingSwitch = true;
-        widgetModeSwitch.setChecked(widgetMode);
-        setModeButtonEnabled(startPanelButton, !widgetMode);
-        setModeButtonEnabled(stopPanelButton, !widgetMode);
-        setModeButtonEnabled(addWidgetButton, widgetMode);
         autoStartSwitch.setChecked(prefs.getBoolean(Prefs.KEY_AUTO_START, false));
-        autoStartSwitch.setEnabled(!widgetMode);
         boolean showDragHandle = prefs.getBoolean(Prefs.KEY_SHOW_DRAG_HANDLE, true);
         dragHandleSwitch.setChecked(showDragHandle);
         appLabelsSwitch.setChecked(prefs.getBoolean(Prefs.KEY_SHOW_APP_LABELS, false));
@@ -1450,6 +1593,7 @@ public final class MainActivity extends ScaledActivity
                 prefs.getBoolean(Prefs.KEY_BACKGROUND_STROKE_ENABLED, false));
         updatingSwitch = false;
         setSettingsGroupEnabled(systemStatusOptions, showSystemStatus);
+        setSettingsGroupEnabled(systemStatusFineTune, showSystemStatus);
         setSettingsGroupEnabled(dragHandleOptions, showDragHandle);
         updateFuelFormulaControls(useCustomFuelFormula);
         refreshFuelFormulaSummary();
@@ -1696,16 +1840,6 @@ public final class MainActivity extends ScaledActivity
             fuelFormulaButton.setVisibility(custom ? View.VISIBLE : View.GONE);
         }
         refreshFuelFormulaSummary();
-    }
-
-    private void setFuelFormulaOptionsExpanded(boolean expanded) {
-        if (fuelFormulaOptions == null || fuelFormulaDisclosureButton == null) {
-            return;
-        }
-        fuelFormulaOptions.setVisibility(expanded ? View.VISIBLE : View.GONE);
-        fuelFormulaDisclosureButton.setText(expanded
-                ? R.string.hide_fuel_formula_settings
-                : R.string.show_fuel_formula_settings);
     }
 
     private void showFuelFormulaDialog() {
@@ -2083,9 +2217,7 @@ public final class MainActivity extends ScaledActivity
             String grantedText, String requestText) {
         if (button == null) return;
         button.setText((granted ? "✓ " : "✕ ") + (granted ? grantedText : requestText));
-        button.setBackground(Ui.rounded(
-                granted ? Ui.ACCENT : Ui.SURFACE_RAISED, Ui.dp(this, 8)));
-        button.setTextColor(granted ? ON_ACCENT : Ui.TEXT);
+        Ui.setButtonAccent(this, button, granted);
     }
 
     private void setStatus(TextView view, String text, boolean good) {
@@ -2094,20 +2226,21 @@ public final class MainActivity extends ScaledActivity
     }
 
     private void refreshPreviewSoon() {
-        if (previewContainer == null) {
+        if (previewContainer == null || previewContainer.getVisibility() != View.VISIBLE) {
             return;
         }
         previewContainer.post(this::refreshPreview);
     }
 
     private void refreshPreview() {
-        if (isFinishing() || previewContainer.getWidth() <= 0) {
+        if (isFinishing() || previewContainer.getVisibility() != View.VISIBLE
+                || previewContainer.getWidth() <= 0) {
             return;
         }
         int available = Math.max(1,
                 previewContainer.getWidth() - previewContainer.getPaddingLeft() - previewContainer.getPaddingRight());
         if (prefs.isWidgetMode()) {
-            refreshWidgetPreview(available);
+            refreshWidgetPreview();
             return;
         }
         previewTitle.setText(R.string.preview_title);
@@ -2147,10 +2280,9 @@ public final class MainActivity extends ScaledActivity
         previewContainer.setLayoutParams(containerParams);
     }
 
-    private void refreshWidgetPreview(int available) {
+    private void refreshWidgetPreview() {
         Context app = getApplicationContext();
-        AppWidgetManager manager = AppWidgetManager.getInstance(app);
-        int[] ids = manager.getAppWidgetIds(new ComponentName(app, AtlasAppWidgetProvider.class));
+        int[] ids = AtlasAppWidgetProvider.ids(app);
         int requestedId = getIntent().getIntExtra(AppWidgetManager.EXTRA_APPWIDGET_ID,
                 AppWidgetManager.INVALID_APPWIDGET_ID);
         int widgetId = ids.length == 0 ? AppWidgetManager.INVALID_APPWIDGET_ID : ids[0];
@@ -2158,26 +2290,14 @@ public final class MainActivity extends ScaledActivity
             if (id == requestedId) widgetId = id;
         }
         Bundle options = widgetId == AppWidgetManager.INVALID_APPWIDGET_ID
-                ? new Bundle() : manager.getAppWidgetOptions(widgetId);
-        int widthDp = AtlasAppWidgetProvider.widthDp(app, options);
-        int heightDp = AtlasAppWidgetProvider.heightDp(app, options);
+                ? new Bundle() : AppWidgetManager.getInstance(app).getAppWidgetOptions(widgetId);
         previewTitle.setText(getString(widgetId == AppWidgetManager.INVALID_APPWIDGET_ID
-                ? R.string.widget_preview_example : R.string.widget_preview_size, widthDp, heightDp));
-        View preview = AtlasAppWidgetProvider.panelViews(app, prefs, prefs.panelConfig(),
-                AppRepository.loadSelectedActivities(app, prefs), options,
-                AppWidgetManager.INVALID_APPWIDGET_ID).apply(app, previewContainer);
-        int width = Ui.dp(app, widthDp);
-        int height = Ui.dp(app, heightDp);
+                        ? R.string.widget_preview_example : R.string.widget_preview_size,
+                AtlasAppWidgetProvider.widthDp(app, options),
+                AtlasAppWidgetProvider.heightDp(app, options)));
         int maxHeight = Math.round(getWindowManager().getCurrentWindowMetrics().getBounds().height() * 0.30f);
-        float scale = Math.min(1f, Math.min(available / (float) width, maxHeight / (float) height));
-        preview.setScaleX(scale);
-        preview.setScaleY(scale);
-        previewContainer.removeAllViews();
-        previewContainer.addView(preview, new FrameLayout.LayoutParams(width, height, Gravity.CENTER));
-        ViewGroup.LayoutParams params = previewContainer.getLayoutParams();
-        params.height = Math.round(height * scale) + previewContainer.getPaddingTop()
-                + previewContainer.getPaddingBottom();
-        previewContainer.setLayoutParams(params);
+        WidgetPreview.render(app, previewContainer, prefs,
+                AppRepository.loadSelectedActivities(app, prefs), options, maxHeight);
     }
 
     private void startPanel() {

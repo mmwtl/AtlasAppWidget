@@ -3,6 +3,7 @@ package com.mmwtl.atlasappwidget;
 import android.app.PendingIntent;
 import android.appwidget.AppWidgetManager;
 import android.appwidget.AppWidgetProvider;
+import android.appwidget.AppWidgetProviderInfo;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
@@ -59,12 +60,29 @@ public final class AtlasAppWidgetProvider extends AppWidgetProvider {
 
     @Override
     public void onDeleted(Context context, int[] appWidgetIds) {
+        new Prefs(context).setWidgetsConfigured(appWidgetIds, false);
         WidgetFuelService.sync(context);
     }
 
     @Override
     public void onDisabled(Context context) {
         context.stopService(new Intent(context, WidgetFuelService.class));
+    }
+
+    static int[] ids(Context context) {
+        Context app = context.getApplicationContext();
+        return AppWidgetManager.getInstance(app).getAppWidgetIds(
+                new ComponentName(app, AtlasAppWidgetProvider.class));
+    }
+
+    static boolean owns(Context context, int widgetId) {
+        if (widgetId == AppWidgetManager.INVALID_APPWIDGET_ID) {
+            return false;
+        }
+        Context app = context.getApplicationContext();
+        AppWidgetProviderInfo info = AppWidgetManager.getInstance(app).getAppWidgetInfo(widgetId);
+        return info != null
+                && new ComponentName(app, AtlasAppWidgetProvider.class).equals(info.provider);
     }
 
     static void updateAll(Context context) {

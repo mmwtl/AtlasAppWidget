@@ -21,6 +21,7 @@ final class Ui {
     static final int TEXT = Color.rgb(245, 245, 245);
     static final int TEXT_SECONDARY = Color.rgb(212, 212, 212);
     static final int ACCENT = Color.rgb(120, 147, 160);
+    static final int ON_ACCENT = Color.rgb(7, 16, 20);
     static final int SUCCESS = ACCENT;
     static final int WARNING = TEXT_SECONDARY;
 
@@ -83,6 +84,37 @@ final class Ui {
         params.setMargins(0, 0, 0, dp(context, 12));
         card.setLayoutParams(params);
         return card;
+    }
+
+    /** One option of a segmented control; add it with {@link #addSegment} for equal widths. */
+    static TextView segment(Context context, String value) {
+        TextView segment = text(context, value, 14, TEXT);
+        segment.setGravity(Gravity.CENTER);
+        segment.setMaxLines(1);
+        segment.setPadding(dp(context, 8), dp(context, 11), dp(context, 8), dp(context, 11));
+        segment.setClickable(true);
+        setSegmentSelected(context, segment, false);
+        return segment;
+    }
+
+    static void setSegmentSelected(Context context, TextView segment, boolean selected) {
+        segment.setSelected(selected);
+        segment.setBackground(rounded(selected ? ACCENT : SURFACE_RAISED, dp(context, 8)));
+        segment.setTextColor(selected ? ON_ACCENT : TEXT);
+    }
+
+    static void addSegment(LinearLayout row, TextView segment) {
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
+                0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
+        if (row.getChildCount() > 0) {
+            params.leftMargin = dp(row.getContext(), 6);
+        }
+        row.addView(segment, params);
+    }
+
+    static void setButtonAccent(Context context, Button button, boolean accent) {
+        button.setBackground(rounded(accent ? ACCENT : SURFACE_RAISED, dp(context, 8)));
+        button.setTextColor(accent ? ON_ACCENT : TEXT);
     }
 
     static GradientDrawable rounded(int color, float radiusPx) {

@@ -38,11 +38,15 @@ app/src/main/java/com/mmwtl/atlaslauncher/HomeActivity.java.
 Со стороны AtlasAppWidget контракт уже подготовлен в рабочей копии
 /Users/wital/orca/workspaces/AtlasAppWidget/widgetkit:
 - package/provider: com.mmwtl.atlasappwidget/.AtlasAppWidgetProvider;
-- android:configure="com.mmwtl.atlasappwidget.MainActivity";
+- android:configure="com.mmwtl.atlasappwidget.WidgetSetupActivity" (диалог поверх HOME,
+  exported, taskAffinity="", excludeFromRecents);
 - widgetFeatures="reconfigurable|configuration_optional";
-- MainActivity принимает ACTION_APPWIDGET_CONFIGURE и EXTRA_APPWIDGET_ID;
-- «Готово» возвращает RESULT_OK и исходный EXTRA_APPWIDGET_ID;
-- «Назад» возвращает RESULT_CANCELED; настройки общие и применяются сразу;
+- WidgetSetupActivity принимает ACTION_APPWIDGET_CONFIGURE и EXTRA_APPWIDGET_ID; чужой или
+  нулевой ID сразу закрывается с RESULT_CANCELED;
+- «Добавить» (первичная настройка) и «Готово» (повторная) возвращают RESULT_OK
+  и исходный EXTRA_APPWIDGET_ID;
+- отмена («✕», «Назад», нажатие снаружи) возвращает RESULT_CANCELED с исходным ID и
+  откатывает свои изменения столбцов, строк и подписей; выбор приложений не откатывается;
 - постоянная шестерёнка и зарезервированная под неё полоса 40 dp удалены.
 На Android 11 не полагайся на автоматическое появление системной кнопки из-за
 widgetFeatures: кнопку в своём режиме редактирования должен предоставить HOME.
@@ -54,9 +58,9 @@ widgetFeatures: кнопку в своём режиме редактирован
 3. Проверь отсутствие кнопки вне редактирования; в редактировании она есть у
    настраиваемого виджета и отсутствует у провайдера без configure.
 4. Открой настройки существующего AtlasAppWidget, измени сетку/подписи, нажми
-   «Готово»; повтори с «Назад». Проверь неизменность ID, числа экземпляров,
-   позиции и размера. Для двух экземпляров проверь передачу правильного ID.
+   «Готово»; повтори с «Назад» (изменения должны откатиться). Проверь неизменность ID,
+   числа экземпляров, позиции и размера. Для двух экземпляров проверь передачу правильного ID.
 5. Отдельно проверь первичное добавление: «Назад» отменяет только новый экземпляр,
-   «Готово» добавляет ровно один. Не сломай этот путь повторной настройкой.
+   «Добавить» добавляет ровно один. Не сломай этот путь повторной настройкой.
 6. Проверь настройки часов, resize/drag, клики по ярлыкам и crash log.
 Не выдавай результат эмулятора за проверку на реальной ГУ. Не делай push.

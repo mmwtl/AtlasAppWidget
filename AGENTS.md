@@ -70,6 +70,16 @@ check the crash log.
 - Keep launcher icons adaptive with normal, round, and Android 13 monochrome resources.
 - Avoid dependencies unless they materially simplify behavior that cannot remain small and local.
 
+## Settings screens
+
+- `MainActivity` is the full settings editor with four tabs pinned under the title, above the preview:
+  Panel (display mode, widget placement or overlay permissions/run/movement/visibility),
+  Shortcuts, Look and System. Keep fine-tuning controls in collapsed sections and hide blocks
+  that do not apply to the current display mode.
+- `WidgetSetupActivity` handles ACTION_APPWIDGET_CONFIGURE only, as a short dialog over HOME
+  (apps, columns, rows, labels, switch to widget mode). Return the original appWidgetId with
+  OK or CANCELED; cancelling restores the values it changed.
+
 ## Repository hygiene
 
 - After completing and verifying each improvement, create a Git commit unless the user explicitly

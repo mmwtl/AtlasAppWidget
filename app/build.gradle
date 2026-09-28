@@ -44,6 +44,10 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
 
+    testOptions {
+        unitTests.includeAndroidResources = true
+    }
+
     applicationVariants.all { variant ->
         // Keep AGP's -unsigned marker so an unsigned release is never mistaken for a signed one.
         def unsigned = variant.signingConfig == null ? '-unsigned' : ''
@@ -56,6 +60,7 @@ android {
 dependencies {
     testImplementation 'junit:junit:4.13.2'
     testImplementation 'org.json:json:20240303'
+    testImplementation 'org.robolectric:robolectric:4.16'
 }
 
 tasks.withType(JavaCompile).configureEach {

@@ -37,6 +37,8 @@ final class Prefs {
     static final String KEY_DISPLAY_MODE = "display_mode";
     static final String DISPLAY_MODE_OVERLAY = "overlay";
     static final String DISPLAY_MODE_WIDGET = "widget";
+    /** Device-local AppWidget IDs confirmed in the setup dialog; never part of backups. */
+    private static final String KEY_CONFIGURED_WIDGET_IDS = "configured_widget_ids";
     static final String KEY_APP_UI_SCALE_TENTHS = "app_ui_scale_tenths";
     static final String KEY_FREEFORM_HIDE_THRESHOLD_PERCENT =
             "freeform_hide_threshold_percent";
@@ -156,6 +158,27 @@ final class Prefs {
     void setWidgetMode(boolean widget) {
         values.edit().putString(KEY_DISPLAY_MODE,
                 widget ? DISPLAY_MODE_WIDGET : DISPLAY_MODE_OVERLAY).apply();
+    }
+
+    boolean isWidgetConfigured(int widgetId) {
+        return values.getStringSet(KEY_CONFIGURED_WIDGET_IDS, Set.of())
+                .contains(Integer.toString(widgetId));
+    }
+
+    void setWidgetsConfigured(int[] widgetIds, boolean configured) {
+        if (widgetIds == null) {
+            return;
+        }
+        Set<String> stored = new HashSet<>(
+                values.getStringSet(KEY_CONFIGURED_WIDGET_IDS, Set.of()));
+        for (int widgetId : widgetIds) {
+            if (configured) {
+                stored.add(Integer.toString(widgetId));
+            } else {
+                stored.remove(Integer.toString(widgetId));
+            }
+        }
+        values.edit().putStringSet(KEY_CONFIGURED_WIDGET_IDS, stored).apply();
     }
 
     boolean getBoolean(String key, boolean fallback) {
