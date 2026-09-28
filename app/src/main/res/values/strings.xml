@@ -16,7 +16,6 @@
     <string name="selected_overflow_summary">Выбрано: %1$d. На панели помещается: %2$d. Лишние элементы скрыты; измените порядок или сетку.</string>
     <string name="main_subtitle">Ярлыки приложений на рабочем столе: поверх лаунчера или через стандартный Android-виджет.</string>
     <string name="permissions_title">Системные разрешения</string>
-    <string name="permissions_hint">Для плавающей панели нужны три специальных доступа: наложение создаёт панель, статистика определяет приложение на экране, а контроль окон отличает полноэкранные окна от свободных. Android-виджет работает без этих доступов.</string>
     <string name="allow_overlay">Разрешить поверх других окон</string>
     <string name="allow_usage">Разрешить доступ к статистике</string>
     <string name="allow_accessibility">Разрешить спецвозможности</string>
@@ -197,7 +196,6 @@
     <string name="color_red">Красный</string>
     <string name="color_green">Зелёный</string>
     <string name="color_blue">Синий</string>
-    <string name="screen_percent">%1$d%% экрана</string>
     <string name="px_value">%1$d px</string>
     <string name="dp_value">%1$d dp</string>
     <string name="sp_value">%1$d sp</string>
@@ -210,16 +208,7 @@
     <string name="shape_circle">круг</string>
     <string name="radius_rectangle">прямоугольник</string>
     <string name="radius_full">полностью</string>
-    <string name="status_overlay_allowed">✓ Наложение разрешено</string>
-    <string name="status_overlay_denied">! Наложение не разрешено</string>
-    <string name="status_usage_allowed">✓ Статистика использования доступна</string>
-    <string name="status_usage_denied">! Нет доступа к foreground-приложению</string>
-    <string name="status_accessibility_allowed">✓ Контроль окон включён</string>
-    <string name="status_accessibility_not_connected">! Спецвозможность включена, но служба не подключена. Выключите и включите её заново</string>
     <string name="permission_accessibility_not_connected">Спецвозможность включена, но служба не подключена. Выключите и включите её заново</string>
-    <string name="status_accessibility_denied">! Нет доступа к структуре окон</string>
-    <string name="status_notifications_allowed">✓ Уведомления разрешены</string>
-    <string name="status_notifications_denied">! Уведомления отключены (панель всё равно может работать)</string>
     <string name="status_service_running">● Панель запущена; вне лаунчера она скрыта</string>
     <string name="status_service_waiting">◌ Панель ожидает запуска или перезапуска системой</string>
     <string name="status_service_stopped">○ Панель остановлена</string>

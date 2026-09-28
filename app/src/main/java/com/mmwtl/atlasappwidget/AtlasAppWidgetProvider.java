@@ -123,18 +123,25 @@ public final class AtlasAppWidgetProvider extends AppWidgetProvider {
     static int widthDp(Context context, Bundle options) {
         boolean landscape = context.getResources().getConfiguration().orientation
                 == Configuration.ORIENTATION_LANDSCAPE;
-        return Math.max(1, options.getInt(landscape
+        return sizeDp(options, landscape
                 ? AppWidgetManager.OPTION_APPWIDGET_MAX_WIDTH
-                : AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 400));
+                : AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH,
+                sizeDp(options, AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 400));
     }
 
     static int heightDp(Context context, Bundle options) {
         boolean landscape = context.getResources().getConfiguration().orientation
                 == Configuration.ORIENTATION_LANDSCAPE;
-        return Math.max(1, options.getInt(landscape
+        return sizeDp(options, landscape
                 ? AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT
                 : AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT,
-                options.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, 160)));
+                sizeDp(options, AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, 160));
+    }
+
+    // Hosts that never report a size leave zeros; render the example size instead of 1 dp.
+    private static int sizeDp(Bundle options, String key, int fallback) {
+        int value = options.getInt(key, 0);
+        return value > 0 ? value : fallback;
     }
 
     static RemoteViews panelViews(Context context, Prefs prefs, PanelConfig config,
@@ -155,16 +162,24 @@ public final class AtlasAppWidgetProvider extends AppWidgetProvider {
         panel.removeAllViews(R.id.widget_grid);
         int shown = Math.min(entries.size(), grid.capacity());
         FuelLevelProvider.Reading fuelReading = WidgetFuelService.reading();
+        // RemoteViews shares identical Bitmap instances, so blank cells cost one bitmap per gap shape.
+        Bitmap[] blankCells = new Bitmap[4];
         for (int rowIndex = 0; rowIndex < grid.rows; rowIndex++) {
             RemoteViews row = new RemoteViews(context.getPackageName(), R.layout.widget_row);
             for (int column = 0; column < grid.columns; column++) {
                 int index = rowIndex * grid.columns + column;
                 RemoteViews cell = new RemoteViews(context.getPackageName(), R.layout.widget_cell);
-                AppEntry cellEntry = index < shown ? entries.get(index) : null;
-                cell.setImageViewBitmap(R.id.widget_cell, cellBitmap(context, prefs, config,
-                        cellEntry, grid, rowIndex, column, fuelReading));
-                if (index < shown) {
+                if (index >= shown) {
+                    int shape = (column == 0 ? 0 : 1) + (rowIndex == 0 ? 0 : 2);
+                    if (blankCells[shape] == null) {
+                        blankCells[shape] = cellBitmap(context, prefs, config, null, grid,
+                                rowIndex, column, fuelReading);
+                    }
+                    cell.setImageViewBitmap(R.id.widget_cell, blankCells[shape]);
+                } else {
                     AppEntry entry = entries.get(index);
+                    cell.setImageViewBitmap(R.id.widget_cell, cellBitmap(context, prefs, config,
+                            entry, grid, rowIndex, column, fuelReading));
                     if (widgetId != AppWidgetManager.INVALID_APPWIDGET_ID) {
                         Intent launch = new Intent(context, entry.isFuel()
                                 ? WidgetFuelActivity.class : WidgetLaunchActivity.class)

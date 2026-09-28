@@ -875,7 +875,7 @@ public final class MainActivity extends ScaledActivity
         content.addView(buildGeometryCard());
         content.addView(buildBackgroundCard());
         content.addView(scale);
-        if (getIntent().hasExtra(AppWidgetManager.EXTRA_APPWIDGET_ID)) {
+        if (configuringWidgetId != AppWidgetManager.INVALID_APPWIDGET_ID) {
             scroll.post(() -> scroll.smoothScrollTo(0, systemStatus.getTop()));
         }
 
@@ -934,6 +934,11 @@ public final class MainActivity extends ScaledActivity
         if (view == systemStatusOptions || view == dragHandleOptions) {
             view.setAlpha(enabled ? 1f : 0.42f);
         }
+    }
+
+    private static void setModeButtonEnabled(Button button, boolean enabled) {
+        button.setEnabled(enabled);
+        button.setAlpha(enabled ? 1f : 0.42f);
     }
 
     private LinearLayout buildGeometryCard() {
@@ -1408,9 +1413,9 @@ public final class MainActivity extends ScaledActivity
                 widgetMode || serviceEnabled && serviceRunning);
         updatingSwitch = true;
         widgetModeSwitch.setChecked(widgetMode);
-        startPanelButton.setEnabled(!widgetMode);
-        stopPanelButton.setEnabled(!widgetMode);
-        addWidgetButton.setEnabled(widgetMode);
+        setModeButtonEnabled(startPanelButton, !widgetMode);
+        setModeButtonEnabled(stopPanelButton, !widgetMode);
+        setModeButtonEnabled(addWidgetButton, widgetMode);
         autoStartSwitch.setChecked(prefs.getBoolean(Prefs.KEY_AUTO_START, false));
         autoStartSwitch.setEnabled(!widgetMode);
         boolean showDragHandle = prefs.getBoolean(Prefs.KEY_SHOW_DRAG_HANDLE, true);

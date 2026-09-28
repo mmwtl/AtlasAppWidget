@@ -45,8 +45,10 @@ android {
     }
 
     applicationVariants.all { variant ->
+        // Keep AGP's -unsigned marker so an unsigned release is never mistaken for a signed one.
+        def unsigned = variant.signingConfig == null ? '-unsigned' : ''
         variant.outputs.all {
-            outputFileName = "${effectiveVersionName}[${appVersionCode}]AtlasAppWidget-${variant.buildType.name}.apk"
+            outputFileName = "${effectiveVersionName}[${appVersionCode}]AtlasAppWidget-${variant.buildType.name}${unsigned}.apk"
         }
     }
 }
