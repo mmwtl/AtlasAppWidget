@@ -2,6 +2,7 @@ package com.mmwtl.atlasappwidget;
 
 import android.accessibilityservice.AccessibilityService;
 import android.accessibilityservice.AccessibilityServiceInfo;
+import android.content.SharedPreferences;
 import android.graphics.Rect;
 import android.os.Handler;
 import android.os.Looper;
@@ -34,25 +35,62 @@ public final class WindowAccessibilityService extends AccessibilityService {
     private volatile boolean destroyed;
     private Prefs prefs;
     private final Runnable launcherAppListRefresh = this::requestWindowRefresh;
+    /** Held as a field: SharedPreferences keeps its change listeners weakly. */
+    private final SharedPreferences.OnSharedPreferenceChangeListener displayModeListener =
+            (values, key) -> {
+                if (Prefs.KEY_DISPLAY_MODE.equals(key) && !destroyed) {
+                    applyEventSubscription();
+                    requestWindowRefresh();
+                }
+            };
+    private Boolean subscribedForOverlay;
 
     @Override
     protected void onServiceConnected() {
         super.onServiceConnected();
         prefs = new Prefs(this);
-        AccessibilityServiceInfo info = getServiceInfo();
-        info.eventTypes = AccessibilityEvent.TYPE_WINDOWS_CHANGED
-                | AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED
-                | AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED
-                | AccessibilityEvent.TYPE_VIEW_SCROLLED;
-        info.flags |= AccessibilityServiceInfo.FLAG_RETRIEVE_INTERACTIVE_WINDOWS
-                | AccessibilityServiceInfo.FLAG_INCLUDE_NOT_IMPORTANT_VIEWS
-                | AccessibilityServiceInfo.FLAG_REPORT_VIEW_IDS;
-        info.notificationTimeout = 50L;
-        setServiceInfo(info);
+        prefs.raw().registerOnSharedPreferenceChangeListener(displayModeListener);
+        applyEventSubscription();
         AccessibilityWindowState.markConnected(this);
         requestWindowRefresh();
         startOverlayIfNeeded();
         AppLog.info("Window accessibility service connected");
+    }
+
+    /**
+     * Widget mode needs no window tracking, so the service unsubscribes from every event type.
+     * Apps only emit accessibility event types some enabled service listens to, which removes
+     * the event traffic both in other apps and in this process until overlay mode returns.
+     */
+    private void applyEventSubscription() {
+        boolean overlay = !prefs.isWidgetMode();
+        if (subscribedForOverlay != null && subscribedForOverlay == overlay) {
+            return;
+        }
+        AccessibilityServiceInfo info = getServiceInfo();
+        if (info == null) {
+            return;
+        }
+        int trackingFlags = AccessibilityServiceInfo.FLAG_RETRIEVE_INTERACTIVE_WINDOWS
+                | AccessibilityServiceInfo.FLAG_INCLUDE_NOT_IMPORTANT_VIEWS
+                | AccessibilityServiceInfo.FLAG_REPORT_VIEW_IDS;
+        if (overlay) {
+            info.eventTypes = AccessibilityEvent.TYPE_WINDOWS_CHANGED
+                    | AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED
+                    | AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED
+                    | AccessibilityEvent.TYPE_VIEW_SCROLLED;
+            info.flags |= trackingFlags;
+        } else {
+            info.eventTypes = 0;
+            info.flags &= ~trackingFlags;
+            mainHandler.removeCallbacks(launcherAppListRefresh);
+        }
+        info.notificationTimeout = 50L;
+        setServiceInfo(info);
+        subscribedForOverlay = overlay;
+        AppLog.info(overlay
+                ? "Accessibility window tracking enabled for overlay mode"
+                : "Accessibility window tracking paused for widget mode");
     }
 
     @Override
@@ -80,6 +118,9 @@ public final class WindowAccessibilityService extends AccessibilityService {
     public void onDestroy() {
         destroyed = true;
         refreshPending = false;
+        if (prefs != null) {
+            prefs.raw().unregisterOnSharedPreferenceChangeListener(displayModeListener);
+        }
         mainHandler.removeCallbacks(launcherAppListRefresh);
         windowReader.shutdownNow();
         AccessibilityWindowState.markUnavailable(this);
