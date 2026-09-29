@@ -133,9 +133,9 @@
     <string name="widget_geometry_hint">Размер и место виджета задаёт HOME. При нехватке места иконки уменьшаются, число ячеек сохраняется.</string>
     <string name="widget_preview_size">Виджет %1$d × %2$d dp</string>
     <string name="widget_preview_example">Пример %1$d × %2$d dp</string>
-    <string name="widget_fuel_channel">Топливо в Android-виджете</string>
-    <string name="widget_fuel_notification_title">Топливо в виджете</string>
-    <string name="widget_fuel_notification_text">Обновление данных бака на рабочем столе</string>
+    <string name="widget_fuel_channel">Живые данные Android-виджета</string>
+    <string name="widget_fuel_notification_title">Живые данные виджета</string>
+    <string name="widget_fuel_notification_text">Обновление топлива и CPU / RAM на рабочем столе</string>
     <string name="add_android_widget">Добавить виджет на рабочий стол</string>
     <string name="widget_add_manually">Откройте меню виджетов лаунчера и выберите Atlas App Widget</string>
     <string name="widget_choose_apps">Выберите приложения в настройках Atlas App Widget</string>

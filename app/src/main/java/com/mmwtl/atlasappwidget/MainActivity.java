@@ -392,9 +392,7 @@ public final class MainActivity extends ScaledActivity
         page.addView(panelSize);
         overlayOnlyViews.add(panelSize);
         page.addView(buildBackgroundCard());
-        LinearLayout systemStatus = buildSystemStatusCard();
-        page.addView(systemStatus);
-        overlayOnlyViews.add(systemStatus);
+        page.addView(buildSystemStatusCard());
     }
 
     private void buildSystemTab(LinearLayout page) {

@@ -46,6 +46,19 @@ public final class WidgetGridTest {
         assertEquals(labels.layout.iconSize + 48, labels.layout.cellHeight);
     }
 
+    @Test
+    public void statusStripTakesSpaceFromTheGridOnItsSide() {
+        WidgetGrid plain = grid(900, 300, 5, 2, 104, 10, 10, 0, 0);
+        WidgetGrid bottom = WidgetGrid.forSize(900, 300, 5, 2, 104, 10, 10, 0, 0,
+                false, 60, 16);
+        WidgetGrid side = WidgetGrid.forSize(900, 300, 5, 2, 104, 10, 10, 0, 0,
+                true, 40, 16);
+        assertEquals(plain.layout.gridWidth, bottom.layout.gridWidth);
+        assertTrue(bottom.layout.gridHeight + 60 + 16 + bottom.layout.padding * 2 <= 300);
+        assertEquals(plain.layout.gridWidth - 56, side.layout.gridWidth);
+        assertTrue(bottom.layout.iconSize < plain.layout.iconSize);
+    }
+
     private static WidgetGrid grid(int width, int height, int columns, int rows,
             int icon, int padding, int gap, int labelHeight, int labelGap) {
         return WidgetGrid.forSize(width, height, columns, rows,

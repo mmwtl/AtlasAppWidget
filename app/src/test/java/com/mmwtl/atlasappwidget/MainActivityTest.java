@@ -103,7 +103,7 @@ public final class MainActivityTest {
             assertTrue(shown(find(root, "Сетка")));
             assertTrue(shown(find(root, context.getString(R.string.widget_geometry_hint))));
             assertFalse(shown(find(root, "Размер панели")));
-            assertFalse(shown(find(root, "Системный статус")));
+            assertTrue(shown(find(root, "Системный статус")));
         } finally {
             close(controller);
         }

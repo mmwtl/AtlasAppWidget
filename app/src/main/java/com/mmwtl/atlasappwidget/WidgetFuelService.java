@@ -14,15 +14,27 @@ import android.os.Build;
 import android.os.Handler;
 import android.os.IBinder;
 import android.os.Looper;
+import android.os.PowerManager;
 
-/** Keeps the GInputBridge receiver active while a fuel tile is placed on HOME. */
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+
+/**
+ * Keeps HOME widgets live: the GInputBridge fuel receiver for fuel tiles and the status strip,
+ * and CPU/RAM sampling for the status strip.
+ */
 public final class WidgetFuelService extends Service {
     private static final String CHANNEL_ID = "atlas_widget_fuel";
     private static final int NOTIFICATION_ID = 2108;
-    private static final long STATUS_REFRESH_MS = 30_000L;
+    private static final long FUEL_REFRESH_MS = 30_000L;
+    // Matches the overlay status cadence.
+    private static final long METRICS_REFRESH_MS = 2_000L;
     private static volatile WidgetFuelService instance;
+    private static volatile SystemStatusSnapshot statusSnapshot =
+            SystemStatusSnapshot.unavailable();
 
     private final Handler handler = new Handler(Looper.getMainLooper());
+    private final ExecutorService sampling = Executors.newSingleThreadExecutor();
     private final Runnable refresh = new Runnable() {
         @Override
         public void run() {
@@ -31,22 +43,31 @@ public final class WidgetFuelService extends Service {
                 return;
             }
             publishIfChanged();
-            handler.postDelayed(this, STATUS_REFRESH_MS);
+            sampleMetrics();
+            handler.postDelayed(this, sampleCpu || sampleRam
+                    ? METRICS_REFRESH_MS : FUEL_REFRESH_MS);
         }
     };
     private FuelLevelProvider fuel;
+    private SystemMetricsSampler sampler;
+    private PowerManager power;
     private String lastDisplayedValue;
+    private boolean sampleCpu;
+    private boolean sampleRam;
 
     static void sync(Context context) {
         Context app = context.getApplicationContext();
         Intent service = new Intent(app, WidgetFuelService.class);
         if (needed(app)) {
-            if (instance == null) {
-                try {
-                    app.startForegroundService(service);
-                } catch (RuntimeException error) {
-                    AppLog.warn("Cannot start live widget fuel updates", error);
-                }
+            WidgetFuelService running = instance;
+            if (running != null) {
+                running.handler.post(running::configure);
+                return;
+            }
+            try {
+                app.startForegroundService(service);
+            } catch (RuntimeException error) {
+                AppLog.warn("Cannot start live widget updates", error);
             }
         } else {
             app.stopService(service);
@@ -58,10 +79,17 @@ public final class WidgetFuelService extends Service {
         return service == null ? FuelLevelProvider.Reading.unavailable() : service.fuel.reading();
     }
 
+    static SystemStatusSnapshot statusSnapshot() {
+        return instance == null ? SystemStatusSnapshot.unavailable() : statusSnapshot;
+    }
+
     private static boolean needed(Context context) {
         Prefs prefs = new Prefs(context);
-        if (!prefs.isWidgetMode()
-                || !prefs.selectedComponents().contains(AppEntry.FUEL_COMPONENT_KEY)) {
+        if (!prefs.isWidgetMode()) {
+            return false;
+        }
+        if (!prefs.selectedComponents().contains(AppEntry.FUEL_COMPONENT_KEY)
+                && !prefs.panelConfig().showSystemStatus) {
             return false;
         }
         AppWidgetManager manager = AppWidgetManager.getInstance(context);
@@ -95,7 +123,10 @@ public final class WidgetFuelService extends Service {
         } else {
             startForeground(NOTIFICATION_ID, notification);
         }
-        fuel = new FuelLevelProvider(this, new Prefs(this), this::publishIfChanged);
+        Prefs prefs = new Prefs(this);
+        fuel = new FuelLevelProvider(this, prefs, this::publishIfChanged);
+        sampler = new SystemMetricsSampler(this, fuel);
+        power = getSystemService(PowerManager.class);
         instance = this;
     }
 
@@ -105,12 +136,28 @@ public final class WidgetFuelService extends Service {
             stopSelf();
             return START_NOT_STICKY;
         }
-        fuel.start();
-        lastDisplayedValue = null;
-        publishIfChanged();
-        handler.removeCallbacks(refresh);
-        handler.postDelayed(refresh, STATUS_REFRESH_MS);
+        configure();
         return START_STICKY;
+    }
+
+    /** Applies the current preferences and restarts the refresh cycle immediately. */
+    private void configure() {
+        if (instance != this) {
+            return;
+        }
+        Prefs prefs = new Prefs(this);
+        PanelConfig config = prefs.panelConfig();
+        sampleCpu = config.showSystemStatus && config.showCpuStatus;
+        sampleRam = config.showSystemStatus && config.showRamStatus;
+        if (prefs.selectedComponents().contains(AppEntry.FUEL_COMPONENT_KEY)
+                || config.showSystemStatus && config.showFuelStatus) {
+            fuel.start();
+        } else {
+            fuel.stop();
+        }
+        lastDisplayedValue = null;
+        handler.removeCallbacks(refresh);
+        refresh.run();
     }
 
     private void publishIfChanged() {
@@ -122,15 +169,37 @@ public final class WidgetFuelService extends Service {
         }
     }
 
+    private void sampleMetrics() {
+        boolean cpu = sampleCpu;
+        boolean ram = sampleRam;
+        if (!cpu && !ram) {
+            return;
+        }
+        // Launchers are not drawn with the screen off; a stale CPU baseline would average it in.
+        if (power != null && !power.isInteractive()) {
+            sampling.execute(sampler::resetCpuBaseline);
+            return;
+        }
+        sampling.execute(() -> {
+            SystemStatusSnapshot next = sampler.sample(cpu, ram, false);
+            if (!next.equals(statusSnapshot)) {
+                statusSnapshot = next;
+                AtlasAppWidgetProvider.refreshStatus(this);
+            }
+        });
+    }
+
     @Override
     public void onDestroy() {
         handler.removeCallbacks(refresh);
+        sampling.shutdownNow();
         if (fuel != null) {
             fuel.stop();
         }
         if (instance == this) {
             instance = null;
         }
+        statusSnapshot = SystemStatusSnapshot.unavailable();
         stopForeground(STOP_FOREGROUND_REMOVE);
         super.onDestroy();
     }

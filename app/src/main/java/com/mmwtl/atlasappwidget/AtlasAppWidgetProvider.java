@@ -18,6 +18,7 @@ import android.graphics.drawable.Drawable;
 import android.net.Uri;
 import android.os.Bundle;
 import android.util.TypedValue;
+import android.view.View;
 import android.text.TextPaint;
 import android.text.TextUtils;
 import android.widget.RemoteViews;
@@ -100,6 +101,39 @@ public final class AtlasAppWidgetProvider extends AppWidgetProvider {
         }
     }
 
+    /** Redraws only the system status strip, leaving the icon grid on the host untouched. */
+    static void refreshStatus(Context context) {
+        Context app = context.getApplicationContext();
+        int[] ids = ids(app);
+        if (ids.length > 0) {
+            RENDERER.execute(() -> renderStatus(app, ids));
+        }
+    }
+
+    private static void renderStatus(Context context, int[] ids) {
+        Prefs prefs = new Prefs(context);
+        PanelConfig config = prefs.panelConfig();
+        if (!prefs.isWidgetMode() || !config.showSystemStatus
+                || prefs.selectedComponents().isEmpty()) {
+            return;
+        }
+        AppWidgetManager manager = AppWidgetManager.getInstance(context);
+        SystemStatusSnapshot snapshot = WidgetFuelService.statusSnapshot();
+        FuelLevelProvider.Reading fuelReading = WidgetFuelService.reading();
+        for (int widgetId : ids) {
+            try {
+                Bundle options = manager.getAppWidgetOptions(widgetId);
+                RemoteViews views = new RemoteViews(context.getPackageName(),
+                        R.layout.widget_panel);
+                applyStatus(context, config, views, grid(context, config, options),
+                        snapshot, fuelReading);
+                manager.partiallyUpdateAppWidget(widgetId, views);
+            } catch (RuntimeException error) {
+                AppLog.warn("Cannot update Android widget status " + widgetId, error);
+            }
+        }
+    }
+
     private static void render(Context context, int[] ids) {
         if (ids == null || ids.length == 0) {
             return;
@@ -162,24 +196,113 @@ public final class AtlasAppWidgetProvider extends AppWidgetProvider {
         return value > 0 ? value : fallback;
     }
 
+    private static WidgetGrid grid(Context context, PanelConfig config, Bundle options) {
+        int labelHeight = config.showAppLabels
+                ? PanelConfig.appLabelHeightPixels(context, config.appLabelTextSizeSp) : 0;
+        boolean sideStatus = sideStatus(config);
+        return WidgetGrid.forSize(dp(context, widthDp(context, options)),
+                dp(context, heightDp(context, options)), config.columns, config.rows,
+                dp(context, config.iconSizeDp),
+                dp(context, config.paddingDp + (config.backgroundStrokeEnabled
+                        ? config.backgroundStrokeWidthDp : 0)),
+                dp(context, config.gapDp), labelHeight,
+                config.showAppLabels ? dp(context, config.appLabelGapDp) : 0,
+                sideStatus, statusSize(context, config, sideStatus),
+                config.showSystemStatus ? dp(context, SystemStatusView.GAP_DP) : 0);
+    }
+
+    private static boolean sideStatus(PanelConfig config) {
+        return config.showSystemStatus
+                && (config.systemStatusPosition == PanelConfig.STATUS_LEFT
+                || config.systemStatusPosition == PanelConfig.STATUS_RIGHT);
+    }
+
+    private static int statusSize(Context context, PanelConfig config, boolean side) {
+        if (!config.showSystemStatus) {
+            return 0;
+        }
+        return side
+                ? SystemStatusView.sideWidthPixels(context, config.systemStatusLineHeightDp,
+                        config.systemStatusMetricCount())
+                : SystemStatusView.heightPixels(context, config.systemStatusTextSizeSp,
+                        config.systemStatusTextWeight, config.systemStatusLineHeightDp);
+    }
+
+    private static final int[] STATUS_VIEW_IDS = {R.id.widget_status_top,
+            R.id.widget_status_bottom, R.id.widget_status_left, R.id.widget_status_right};
+
+    private static int statusViewId(int position) {
+        switch (position) {
+            case PanelConfig.STATUS_TOP:
+                return R.id.widget_status_top;
+            case PanelConfig.STATUS_LEFT:
+                return R.id.widget_status_left;
+            case PanelConfig.STATUS_RIGHT:
+                return R.id.widget_status_right;
+            default:
+                return R.id.widget_status_bottom;
+        }
+    }
+
+    // The strip bitmap carries the gap on its grid side, like cell bitmaps carry theirs.
+    private static void applyStatus(Context context, PanelConfig config, RemoteViews views,
+            WidgetGrid grid, SystemStatusSnapshot snapshot,
+            FuelLevelProvider.Reading fuelReading) {
+        boolean side = sideStatus(config);
+        int size = statusSize(context, config, side);
+        int gap = dp(context, SystemStatusView.GAP_DP);
+        int stripWidth = side ? size : grid.layout.gridWidth;
+        int stripHeight = side ? grid.layout.gridHeight : size;
+        Bitmap bitmap = Bitmap.createBitmap(Math.max(1, stripWidth + (side ? gap : 0)),
+                Math.max(1, stripHeight + (side ? 0 : gap)), Bitmap.Config.ARGB_8888);
+        bitmap.setDensity(context.getResources().getDisplayMetrics().densityDpi);
+        Canvas canvas = new Canvas(bitmap);
+        canvas.translate(config.systemStatusPosition == PanelConfig.STATUS_RIGHT ? gap : 0,
+                config.systemStatusPosition == PanelConfig.STATUS_BOTTOM ? gap : 0);
+        CharSequence description = SystemStatusView.draw(context, config, side,
+                Math.max(1, stripWidth), Math.max(1, stripHeight), snapshot, fuelReading,
+                canvas);
+        int viewId = statusViewId(config.systemStatusPosition);
+        hideStatus(views, viewId);
+        views.setImageViewBitmap(viewId, bitmap);
+        views.setContentDescription(viewId, description);
+        views.setViewVisibility(viewId, View.VISIBLE);
+    }
+
+    // Hosts reapply updates onto the existing views, so an earlier position stays visible
+    // unless every update hides it explicitly.
+    private static void hideStatus(RemoteViews views, int keptViewId) {
+        for (int viewId : STATUS_VIEW_IDS) {
+            if (viewId != keptViewId) {
+                views.setViewVisibility(viewId, View.GONE);
+            }
+        }
+    }
+
     static RemoteViews panelViews(Context context, Prefs prefs, PanelConfig config,
             List<AppEntry> entries, Bundle options, int widgetId) {
         int widthDp = widthDp(context, options);
         int heightDp = heightDp(context, options);
-        int labelHeight = config.showAppLabels
-                ? PanelConfig.appLabelHeightPixels(context, config.appLabelTextSizeSp) : 0;
-        WidgetGrid grid = WidgetGrid.forSize(dp(context, widthDp),
-                dp(context, heightDp), config.columns, config.rows, dp(context, config.iconSizeDp),
-                dp(context, config.paddingDp + (config.backgroundStrokeEnabled
-                        ? config.backgroundStrokeWidthDp : 0)),
-                dp(context, config.gapDp), labelHeight,
-                config.showAppLabels ? dp(context, config.appLabelGapDp) : 0);
+        WidgetGrid grid = grid(context, config, options);
         RemoteViews panel = new RemoteViews(context.getPackageName(), R.layout.widget_panel);
         panel.setImageViewBitmap(R.id.widget_background,
                 background(context, config, widthDp, heightDp));
         panel.removeAllViews(R.id.widget_grid);
         int shown = Math.min(entries.size(), grid.capacity());
         FuelLevelProvider.Reading fuelReading = WidgetFuelService.reading();
+        if (config.showSystemStatus) {
+            SystemStatusSnapshot snapshot = WidgetFuelService.statusSnapshot();
+            FuelLevelProvider.Reading statusFuel = fuelReading;
+            // Settings previews have no live sampler yet; show the overlay preview values.
+            if (widgetId == AppWidgetManager.INVALID_APPWIDGET_ID
+                    && snapshot.equals(SystemStatusSnapshot.unavailable())) {
+                snapshot = SystemStatusSnapshot.preview();
+                statusFuel = fuelReading.isAvailable() ? fuelReading : null;
+            }
+            applyStatus(context, config, panel, grid, snapshot, statusFuel);
+        } else {
+            hideStatus(panel, 0);
+        }
         // RemoteViews shares identical Bitmap instances, so blank cells cost one bitmap per gap shape.
         Bitmap[] blankCells = new Bitmap[4];
         for (int rowIndex = 0; rowIndex < grid.rows; rowIndex++) {

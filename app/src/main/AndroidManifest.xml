@@ -96,7 +96,7 @@
             android:stopWithTask="false">
             <property
                 android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
-                android:value="Keeps a user-placed home screen fuel tile current from GInputBridge sensor broadcasts" />
+                android:value="Keeps a user-placed home screen widget current: fuel from GInputBridge sensor broadcasts and CPU/RAM usage" />
         </service>
 
         <service

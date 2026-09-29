@@ -2,6 +2,7 @@ package com.mmwtl.atlasappwidget;
 
 import android.annotation.SuppressLint;
 import android.content.Context;
+import android.graphics.Canvas;
 import android.graphics.Paint;
 import android.graphics.Typeface;
 import android.util.TypedValue;
@@ -91,6 +92,31 @@ final class SystemStatusView extends LinearLayout {
         int boundedCount = Math.max(1, metricCount);
         return Ui.dp(context, lineHeightDp * boundedCount
                 + SIDE_TRACK_GAP_DP * (boundedCount - 1));
+    }
+
+    /**
+     * Draws the same strip the overlay shows into {@code canvas}, so AppWidgets can reuse it as a
+     * bitmap. Returns the spoken description of the drawn values.
+     */
+    static CharSequence draw(Context context, PanelConfig config, boolean sideMode,
+            int width, int height, SystemStatusSnapshot snapshot,
+            FuelLevelProvider.Reading fuelReading, Canvas canvas) {
+        SystemStatusView view = new SystemStatusView(context,
+                config.systemStatusTextSizeSp, config.systemStatusTextWeight,
+                config.systemStatusLineHeightDp, height, sideMode,
+                config.showCpuStatus, config.showRamStatus, config.showFuelStatus);
+        int widthSpec = MeasureSpec.makeMeasureSpec(width, MeasureSpec.EXACTLY);
+        int heightSpec = MeasureSpec.makeMeasureSpec(height, MeasureSpec.EXACTLY);
+        view.update(snapshot, fuelReading);
+        view.measure(widthSpec, heightSpec);
+        view.layout(0, 0, width, height);
+        // Fills take their length from the laid-out tracks; updating again requests the
+        // relayout that applies it, which a layout-time change would not propagate.
+        view.update(snapshot, fuelReading);
+        view.measure(widthSpec, heightSpec);
+        view.layout(0, 0, width, height);
+        view.draw(canvas);
+        return view.getContentDescription();
     }
 
     void update(SystemStatusSnapshot snapshot) {
