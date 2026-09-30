@@ -1,11 +1,16 @@
 package com.mmwtl.atlasappwidget;
 
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
+import android.app.Activity;
+import android.app.AlertDialog;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
+import android.net.Uri;
 import android.os.Bundle;
 import android.view.View;
 import android.view.ViewGroup;
@@ -19,7 +24,14 @@ import org.robolectric.RuntimeEnvironment;
 import org.robolectric.Shadows;
 import org.robolectric.android.controller.ActivityController;
 import org.robolectric.annotation.Config;
+import org.robolectric.shadows.ShadowActivity;
+import org.robolectric.shadows.ShadowAlertDialog;
 import org.robolectric.shadows.ShadowLooper;
+
+import java.io.File;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.util.function.BooleanSupplier;
 
 @RunWith(RobolectricTestRunner.class)
 @Config(sdk = 30)
@@ -149,6 +161,82 @@ public final class MainActivityTest {
         } finally {
             close(controller);
         }
+    }
+
+    @Test
+    public void importButtonPicksFileAndImportsAfterConfirmation() throws Exception {
+        Prefs prefs = new Prefs(context);
+        prefs.putInt(Prefs.KEY_COLUMNS, 5);
+        File file = File.createTempFile("backup", ".json");
+        file.deleteOnExit();
+        Files.write(file.toPath(),
+                SettingsBackup.encode(context, prefs).getBytes(StandardCharsets.UTF_8));
+        prefs.putInt(Prefs.KEY_COLUMNS, 3);
+        ActivityController<MainActivity> controller = open();
+        try {
+            View root = root(controller);
+            find(root, "Система").performClick();
+            find(root, "Импортировать настройки из JSON").performClick();
+            ShadowActivity shadow = Shadows.shadowOf(controller.get());
+            Intent picker = shadow.getNextStartedActivityForResult().intent;
+            assertEquals(Intent.ACTION_OPEN_DOCUMENT, picker.getAction());
+            assertTrue(picker.hasCategory(Intent.CATEGORY_OPENABLE));
+            assertEquals("*/*", picker.getType());
+            shadow.receiveResult(picker, Activity.RESULT_OK,
+                    new Intent().setData(Uri.fromFile(file)));
+
+            await(() -> ShadowAlertDialog.getLatestDialog() != null);
+            AlertDialog dialog = (AlertDialog) ShadowAlertDialog.getLatestDialog();
+            assertTrue(dialog.isShowing());
+            dialog.getButton(AlertDialog.BUTTON_POSITIVE).performClick();
+            await(() -> prefs.getInt(Prefs.KEY_COLUMNS, 0) == 5);
+        } finally {
+            close(controller);
+        }
+    }
+
+    @Test
+    @SuppressWarnings("deprecation")
+    public void exportButtonSharesJsonFile() throws Exception {
+        ActivityController<MainActivity> controller = open();
+        try {
+            View root = root(controller);
+            find(root, "Система").performClick();
+            find(root, "Экспортировать настройки в JSON").performClick();
+            ShadowActivity shadow = Shadows.shadowOf(controller.get());
+            Intent[] started = new Intent[1];
+            await(() -> (started[0] = shadow.getNextStartedActivity()) != null);
+            Intent chooser = started[0];
+            assertEquals(Intent.ACTION_CHOOSER, chooser.getAction());
+            assertTrue((chooser.getFlags() & Intent.FLAG_GRANT_READ_URI_PERMISSION) != 0);
+            Intent send = chooser.getParcelableExtra(Intent.EXTRA_INTENT);
+            assertEquals(Intent.ACTION_SEND, send.getAction());
+            assertEquals("application/json", send.getType());
+            assertTrue((send.getFlags() & Intent.FLAG_GRANT_READ_URI_PERMISSION) != 0);
+            Uri uri = send.getParcelableExtra(Intent.EXTRA_STREAM);
+            assertNotNull(uri);
+            assertEquals("content", uri.getScheme());
+            assertEquals(BackupProvider.authority(context), uri.getAuthority());
+            assertTrue(uri.getLastPathSegment().matches(
+                    "\\d{4}-\\d{2}-\\d{2}_\\d{2}-\\d{2}-\\d{2}_AtlasAppWidget-settings\\.json"));
+            assertEquals(uri, send.getClipData().getItemAt(0).getUri());
+            File exported = new File(new File(context.getCacheDir(), "export"),
+                    uri.getLastPathSegment());
+            SettingsBackup.decode(new String(Files.readAllBytes(exported.toPath()),
+                    StandardCharsets.UTF_8));
+        } finally {
+            close(controller);
+        }
+    }
+
+    /** Settings transfer runs on the activity's I/O thread and posts back to the main looper. */
+    private static void await(BooleanSupplier condition) throws InterruptedException {
+        for (int attempt = 0; attempt < 200; attempt++) {
+            ShadowLooper.idleMainLooper();
+            if (condition.getAsBoolean()) return;
+            Thread.sleep(10);
+        }
+        throw new AssertionError("Condition not reached");
     }
 
     /** Drains the services stopped so far; WidgetFuelService.sync may stop its own service. */

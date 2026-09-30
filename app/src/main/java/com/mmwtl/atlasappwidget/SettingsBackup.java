@@ -1,13 +1,8 @@
 package com.mmwtl.atlasappwidget;
 
-import android.content.ContentResolver;
-import android.content.ContentValues;
 import android.content.Context;
 import android.content.pm.PackageManager;
-import android.database.Cursor;
 import android.net.Uri;
-import android.os.Environment;
-import android.provider.MediaStore;
 
 import org.json.JSONArray;
 import org.json.JSONException;
@@ -18,7 +13,6 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Base64;
@@ -30,6 +24,7 @@ import java.util.Set;
 
 final class SettingsBackup {
     static final String FILE_NAME = "AtlasAppWidget-settings.json";
+    static final String MIME = "application/json";
     private static final String FORMAT = "atlas-app-widget-settings";
     private static final int SCHEMA_VERSION = 11;
     private static final int MAX_FILE_BYTES = 256 * 1024;
@@ -470,62 +465,9 @@ final class SettingsBackup {
         }
     }
 
-    static void write(Context context, Prefs prefs, Uri uri) throws IOException {
-        if (uri == null) throw invalid("Файл не выбран");
-        writeContents(context.getContentResolver(), uri, encodedContents(context, prefs));
-    }
-
-    static String writeToDownloads(Context context, Prefs prefs) throws IOException {
-        ContentResolver resolver = context.getContentResolver();
-        ContentValues values = new ContentValues();
-        values.put(MediaStore.Downloads.DISPLAY_NAME, FILE_NAME);
-        values.put(MediaStore.Downloads.MIME_TYPE, "application/json");
-        values.put(MediaStore.Downloads.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS + "/");
-        values.put(MediaStore.Downloads.IS_PENDING, 1);
-        Uri uri = resolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values);
-        if (uri == null) throw invalid("Не удалось создать JSON в папке Download");
-        try {
-            writeContents(resolver, uri, encodedContents(context, prefs));
-            ContentValues published = new ContentValues();
-            published.put(MediaStore.Downloads.IS_PENDING, 0);
-            if (resolver.update(uri, published, null, null) <= 0) {
-                throw invalid("Не удалось опубликовать JSON в папке Download");
-            }
-            return displayName(resolver, uri);
-        } catch (IOException | RuntimeException error) {
-            try {
-                resolver.delete(uri, null, null);
-            } catch (RuntimeException cleanupError) {
-                error.addSuppressed(cleanupError);
-            }
-            if (error instanceof IOException ioError) throw ioError;
-            throw invalid("Не удалось сохранить JSON в папку Download", error);
-        }
-    }
-
-    private static byte[] encodedContents(Context context, Prefs prefs) throws IOException {
-        return encode(capture(context, prefs), appVersion(context)).getBytes(StandardCharsets.UTF_8);
-    }
-
-    private static void writeContents(ContentResolver resolver, Uri uri, byte[] contents)
-            throws IOException {
-        try (OutputStream output = resolver.openOutputStream(uri, "wt")) {
-            if (output == null) throw invalid("Не удалось открыть файл для записи");
-            output.write(contents);
-        }
-    }
-
-    private static String displayName(ContentResolver resolver, Uri uri) {
-        try (Cursor cursor = resolver.query(uri,
-                new String[]{MediaStore.Downloads.DISPLAY_NAME}, null, null, null)) {
-            if (cursor != null && cursor.moveToFirst()) {
-                String name = cursor.getString(0);
-                if (name != null && !name.isBlank()) return name;
-            }
-        } catch (RuntimeException error) {
-            AppLog.warn("Cannot read exported settings display name", error);
-        }
-        return FILE_NAME;
+    /** The whole backup as JSON text, ready to be shared as a file. */
+    static String encode(Context context, Prefs prefs) throws IOException {
+        return encode(capture(context, prefs), appVersion(context));
     }
 
     static Data read(Context context, Uri uri) throws IOException {

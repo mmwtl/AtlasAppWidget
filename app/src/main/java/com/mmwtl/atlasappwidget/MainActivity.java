@@ -3,6 +3,7 @@ package com.mmwtl.atlasappwidget;
 import android.Manifest;
 import android.app.AlertDialog;
 import android.appwidget.AppWidgetManager;
+import android.content.ClipData;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.ActivityNotFoundException;
@@ -38,8 +39,11 @@ import android.widget.Switch;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.List;
+import java.util.Locale;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -50,7 +54,6 @@ public final class MainActivity extends ScaledActivity
     }
 
     private static final int REQUEST_NOTIFICATIONS = 301;
-    private static final int REQUEST_EXPORT_SETTINGS = 302;
     private static final int REQUEST_IMPORT_SETTINGS = 303;
     private static final String STATE_TAB = "settings_tab";
     private static final int TAB_PANEL = 0;
@@ -187,12 +190,8 @@ public final class MainActivity extends ScaledActivity
     @SuppressWarnings("deprecation")
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
-        if (resultCode != RESULT_OK || data == null || data.getData() == null) {
-            return;
-        }
-        if (requestCode == REQUEST_EXPORT_SETTINGS) {
-            exportSettings(data.getData());
-        } else if (requestCode == REQUEST_IMPORT_SETTINGS) {
+        if (requestCode == REQUEST_IMPORT_SETTINGS && resultCode == RESULT_OK && data != null
+                && data.getData() != null) {
             readSettingsForImport(data.getData());
         }
     }
@@ -422,7 +421,7 @@ public final class MainActivity extends ScaledActivity
         settingsBackup.addView(settingsBackupHint);
         exportSettingsButton = Ui.button(this, R.string.export_settings);
         Ui.topMargin(exportSettingsButton, 12);
-        exportSettingsButton.setOnClickListener(view -> chooseSettingsExport());
+        exportSettingsButton.setOnClickListener(view -> exportSettings());
         settingsBackup.addView(exportSettingsButton);
         importSettingsButton = Ui.button(this, R.string.import_settings);
         Ui.topMargin(importSettingsButton, 10);
@@ -1616,85 +1615,55 @@ public final class MainActivity extends ScaledActivity
         );
     }
 
-    @SuppressWarnings("deprecation")
-    private void chooseSettingsExport() {
-        Intent picker = new Intent(Intent.ACTION_CREATE_DOCUMENT)
-                .addCategory(Intent.CATEGORY_OPENABLE)
-                .setType("application/json")
-                .putExtra(Intent.EXTRA_TITLE, SettingsBackup.FILE_NAME);
-        if (!launchFilePicker(picker, REQUEST_EXPORT_SETTINGS)) {
-            exportSettingsToDownloads();
-        }
-    }
-
-    @SuppressWarnings("deprecation")
-    private void chooseSettingsImport() {
-        Intent picker = new Intent(Intent.ACTION_OPEN_DOCUMENT)
-                .addCategory(Intent.CATEGORY_OPENABLE)
-                .setType("application/json");
-        picker.putExtra(Intent.EXTRA_MIME_TYPES,
-                new String[]{"application/json", "text/json", "text/plain",
-                        "application/octet-stream"});
-        if (!launchFilePicker(picker, REQUEST_IMPORT_SETTINGS)) {
-            Intent fallback = new Intent(Intent.ACTION_GET_CONTENT)
-                    .addCategory(Intent.CATEGORY_OPENABLE)
-                    .setType("application/json");
-            fallback.putExtra(Intent.EXTRA_MIME_TYPES,
-                    new String[]{"application/json", "text/json", "text/plain",
-                            "application/octet-stream"});
-            if (!launchFilePicker(fallback, REQUEST_IMPORT_SETTINGS)) {
-                Toast.makeText(this, R.string.no_file_picker, Toast.LENGTH_LONG).show();
-            }
-        }
-    }
-
-    @SuppressWarnings("deprecation")
-    private boolean launchFilePicker(Intent picker, int requestCode) {
-        try {
-            startActivityForResult(picker, requestCode);
-            return true;
-        } catch (ActivityNotFoundException error) {
-            return false;
-        }
-    }
-
-    private void exportSettingsToDownloads() {
+    /** As GInputBridge shares .gibb: a dated file in the cache, sent through the share sheet. */
+    private void exportSettings() {
         setSettingsTransferEnabled(false);
         android.content.Context appContext = getApplicationContext();
+        String name = new SimpleDateFormat("yyyy-MM-dd_HH-mm-ss", Locale.US).format(new Date())
+                + "_" + SettingsBackup.FILE_NAME;
         ioExecutor.execute(() -> {
             try {
-                String fileName = SettingsBackup.writeToDownloads(appContext, prefs);
+                Uri uri = BackupProvider.publish(appContext, name,
+                        SettingsBackup.encode(appContext, prefs));
                 main.post(() -> {
                     if (isDestroyed()) return;
                     setSettingsTransferEnabled(true);
-                    Toast.makeText(this,
-                            getString(R.string.settings_exported_to_downloads, fileName),
-                            Toast.LENGTH_LONG).show();
-                });
-            } catch (Exception error) {
-                AppLog.warn("Cannot export settings to Downloads", error);
-                showSettingsTransferError(R.string.settings_export_failed, error);
-            }
-        });
-    }
-
-    private void exportSettings(Uri uri) {
-        setSettingsTransferEnabled(false);
-        android.content.Context appContext = getApplicationContext();
-        ioExecutor.execute(() -> {
-            try {
-                SettingsBackup.write(appContext, prefs, uri);
-                main.post(() -> {
-                    if (isDestroyed()) return;
-                    setSettingsTransferEnabled(true);
-                    Toast.makeText(this, R.string.settings_exported,
-                            Toast.LENGTH_LONG).show();
+                    shareSettings(name, uri);
                 });
             } catch (Exception error) {
                 AppLog.warn("Cannot export settings", error);
                 showSettingsTransferError(R.string.settings_export_failed, error);
             }
         });
+    }
+
+    private void shareSettings(String name, Uri uri) {
+        Intent send = new Intent(Intent.ACTION_SEND)
+                .setType(SettingsBackup.MIME)
+                .putExtra(Intent.EXTRA_STREAM, uri)
+                .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+        send.setClipData(ClipData.newRawUri(name, uri));
+        try {
+            startActivity(Intent.createChooser(send, getString(R.string.settings_share_title))
+                    .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION));
+        } catch (ActivityNotFoundException error) {
+            Toast.makeText(this, R.string.settings_share_no_target, Toast.LENGTH_LONG).show();
+        }
+    }
+
+    /** As GInputBridge's import: the system document picker, any type, since JSON has none. */
+    @SuppressWarnings("deprecation")
+    private void chooseSettingsImport() {
+        Intent picker = new Intent(Intent.ACTION_OPEN_DOCUMENT)
+                .addCategory(Intent.CATEGORY_OPENABLE)
+                .setType("*/*")
+                .putExtra(Intent.EXTRA_MIME_TYPES, new String[]{SettingsBackup.MIME,
+                        "application/octet-stream", "text/plain", "*/*"});
+        try {
+            startActivityForResult(picker, REQUEST_IMPORT_SETTINGS);
+        } catch (ActivityNotFoundException error) {
+            Toast.makeText(this, R.string.no_file_picker, Toast.LENGTH_LONG).show();
+        }
     }
 
     private void readSettingsForImport(Uri uri) {

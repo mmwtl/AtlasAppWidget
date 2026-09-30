@@ -173,12 +173,12 @@
     <string name="scale_hint">Меняет размер экранов и элементов приложения без изменения системного масштаба ГУ. Размер overlay-панели настраивается на вкладке «Вид».</string>
     <string name="scale">Масштаб</string>
     <string name="settings_backup_title">Импорт и экспорт настроек</string>
-    <string name="settings_backup_hint">JSON содержит выбранные activity и ярлыки, их порядок, элементы со screen-переходом для скрытия климат-панели, длительность этого перехода, иконки ярлыков, геометрию панели (включая ширину в пикселях), внешний вид, положение overlay, порог скрытия, масштаб, автозапуск и формулу топлива. Разрешения и работа сервиса не переносятся.</string>
+    <string name="settings_backup_hint">JSON содержит выбранные activity и ярлыки, их порядок, элементы со screen-переходом для скрытия климат-панели, длительность этого перехода, иконки ярлыков, геометрию панели (включая ширину в пикселях), внешний вид, положение overlay, порог скрытия, масштаб, автозапуск и формулу топлива. Экспорт отправляет файл через «Поделиться» — например, себе в Telegram. Разрешения и работа сервиса не переносятся.</string>
     <string name="export_settings">Экспортировать настройки в JSON</string>
     <string name="import_settings">Импортировать настройки из JSON</string>
     <string name="import_settings_confirm">Импортировать</string>
-    <string name="settings_exported">Настройки экспортированы</string>
-    <string name="settings_exported_to_downloads">Настройки экспортированы: Download/%1$s</string>
+    <string name="settings_share_title">Экспорт настроек</string>
+    <string name="settings_share_no_target">Нет приложений, которые могут принять файл</string>
     <string name="settings_imported">Настройки импортированы</string>
     <string name="settings_export_failed">Не удалось экспортировать настройки</string>
     <string name="settings_import_read_failed">Не удалось прочитать настройки</string>

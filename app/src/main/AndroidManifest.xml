@@ -127,6 +127,12 @@
             </intent-filter>
         </receiver>
 
+        <provider
+            android:name=".BackupProvider"
+            android:authorities="${applicationId}.backup"
+            android:exported="false"
+            android:grantUriPermissions="true" />
+
         <receiver
             android:name=".AtlasAppWidgetProvider"
             android:exported="true">
