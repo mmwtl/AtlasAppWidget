@@ -1286,7 +1286,8 @@ public final class MainActivity extends ScaledActivity
         background.addView(Ui.heading(this, R.string.background_title, 20));
         addSlider(background, getString(R.string.panel_radius), 0,
                 PanelConfig.PANEL_RADIUS_FULLY_ROUNDED,
-                prefs.getInt(Prefs.KEY_PANEL_RADIUS_DP, 8),
+                prefs.getInt(Prefs.KEY_PANEL_RADIUS_DP,
+                        PanelConfig.PANEL_RADIUS_DEFAULT_DP),
                 value -> value == 0
                         ? getString(R.string.radius_rectangle)
                         : value == PanelConfig.PANEL_RADIUS_FULLY_ROUNDED

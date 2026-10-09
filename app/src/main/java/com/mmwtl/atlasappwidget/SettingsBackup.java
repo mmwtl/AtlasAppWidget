@@ -424,7 +424,8 @@ final class SettingsBackup {
                         clamp(prefs.getInt(Prefs.KEY_BACKGROUND_STROKE_WIDTH_DP, 2), 1, 20),
                         clamp(prefs.getInt(Prefs.KEY_BACKGROUND_STROKE_ALPHA, 200), 0, 255),
                         prefs.getInt(Prefs.KEY_BACKGROUND_STROKE_COLOR, Ui.ACCENT),
-                        clamp(prefs.getInt(Prefs.KEY_PANEL_RADIUS_DP, 8),
+                        clamp(prefs.getInt(Prefs.KEY_PANEL_RADIUS_DP,
+                                PanelConfig.PANEL_RADIUS_DEFAULT_DP),
                                 0, PanelConfig.PANEL_RADIUS_FULLY_ROUNDED)));
     }
 

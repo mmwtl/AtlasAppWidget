@@ -26,6 +26,8 @@ final class Prefs {
     static final String KEY_USE_LAUNCH_PROXY = "use_launch_proxy";
     static final String KEY_USE_DIAGNOSTIC_LAUNCH_ACTIVITY =
             "use_diagnostic_launch_activity";
+    private static final String KEY_PANEL_RADIUS_DEFAULT_MIGRATION_DONE =
+            "panel_radius_default_migration_done";
     private static final String KEY_LEGACY_CLIMATE_MIGRATION_DONE =
             "climate_transition_legacy_migration_done";
     static final String KEY_CLIMATE_TRANSITION_COMPONENTS =
@@ -98,8 +100,28 @@ final class Prefs {
         Context storage = app.createDeviceProtectedStorageContext();
         migrateCredentialPreferencesWhenAvailable(app, storage);
         values = storage.getSharedPreferences(NAME, Context.MODE_PRIVATE);
+        // Runs before the other migrations, which write keys even on a clean install.
+        migrateLegacyPanelRadiusDefault();
         migrateLegacyWidth(app);
         migrateLegacyClimateTransitionSettings();
+    }
+
+    /**
+     * The panel radius default changed from 8 to 24 dp. Installs that already have settings but
+     * never stored a radius keep the 8 dp they see; a clean install gets the new default.
+     */
+    private void migrateLegacyPanelRadiusDefault() {
+        synchronized (MIGRATION_LOCK) {
+            if (values.getBoolean(KEY_PANEL_RADIUS_DEFAULT_MIGRATION_DONE, false)) {
+                return;
+            }
+            SharedPreferences.Editor editor = values.edit()
+                    .putBoolean(KEY_PANEL_RADIUS_DEFAULT_MIGRATION_DONE, true);
+            if (!values.getAll().isEmpty() && !values.contains(KEY_PANEL_RADIUS_DP)) {
+                editor.putInt(KEY_PANEL_RADIUS_DP, PanelConfig.PANEL_RADIUS_LEGACY_DEFAULT_DP);
+            }
+            editor.commit();
+        }
     }
 
     private void migrateLegacyWidth(Context context) {

@@ -6,6 +6,10 @@ import android.util.TypedValue;
 
 final class PanelConfig {
     static final int PANEL_RADIUS_FULLY_ROUNDED = 80;
+    /** Screen dp; matches the corner radius of the stock OneOS cards. */
+    static final int PANEL_RADIUS_DEFAULT_DP = 24;
+    /** Default before 2.0.1; kept for installs that never moved the slider. */
+    static final int PANEL_RADIUS_LEGACY_DEFAULT_DP = 8;
     static final int HANDLE_LEFT = 0;
     static final int HANDLE_RIGHT = 1;
     static final int HANDLE_TOP = 2;
@@ -138,7 +142,7 @@ final class PanelConfig {
         backgroundStrokeWidthDp = prefs.getInt(Prefs.KEY_BACKGROUND_STROKE_WIDTH_DP, 2);
         backgroundStrokeAlpha = prefs.getInt(Prefs.KEY_BACKGROUND_STROKE_ALPHA, 200);
         backgroundStrokeColor = prefs.getInt(Prefs.KEY_BACKGROUND_STROKE_COLOR, 0xFF7893A0);
-        panelRadiusDp = prefs.getInt(Prefs.KEY_PANEL_RADIUS_DP, 8);
+        panelRadiusDp = prefs.getInt(Prefs.KEY_PANEL_RADIUS_DP, PANEL_RADIUS_DEFAULT_DP);
     }
 
     int systemStatusMetricCount() {
