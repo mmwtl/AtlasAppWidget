@@ -31,6 +31,7 @@ import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.FrameLayout;
+import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.SeekBar;
@@ -256,6 +257,18 @@ public final class MainActivity extends ScaledActivity
                 Ui.TEXT_SECONDARY
         );
         titleRow.addView(previewTitle);
+        ImageView donate = new ImageView(this);
+        donate.setImageResource(R.drawable.ic_heart);
+        donate.setColorFilter(Ui.ACCENT);
+        int heartPad = Ui.dp(this, 8);
+        donate.setPadding(heartPad, heartPad, heartPad, heartPad);
+        donate.setBackground(Ui.rounded(Ui.SURFACE, Ui.dp(this, 8)));
+        donate.setContentDescription(getString(R.string.donate_title));
+        donate.setOnClickListener(view -> DonateDialog.show(this));
+        LinearLayout.LayoutParams heartParams = new LinearLayout.LayoutParams(
+                Ui.dp(this, 40), Ui.dp(this, 40));
+        heartParams.leftMargin = Ui.dp(this, 12);
+        titleRow.addView(donate, heartParams);
         stickyHeader.addView(titleRow);
 
         LinearLayout tabs = new LinearLayout(this);
@@ -441,6 +454,22 @@ public final class MainActivity extends ScaledActivity
         scale.addView(scaleHint);
         addScaleSlider(scale);
         page.addView(scale);
+
+        LinearLayout donate = Ui.card(this);
+        donate.addView(Ui.heading(this, R.string.donate_title, 20));
+        TextView donateHint = Ui.text(this,
+                R.string.donate_hint,
+                13,
+                Ui.TEXT_SECONDARY
+        );
+        donateHint.setLineSpacing(0, 1.1f);
+        Ui.topMargin(donateHint, 6);
+        donate.addView(donateHint);
+        Button donateButton = Ui.button(this, R.string.donate_button);
+        Ui.topMargin(donateButton, 12);
+        donateButton.setOnClickListener(view -> DonateDialog.show(this));
+        donate.addView(donateButton);
+        page.addView(donate);
     }
 
     private LinearLayout buildDisplayModeCard() {
