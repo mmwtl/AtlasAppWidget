@@ -35,7 +35,7 @@ public final class WidgetLaunchActivity extends Activity {
             finish();
             return;
         }
-        Intent target = LaunchIntents.forEntry(selected);
+        Intent target = LaunchIntents.forEntry(this, selected);
         if (target == null) {
             Toast.makeText(this, getString(R.string.launch_failed, selected.label),
                     Toast.LENGTH_SHORT).show();

@@ -10,6 +10,12 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- Lets Contacts direct-dial shortcuts call at once; without it they open the dialer. -->
+    <uses-permission android:name="android.permission.CALL_PHONE" />
+
+    <uses-feature
+        android:name="android.hardware.telephony"
+        android:required="false" />
 
     <queries>
         <package android:name="com.salat.gbinder" />
@@ -20,6 +26,29 @@
         <intent>
             <action android:name="android.intent.action.MAIN" />
             <category android:name="android.intent.category.HOME" />
+        </intent>
+        <!-- Implicit targets of Contacts call, message and contact shortcuts. -->
+        <intent>
+            <action android:name="android.intent.action.CALL" />
+            <data android:scheme="tel" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.DIAL" />
+            <data android:scheme="tel" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.SENDTO" />
+            <data android:scheme="smsto" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.SENDTO" />
+            <data android:scheme="sms" />
+        </intent>
+        <intent>
+            <action android:name="android.provider.action.QUICK_CONTACT" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.CREATE_SHORTCUT" />
         </intent>
         <!-- A browser for the donation link; without one the dialog shows only its QR code. -->
         <intent>

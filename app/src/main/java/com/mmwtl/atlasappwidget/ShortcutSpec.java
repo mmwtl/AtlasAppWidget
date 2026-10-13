@@ -45,18 +45,25 @@ final class ShortcutSpec {
         this.targetComponent = targetComponent;
     }
 
-    static ShortcutSpec create(String title, Intent intent) {
-        if (intent == null || intent.getComponent() == null) {
-            throw new IllegalArgumentException("Shortcut intent must be explicit");
+    /**
+     * Stores a sanitized shortcut intent. Implicit intents (Contacts direct dial and message
+     * shortcuts) keep resolving at launch; {@code target} is the activity they resolved to when
+     * added and only supplies the fallback icon and label.
+     */
+    static ShortcutSpec create(String title, Intent intent, ComponentName target) {
+        if (intent == null || target == null) {
+            throw new IllegalArgumentException("Shortcut intent has no target");
+        }
+        if (intent.getComponent() != null && !intent.getComponent().equals(target)) {
+            throw new IllegalArgumentException("Shortcut target does not match its intent");
         }
         String uri = intent.toUri(Intent.URI_INTENT_SCHEME);
-        ComponentName component = intent.getComponent();
-        return new ShortcutSpec(stableKey(uri), title, uri, component.flattenToString());
+        return new ShortcutSpec(stableKey(uri), title, uri, target.flattenToString());
     }
 
     static Intent sanitize(Intent source) {
-        if (source == null || source.getComponent() == null) {
-            throw new IllegalArgumentException("Shortcut intent must be explicit");
+        if (source == null || (source.getComponent() == null && source.getAction() == null)) {
+            throw new IllegalArgumentException("Shortcut intent has no component or action");
         }
         Intent copy = new Intent(source);
         copy.setSelector(null);
@@ -106,6 +113,21 @@ final class ShortcutSpec {
         if (open < 0 || close <= open + 1) return null;
         String result = value.substring(open + 1, close).trim();
         return result.isEmpty() || "▶".equals(result) ? null : result;
+    }
+
+    /**
+     * Without CALL_PHONE a direct-dial shortcut cannot place the call itself, so it opens the
+     * dialer with the number filled in instead of failing.
+     */
+    static Intent withoutCallPermission(Intent intent) {
+        if (intent != null && Intent.ACTION_CALL.equals(intent.getAction())) {
+            intent.setAction(Intent.ACTION_DIAL);
+        }
+        return intent;
+    }
+
+    static boolean isDirectCall(Intent intent) {
+        return intent != null && Intent.ACTION_CALL.equals(intent.getAction());
     }
 
     Intent parseIntent() throws Exception {

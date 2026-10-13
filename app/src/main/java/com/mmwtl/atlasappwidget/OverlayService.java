@@ -786,7 +786,7 @@ public final class OverlayService extends Service
         dismissFuelDetails();
         if (entry != null && !entry.isFuel()
                 && prefs.isClimateTransitionEnabled(entry.componentKey)) {
-            Intent launch = LaunchIntents.forEntry(entry);
+            Intent launch = LaunchIntents.forEntry(this, entry);
             if (launch == null) {
                 AppLog.warn("Cannot launch selected activity: invalid target "
                         + (entry == null ? "null" : entry.componentKey),
@@ -800,7 +800,7 @@ public final class OverlayService extends Service
             return;
         }
         Intent launch = entry.isShortcut()
-                ? LaunchIntents.targetIntent(entry.intentUri)
+                ? LaunchIntents.targetIntent(this, entry.intentUri)
                 : new Intent(Intent.ACTION_MAIN)
                 .addCategory(Intent.CATEGORY_LAUNCHER)
                 .setComponent(entry.componentName)

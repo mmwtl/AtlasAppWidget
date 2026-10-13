@@ -1,19 +1,22 @@
 package com.mmwtl.atlasappwidget;
 
+import android.Manifest;
 import android.content.ComponentName;
+import android.content.Context;
 import android.content.Intent;
+import android.content.pm.PackageManager;
 
-/** Builds the explicit intents used to launch selected activities and shortcuts. */
+/** Builds the intents used to launch selected activities and shortcuts. */
 final class LaunchIntents {
     private LaunchIntents() {
     }
 
-    static Intent forEntry(AppEntry entry) {
+    static Intent forEntry(Context context, AppEntry entry) {
         if (entry == null) {
             return null;
         }
         return entry.isShortcut()
-                ? targetIntent(entry.intentUri)
+                ? targetIntent(context, entry.intentUri)
                 : forComponent(entry.componentName);
     }
 
@@ -28,12 +31,14 @@ final class LaunchIntents {
                         | Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED);
     }
 
-    static Intent targetIntent(String uri) {
+    static Intent targetIntent(Context context, String uri) {
         try {
             Intent parsed = ShortcutSpec.sanitize(Intent.parseUri(
                     uri, Intent.URI_INTENT_SCHEME));
-            if (parsed.getComponent() == null) {
-                return null;
+            if (ShortcutSpec.isDirectCall(parsed)
+                    && context.checkSelfPermission(Manifest.permission.CALL_PHONE)
+                    != PackageManager.PERMISSION_GRANTED) {
+                ShortcutSpec.withoutCallPermission(parsed);
             }
             return parsed.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
         } catch (Exception invalid) {

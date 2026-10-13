@@ -457,6 +457,27 @@ public final class SettingsBackupTest {
         assertEquals(uri, restored.shortcuts.get(0).intentUri);
     }
 
+    @Test public void implicitContactsCallShortcutRoundTrips() throws Exception {
+        String uri = "tel:1111111#Intent;action=android.intent.action.CALL;end";
+        ShortcutSpec shortcut = new ShortcutSpec(
+                ShortcutSpec.stableKey(uri), "Mom", uri,
+                "com.android.server.telecom/.components.UserCallActivity");
+        SettingsBackup.Data base = data(15, null, null);
+        SettingsBackup.Data original = new SettingsBackup.Data(
+                base.autoStart, base.showOnlyInAppList,
+                base.appUiScaleTenths, base.freeformHideThresholdPercent,
+                base.positionX, base.positionY, List.of(shortcut.key), List.of(shortcut),
+                List.of(), Prefs.CLIMATE_TRANSITION_DURATION_DEFAULT_MS, Map.of(),
+                base.content, base.movement, base.systemStatus, base.fuel, base.geometry,
+                base.appearance);
+
+        SettingsBackup.Data restored = SettingsBackup.decode(
+                SettingsBackup.encode(original, "test"));
+
+        assertEquals(List.of(shortcut.key), restored.selectedComponents);
+        assertEquals(uri, restored.shortcuts.get(0).intentUri);
+    }
+
     @Test public void customIconsRoundTripAsPortableBase64Payload() throws Exception {
         SettingsBackup.Data base = data(15, null, null);
         byte[] icon = new byte[]{0, 1, 2, 3, 4};

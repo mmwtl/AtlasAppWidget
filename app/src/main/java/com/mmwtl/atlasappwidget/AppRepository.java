@@ -149,12 +149,8 @@ final class AppRepository {
         for (ShortcutSpec spec : new Prefs(context).shortcutCatalog()) {
             try {
                 ShortcutEntry entry = new ShortcutEntry(spec);
-                ActivityInfo info = packageManager.getActivityInfo(entry.componentName, 0);
-                Intent intent = spec.parseIntent();
-                if (intent.getComponent() == null
-                        || !entry.componentName.equals(intent.getComponent())
-                        || !info.exported || !info.enabled
-                        || info.applicationInfo == null || !info.applicationInfo.enabled) {
+                Intent intent = ShortcutSpec.sanitize(spec.parseIntent());
+                if (shortcutTarget(packageManager, intent) == null) {
                     continue;
                 }
                 result.add(entry);
@@ -164,6 +160,42 @@ final class AppRepository {
             }
         }
         return result;
+    }
+
+    /**
+     * Returns the exported, enabled activity a sanitized shortcut intent opens, or null. Explicit
+     * intents name it; implicit ones (Contacts call/message shortcuts) resolve to the current
+     * default handler.
+     */
+    static ActivityInfo shortcutTarget(PackageManager packageManager, Intent intent) {
+        ActivityInfo info;
+        try {
+            if (intent.getComponent() != null) {
+                info = packageManager.getActivityInfo(intent.getComponent(), 0);
+            } else {
+                // With several handlers resolveActivity returns the system chooser, so prefer
+                // the default handler among the real candidates and otherwise take the first.
+                ResolveInfo preferred = packageManager.resolveActivity(
+                        intent, PackageManager.MATCH_DEFAULT_ONLY);
+                info = null;
+                for (ResolveInfo candidate : packageManager.queryIntentActivities(
+                        intent, PackageManager.MATCH_DEFAULT_ONLY)) {
+                    if (info == null || preferred != null
+                            && candidate.activityInfo.name.equals(preferred.activityInfo.name)
+                            && candidate.activityInfo.packageName.equals(
+                                    preferred.activityInfo.packageName)) {
+                        info = candidate.activityInfo;
+                    }
+                }
+            }
+        } catch (PackageManager.NameNotFoundException missing) {
+            return null;
+        }
+        if (info == null || !info.exported || !info.enabled
+                || info.applicationInfo == null || !info.applicationInfo.enabled) {
+            return null;
+        }
+        return info;
     }
 
     private static String safeActivityLabel(PackageManager packageManager,

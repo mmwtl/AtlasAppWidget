@@ -1,9 +1,11 @@
 package com.mmwtl.atlasappwidget;
 
+import android.Manifest;
 import android.app.AlertDialog;
 import android.content.Intent;
 import android.content.ComponentName;
 import android.content.pm.ActivityInfo;
+import android.content.pm.PackageManager;
 import android.graphics.Color;
 import android.graphics.Bitmap;
 import android.graphics.drawable.Drawable;
@@ -42,6 +44,7 @@ import java.util.concurrent.RejectedExecutionException;
 public final class AppPickerActivity extends ScaledActivity {
     private static final int REQUEST_ICON = 401;
     private static final int REQUEST_SHORTCUT = 402;
+    private static final int REQUEST_CALL_PHONE = 403;
     private static final String STATE_PENDING_ICON_COMPONENT = "pending_icon_component";
 
     private final ExecutorService loader = Executors.newFixedThreadPool(2);
@@ -331,17 +334,22 @@ public final class AppPickerActivity extends ScaledActivity {
         String title = result.getStringExtra(Intent.EXTRA_SHORTCUT_NAME);
         try {
             Intent safe = ShortcutSpec.sanitize(nested);
-            ComponentName component = safe.getComponent();
-            ActivityInfo info = getPackageManager().getActivityInfo(component, 0);
-            if (!info.exported || !info.enabled || info.applicationInfo == null
-                    || !info.applicationInfo.enabled) {
+            ActivityInfo info = AppRepository.shortcutTarget(getPackageManager(), safe);
+            if (info == null) {
                 throw new SecurityException("Shortcut target is not exported and enabled");
             }
-            ShortcutSpec shortcut = ShortcutSpec.create(title, safe);
+            ShortcutSpec shortcut = ShortcutSpec.create(title, safe,
+                    new ComponentName(info.packageName, info.name));
             prefs.saveShortcut(shortcut);
             saveShortcutIcon(result, shortcut, info.applicationInfo.loadIcon(getPackageManager()));
             prefs.setComponentSelected(shortcut.key, true);
             Toast.makeText(this, R.string.shortcut_saved, Toast.LENGTH_SHORT).show();
+            if (ShortcutSpec.isDirectCall(safe)
+                    && checkSelfPermission(Manifest.permission.CALL_PHONE)
+                    != PackageManager.PERMISSION_GRANTED) {
+                requestPermissions(new String[] {Manifest.permission.CALL_PHONE},
+                        REQUEST_CALL_PHONE);
+            }
             loadApplications();
         } catch (Exception error) {
             AppLog.warn("Rejected legacy shortcut result", error);
