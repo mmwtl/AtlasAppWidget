@@ -455,6 +455,22 @@ public final class MainActivity extends ScaledActivity
         addScaleSlider(scale);
         page.addView(scale);
 
+        LinearLayout gstore = Ui.card(this);
+        gstore.addView(Ui.heading(this, R.string.gstore_title, 20));
+        TextView gstoreHint = Ui.text(this,
+                R.string.gstore_hint,
+                13,
+                Ui.TEXT_SECONDARY
+        );
+        gstoreHint.setLineSpacing(0, 1.1f);
+        Ui.topMargin(gstoreHint, 6);
+        gstore.addView(gstoreHint);
+        Button gstoreButton = Ui.button(this, R.string.gstore_button);
+        Ui.topMargin(gstoreButton, 12);
+        gstoreButton.setOnClickListener(view -> GStoreDialog.show(this));
+        gstore.addView(gstoreButton);
+        page.addView(gstore);
+
         LinearLayout donate = Ui.card(this);
         donate.addView(Ui.heading(this, R.string.donate_title, 20));
         TextView donateHint = Ui.text(this,
