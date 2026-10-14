@@ -245,8 +245,18 @@ public final class MainActivity extends ScaledActivity
         LinearLayout titleRow = new LinearLayout(this);
         titleRow.setOrientation(LinearLayout.HORIZONTAL);
         titleRow.setGravity(Gravity.CENTER_VERTICAL);
+        LinearLayout titleGroup = new LinearLayout(this);
+        titleGroup.setOrientation(LinearLayout.HORIZONTAL);
         TextView title = Ui.heading(this, R.string.app_name, 24);
-        titleRow.addView(title, new LinearLayout.LayoutParams(
+        titleGroup.addView(title);
+        TextView version = Ui.text(this, appVersionLabel(), 13, Ui.TEXT_SECONDARY);
+        LinearLayout.LayoutParams versionParams = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+        );
+        versionParams.leftMargin = Ui.dp(this, 8);
+        titleGroup.addView(version, versionParams);
+        titleRow.addView(titleGroup, new LinearLayout.LayoutParams(
                 0,
                 ViewGroup.LayoutParams.WRAP_CONTENT,
                 1f
@@ -2425,6 +2435,16 @@ public final class MainActivity extends ScaledActivity
         } else {
             Toast.makeText(this, R.string.notification_permission_not_needed,
                     Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    private String appVersionLabel() {
+        try {
+            android.content.pm.PackageInfo info = getPackageManager()
+                    .getPackageInfo(getPackageName(), 0);
+            return info.versionName + " (" + info.getLongVersionCode() + ")";
+        } catch (PackageManager.NameNotFoundException error) {
+            return "";
         }
     }
 }
