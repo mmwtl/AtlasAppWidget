@@ -10,6 +10,8 @@ final class PanelConfig {
     static final int PANEL_RADIUS_DEFAULT_DP = 24;
     /** Default before 2.0.1; kept for installs that never moved the slider. */
     static final int PANEL_RADIUS_LEGACY_DEFAULT_DP = 8;
+    /** Graphite panel color; in the widget it stands for the launcher day or night surface. */
+    static final int BACKGROUND_COLOR_DEFAULT = 0xFF262626;
     static final int HANDLE_LEFT = 0;
     static final int HANDLE_RIGHT = 1;
     static final int HANDLE_TOP = 2;
@@ -136,13 +138,22 @@ final class PanelConfig {
         iconCornerPercent = prefs.getInt(Prefs.KEY_ICON_CORNER_PERCENT, 12);
         paddingDp = prefs.getInt(Prefs.KEY_PADDING_DP, 14);
         gapDp = prefs.getInt(Prefs.KEY_GAP_DP, 12);
-        backgroundColor = prefs.getInt(Prefs.KEY_BACKGROUND_COLOR, 0xFF262626);
+        backgroundColor = prefs.getInt(Prefs.KEY_BACKGROUND_COLOR, BACKGROUND_COLOR_DEFAULT);
         backgroundAlpha = prefs.getInt(Prefs.KEY_BACKGROUND_ALPHA, 235);
         backgroundStrokeEnabled = prefs.getBoolean(Prefs.KEY_BACKGROUND_STROKE_ENABLED, false);
         backgroundStrokeWidthDp = prefs.getInt(Prefs.KEY_BACKGROUND_STROKE_WIDTH_DP, 2);
         backgroundStrokeAlpha = prefs.getInt(Prefs.KEY_BACKGROUND_STROKE_ALPHA, 200);
         backgroundStrokeColor = prefs.getInt(Prefs.KEY_BACKGROUND_STROKE_COLOR, 0xFF7893A0);
         panelRadiusDp = prefs.getInt(Prefs.KEY_PANEL_RADIUS_DP, PANEL_RADIUS_DEFAULT_DP);
+    }
+
+    /**
+     * Whether the widget panel, its labels and its status strip follow the day/night theme.
+     * Only the default color does: a color the user picked stays as chosen in both themes.
+     * Backups and older installs store the default explicitly, so the color is compared.
+     */
+    boolean backgroundFollowsTheme() {
+        return (backgroundColor & 0x00FFFFFF) == (BACKGROUND_COLOR_DEFAULT & 0x00FFFFFF);
     }
 
     int systemStatusMetricCount() {

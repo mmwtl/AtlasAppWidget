@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Home screen widget, launcher night palette. -->
+    <color name="widget_surface">#232528</color>
+    <color name="widget_text">#F1F2F4</color>
+    <color name="widget_label_outline">#000000</color>
+    <color name="widget_status_fill_shade">#00000000</color>
+</resources>

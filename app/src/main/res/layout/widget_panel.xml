@@ -3,6 +3,16 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent">
 
+    <!-- White panel shape tinted with the theme surface; used while the panel color is default. -->
+    <ImageView
+        android:id="@+id/widget_background_themed"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:contentDescription="@null"
+        android:scaleType="fitXY"
+        android:tint="@color/widget_surface"
+        android:visibility="gone" />
+
     <ImageView
         android:id="@+id/widget_background"
         android:layout_width="match_parent"
@@ -16,12 +26,38 @@
         android:gravity="center"
         android:orientation="vertical">
 
-        <ImageView
+        <!-- Status strips: the *_themed mask is tinted with the theme text color under the
+             fixed-color *_image fills, which the *_shade mask darkens by day. -->
+        <FrameLayout
             android:id="@+id/widget_status_top"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:scaleType="center"
-            android:visibility="gone" />
+            android:visibility="gone">
+
+            <ImageView
+                android:id="@+id/widget_status_top_themed"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:contentDescription="@null"
+                android:scaleType="center"
+                android:tint="@color/widget_text" />
+
+            <ImageView
+                android:id="@+id/widget_status_top_image"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:contentDescription="@null"
+                android:scaleType="center" />
+
+            <ImageView
+                android:id="@+id/widget_status_top_shade"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:contentDescription="@null"
+                android:scaleType="center"
+                android:tint="@color/widget_status_fill_shade"
+                android:tintMode="src_in" />
+        </FrameLayout>
 
         <LinearLayout
             android:layout_width="wrap_content"
@@ -29,12 +65,36 @@
             android:gravity="center"
             android:orientation="horizontal">
 
-            <ImageView
+            <FrameLayout
                 android:id="@+id/widget_status_left"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:scaleType="center"
-                android:visibility="gone" />
+                android:visibility="gone">
+
+                <ImageView
+                    android:id="@+id/widget_status_left_themed"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:contentDescription="@null"
+                    android:scaleType="center"
+                    android:tint="@color/widget_text" />
+
+                <ImageView
+                    android:id="@+id/widget_status_left_image"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:contentDescription="@null"
+                    android:scaleType="center" />
+
+                <ImageView
+                    android:id="@+id/widget_status_left_shade"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:contentDescription="@null"
+                    android:scaleType="center"
+                    android:tint="@color/widget_status_fill_shade"
+                    android:tintMode="src_in" />
+            </FrameLayout>
 
             <LinearLayout
                 android:id="@+id/widget_grid"
@@ -43,19 +103,67 @@
                 android:gravity="center"
                 android:orientation="vertical" />
 
-            <ImageView
+            <FrameLayout
                 android:id="@+id/widget_status_right"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:scaleType="center"
-                android:visibility="gone" />
+                android:visibility="gone">
+
+                <ImageView
+                    android:id="@+id/widget_status_right_themed"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:contentDescription="@null"
+                    android:scaleType="center"
+                    android:tint="@color/widget_text" />
+
+                <ImageView
+                    android:id="@+id/widget_status_right_image"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:contentDescription="@null"
+                    android:scaleType="center" />
+
+                <ImageView
+                    android:id="@+id/widget_status_right_shade"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:contentDescription="@null"
+                    android:scaleType="center"
+                    android:tint="@color/widget_status_fill_shade"
+                    android:tintMode="src_in" />
+            </FrameLayout>
         </LinearLayout>
 
-        <ImageView
+        <FrameLayout
             android:id="@+id/widget_status_bottom"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:scaleType="center"
-            android:visibility="gone" />
+            android:visibility="gone">
+
+            <ImageView
+                android:id="@+id/widget_status_bottom_themed"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:contentDescription="@null"
+                android:scaleType="center"
+                android:tint="@color/widget_text" />
+
+            <ImageView
+                android:id="@+id/widget_status_bottom_image"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:contentDescription="@null"
+                android:scaleType="center" />
+
+            <ImageView
+                android:id="@+id/widget_status_bottom_shade"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:contentDescription="@null"
+                android:scaleType="center"
+                android:tint="@color/widget_status_fill_shade"
+                android:tintMode="src_in" />
+        </FrameLayout>
     </LinearLayout>
 </FrameLayout>

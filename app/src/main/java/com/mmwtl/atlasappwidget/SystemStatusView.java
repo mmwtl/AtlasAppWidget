@@ -3,6 +3,7 @@ package com.mmwtl.atlasappwidget;
 import android.annotation.SuppressLint;
 import android.content.Context;
 import android.graphics.Canvas;
+import android.graphics.Color;
 import android.graphics.Paint;
 import android.graphics.Typeface;
 import android.util.TypedValue;
@@ -24,10 +25,27 @@ final class SystemStatusView extends LinearLayout {
     private static final int SIDE_TRACK_GAP_DP = 4;
     static final int GAP_DP = 16;
 
-    private static final int TRACK_COLOR = 0xFF454545;
     private static final int CPU_COLOR = 0xFF7893A0;
     private static final int RAM_COLOR = 0xFFC49A62;
     private static final int FUEL_COLOR = 0xFF8BA37A;
+
+    /** The overlay strip, fixed graphite. */
+    static final Palette DARK = new Palette(Ui.TEXT, 0xFF454545, 0xFF5A5A5A,
+            CPU_COLOR, RAM_COLOR, FUEL_COLOR);
+    /**
+     * White text, tracks and dividers that the widget host tints with the day or night text
+     * color; the alphas reproduce the graphite tracks and dividers at night.
+     */
+    static final Palette MASK = new Palette(Color.WHITE, 0x2AFFFFFF, 0x45FFFFFF,
+            Color.TRANSPARENT, Color.TRANSPARENT, Color.TRANSPARENT);
+    /** The metric fills alone, drawn over {@link #MASK}. */
+    static final Palette FILLS = new Palette(Color.TRANSPARENT, Color.TRANSPARENT,
+            Color.TRANSPARENT, CPU_COLOR, RAM_COLOR, FUEL_COLOR);
+    /** White fill shapes that the widget host tints to darken {@link #FILLS} by day. */
+    static final Palette FILL_MASK = new Palette(Color.TRANSPARENT, Color.TRANSPARENT,
+            Color.TRANSPARENT, Color.WHITE, Color.WHITE, Color.WHITE);
+
+    private final Palette palette;
 
     private final MetricView cpu;
     private final MetricView ram;
@@ -44,14 +62,31 @@ final class SystemStatusView extends LinearLayout {
             boolean showRam,
             boolean showFuel
     ) {
+        this(context, textSizeSp, textWeight, lineHeightDp, statusHeight, sideMode,
+                showCpu, showRam, showFuel, DARK);
+    }
+
+    private SystemStatusView(
+            Context context,
+            int textSizeSp,
+            int textWeight,
+            int lineHeightDp,
+            int statusHeight,
+            boolean sideMode,
+            boolean showCpu,
+            boolean showRam,
+            boolean showFuel,
+            Palette palette
+    ) {
         super(context);
+        this.palette = palette;
         setOrientation(HORIZONTAL);
         setGravity(Gravity.CENTER_VERTICAL);
 
         int labelHeight = labelHeightPixels(context, textSizeSp, textWeight);
         int added = 0;
         if (showCpu) {
-            cpu = addMetric("CPU", CPU_COLOR, textSizeSp, textWeight,
+            cpu = addMetric("CPU", palette.cpu, textSizeSp, textWeight,
                     lineHeightDp, labelHeight, sideMode);
             added++;
         } else {
@@ -61,7 +96,7 @@ final class SystemStatusView extends LinearLayout {
             if (added > 0) {
                 addSeparator(statusHeight, sideMode);
             }
-            ram = addMetric("RAM", RAM_COLOR, textSizeSp, textWeight,
+            ram = addMetric("RAM", palette.ram, textSizeSp, textWeight,
                     lineHeightDp, labelHeight, sideMode);
             added++;
         } else {
@@ -71,7 +106,7 @@ final class SystemStatusView extends LinearLayout {
             if (added > 0) {
                 addSeparator(statusHeight, sideMode);
             }
-            fuel = addMetric("FUEL", FUEL_COLOR, textSizeSp, textWeight,
+            fuel = addMetric("FUEL", palette.fuel, textSizeSp, textWeight,
                     lineHeightDp, labelHeight, sideMode);
         } else {
             fuel = null;
@@ -100,11 +135,11 @@ final class SystemStatusView extends LinearLayout {
      */
     static CharSequence draw(Context context, PanelConfig config, boolean sideMode,
             int width, int height, SystemStatusSnapshot snapshot,
-            FuelLevelProvider.Reading fuelReading, Canvas canvas) {
+            FuelLevelProvider.Reading fuelReading, Palette palette, Canvas canvas) {
         SystemStatusView view = new SystemStatusView(context,
                 config.systemStatusTextSizeSp, config.systemStatusTextWeight,
                 config.systemStatusLineHeightDp, height, sideMode,
-                config.showCpuStatus, config.showRamStatus, config.showFuelStatus);
+                config.showCpuStatus, config.showRamStatus, config.showFuelStatus, palette);
         int widthSpec = MeasureSpec.makeMeasureSpec(width, MeasureSpec.EXACTLY);
         int heightSpec = MeasureSpec.makeMeasureSpec(height, MeasureSpec.EXACTLY);
         view.update(snapshot, fuelReading);
@@ -153,7 +188,7 @@ final class SystemStatusView extends LinearLayout {
             int labelHeight,
             boolean sideMode
     ) {
-        MetricView metric = new MetricView(getContext(), name, color,
+        MetricView metric = new MetricView(getContext(), name, color, palette,
                 textSizeSp, textWeight, lineHeightDp, labelHeight, sideMode);
         LayoutParams params = sideMode
                 ? new LayoutParams(
@@ -182,7 +217,7 @@ final class SystemStatusView extends LinearLayout {
 
     private void addDivider(int statusHeight) {
         View divider = new View(getContext());
-        divider.setBackgroundColor(0xFF5A5A5A);
+        divider.setBackgroundColor(palette.divider);
         LayoutParams params = new LayoutParams(
                 Ui.dp(getContext(), 1),
                 Math.max(Ui.dp(getContext(), 20), statusHeight - Ui.dp(getContext(), 4))
@@ -217,6 +252,7 @@ final class SystemStatusView extends LinearLayout {
                 Context context,
                 String name,
                 int color,
+                Palette palette,
                 int textSizeSp,
                 int textWeight,
                 int lineHeightDp,
@@ -228,14 +264,14 @@ final class SystemStatusView extends LinearLayout {
             this.sideMode = sideMode;
             setGravity(Gravity.CENTER);
 
-            label = Ui.text(context, name + " —", textSizeSp, Ui.TEXT);
+            label = Ui.text(context, name + " —", textSizeSp, palette.text);
             label.setTypeface(Typeface.create(Typeface.DEFAULT, textWeight, false));
             label.setGravity(Gravity.CENTER);
             label.setIncludeFontPadding(false);
 
             int lineHeight = Ui.dp(context, lineHeightDp);
             track = new FrameLayout(context);
-            track.setBackground(Ui.rounded(TRACK_COLOR, lineHeight / 2f));
+            track.setBackground(Ui.rounded(palette.track, lineHeight / 2f));
             track.addOnLayoutChangeListener((view, left, top, right, bottom,
                     oldLeft, oldTop, oldRight, oldBottom) -> updateFillLength());
             fill = new View(context);
@@ -320,6 +356,24 @@ final class SystemStatusView extends LinearLayout {
                 params.width = Math.round(trackLength * progress / 100f);
             }
             fill.setLayoutParams(params);
+        }
+    }
+
+    static final class Palette {
+        final int text;
+        final int track;
+        final int divider;
+        final int cpu;
+        final int ram;
+        final int fuel;
+
+        Palette(int text, int track, int divider, int cpu, int ram, int fuel) {
+            this.text = text;
+            this.track = track;
+            this.divider = divider;
+            this.cpu = cpu;
+            this.ram = ram;
+            this.fuel = fuel;
         }
     }
 }

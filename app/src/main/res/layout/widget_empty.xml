@@ -3,7 +3,7 @@
     android:id="@+id/widget_empty"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="#262626"
+    android:background="@color/widget_surface"
     android:padding="12dp">
 
     <TextView
@@ -11,6 +11,6 @@
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:gravity="center"
-        android:textColor="#F5F5F5"
+        android:textColor="@color/widget_text"
         android:textSize="14sp" />
 </FrameLayout>

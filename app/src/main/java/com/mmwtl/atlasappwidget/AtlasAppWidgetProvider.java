@@ -228,45 +228,73 @@ public final class AtlasAppWidgetProvider extends AppWidgetProvider {
                         config.systemStatusTextWeight, config.systemStatusLineHeightDp);
     }
 
+    // Indexed by PanelConfig.STATUS_TOP, STATUS_BOTTOM, STATUS_LEFT and STATUS_RIGHT.
     private static final int[] STATUS_VIEW_IDS = {R.id.widget_status_top,
             R.id.widget_status_bottom, R.id.widget_status_left, R.id.widget_status_right};
+    private static final int[] STATUS_IMAGE_IDS = {R.id.widget_status_top_image,
+            R.id.widget_status_bottom_image, R.id.widget_status_left_image,
+            R.id.widget_status_right_image};
+    private static final int[] STATUS_THEMED_IDS = {R.id.widget_status_top_themed,
+            R.id.widget_status_bottom_themed, R.id.widget_status_left_themed,
+            R.id.widget_status_right_themed};
+    private static final int[] STATUS_SHADE_IDS = {R.id.widget_status_top_shade,
+            R.id.widget_status_bottom_shade, R.id.widget_status_left_shade,
+            R.id.widget_status_right_shade};
 
-    private static int statusViewId(int position) {
-        switch (position) {
-            case PanelConfig.STATUS_TOP:
-                return R.id.widget_status_top;
-            case PanelConfig.STATUS_LEFT:
-                return R.id.widget_status_left;
-            case PanelConfig.STATUS_RIGHT:
-                return R.id.widget_status_right;
-            default:
-                return R.id.widget_status_bottom;
-        }
-    }
-
-    // The strip bitmap carries the gap on its grid side, like cell bitmaps carry theirs.
+    // A themed strip is three bitmaps: a white mask the host tints with the theme text color,
+    // the fixed-color metric fills on top of it and a fill mask the host tints to shade them.
     private static void applyStatus(Context context, PanelConfig config, RemoteViews views,
             WidgetGrid grid, SystemStatusSnapshot snapshot,
             FuelLevelProvider.Reading fuelReading) {
+        boolean themed = config.backgroundFollowsTheme();
+        int position = config.systemStatusPosition;
+        Bitmap image = statusBitmap(context, config, grid);
+        CharSequence description = drawStatus(context, config, grid, snapshot, fuelReading,
+                themed ? SystemStatusView.FILLS : SystemStatusView.DARK, image);
+        views.setImageViewBitmap(STATUS_IMAGE_IDS[position], image);
+        if (themed) {
+            Bitmap mask = statusBitmap(context, config, grid);
+            drawStatus(context, config, grid, snapshot, fuelReading, SystemStatusView.MASK, mask);
+            views.setImageViewBitmap(STATUS_THEMED_IDS[position], mask);
+            Bitmap shade = statusBitmap(context, config, grid);
+            drawStatus(context, config, grid, snapshot, fuelReading,
+                    SystemStatusView.FILL_MASK, shade);
+            views.setImageViewBitmap(STATUS_SHADE_IDS[position], shade);
+        }
+        views.setViewVisibility(STATUS_THEMED_IDS[position], themed ? View.VISIBLE : View.GONE);
+        views.setViewVisibility(STATUS_SHADE_IDS[position], themed ? View.VISIBLE : View.GONE);
+        int viewId = STATUS_VIEW_IDS[position];
+        hideStatus(views, viewId);
+        views.setContentDescription(viewId, description);
+        views.setViewVisibility(viewId, View.VISIBLE);
+    }
+
+    // The strip bitmap carries the gap on its grid side, like cell bitmaps carry theirs.
+    private static Bitmap statusBitmap(Context context, PanelConfig config, WidgetGrid grid) {
         boolean side = sideStatus(config);
         int size = statusSize(context, config, side);
         int gap = dp(context, SystemStatusView.GAP_DP);
-        int stripWidth = side ? size : grid.layout.gridWidth;
-        int stripHeight = side ? grid.layout.gridHeight : size;
-        Bitmap bitmap = Bitmap.createBitmap(Math.max(1, stripWidth + (side ? gap : 0)),
-                Math.max(1, stripHeight + (side ? 0 : gap)), Bitmap.Config.ARGB_8888);
+        Bitmap bitmap = Bitmap.createBitmap(
+                Math.max(1, side ? size + gap : grid.layout.gridWidth),
+                Math.max(1, side ? grid.layout.gridHeight : size + gap),
+                Bitmap.Config.ARGB_8888);
         bitmap.setDensity(context.getResources().getDisplayMetrics().densityDpi);
+        return bitmap;
+    }
+
+    private static CharSequence drawStatus(Context context, PanelConfig config, WidgetGrid grid,
+            SystemStatusSnapshot snapshot, FuelLevelProvider.Reading fuelReading,
+            SystemStatusView.Palette palette, Bitmap bitmap) {
+        boolean side = sideStatus(config);
+        int size = statusSize(context, config, side);
+        int gap = dp(context, SystemStatusView.GAP_DP);
         Canvas canvas = new Canvas(bitmap);
         canvas.translate(config.systemStatusPosition == PanelConfig.STATUS_RIGHT ? gap : 0,
                 config.systemStatusPosition == PanelConfig.STATUS_BOTTOM ? gap : 0);
-        CharSequence description = SystemStatusView.draw(context, config, side,
-                Math.max(1, stripWidth), Math.max(1, stripHeight), snapshot, fuelReading,
-                canvas);
-        int viewId = statusViewId(config.systemStatusPosition);
-        hideStatus(views, viewId);
-        views.setImageViewBitmap(viewId, bitmap);
-        views.setContentDescription(viewId, description);
-        views.setViewVisibility(viewId, View.VISIBLE);
+        return SystemStatusView.draw(context, config, side,
+                Math.max(1, side ? size : grid.layout.gridWidth),
+                Math.max(1, side ? grid.layout.gridHeight : size), snapshot, fuelReading,
+                palette, canvas);
     }
 
     // Hosts reapply updates onto the existing views, so an earlier position stays visible
@@ -285,8 +313,23 @@ public final class AtlasAppWidgetProvider extends AppWidgetProvider {
         int heightDp = heightDp(context, options);
         WidgetGrid grid = grid(context, config, options);
         RemoteViews panel = new RemoteViews(context.getPackageName(), R.layout.widget_panel);
-        panel.setImageViewBitmap(R.id.widget_background,
-                background(context, config, widthDp, heightDp));
+        boolean themed = config.backgroundFollowsTheme();
+        int fill = (config.backgroundColor & 0x00FFFFFF)
+                | (Math.max(0, Math.min(255, config.backgroundAlpha)) << 24);
+        if (themed) {
+            // The host tints this white shape with the day or night surface color.
+            panel.setImageViewBitmap(R.id.widget_background_themed, background(context, config,
+                    widthDp, heightDp, fill | 0x00FFFFFF, false));
+        }
+        boolean fixedBackground = !themed || config.backgroundStrokeEnabled;
+        if (fixedBackground) {
+            panel.setImageViewBitmap(R.id.widget_background, background(context, config,
+                    widthDp, heightDp, themed ? Color.TRANSPARENT : fill,
+                    config.backgroundStrokeEnabled));
+        }
+        panel.setViewVisibility(R.id.widget_background_themed, themed ? View.VISIBLE : View.GONE);
+        panel.setViewVisibility(R.id.widget_background,
+                fixedBackground ? View.VISIBLE : View.GONE);
         panel.removeAllViews(R.id.widget_grid);
         int shown = Math.min(entries.size(), grid.capacity());
         FuelLevelProvider.Reading fuelReading = WidgetFuelService.reading();
@@ -316,11 +359,19 @@ public final class AtlasAppWidgetProvider extends AppWidgetProvider {
                         blankCells[shape] = cellBitmap(context, prefs, config, null, grid,
                                 rowIndex, column, fuelReading);
                     }
-                    cell.setImageViewBitmap(R.id.widget_cell, blankCells[shape]);
+                    cell.setImageViewBitmap(R.id.widget_cell_icon, blankCells[shape]);
                 } else {
                     AppEntry entry = entries.get(index);
-                    cell.setImageViewBitmap(R.id.widget_cell, cellBitmap(context, prefs, config,
-                            entry, grid, rowIndex, column, fuelReading));
+                    cell.setImageViewBitmap(R.id.widget_cell_icon, cellBitmap(context, prefs,
+                            config, entry, grid, rowIndex, column, fuelReading));
+                    if (themed && config.showAppLabels && grid.labelScale > 0) {
+                        cell.setImageViewBitmap(R.id.widget_cell_label, labelBitmap(context,
+                                config, entry.label, grid, rowIndex, column, false));
+                        if (config.appLabelOutlineEnabled) {
+                            cell.setImageViewBitmap(R.id.widget_cell_outline, labelBitmap(
+                                    context, config, entry.label, grid, rowIndex, column, true));
+                        }
+                    }
                     if (widgetId != AppWidgetManager.INVALID_APPWIDGET_ID) {
                         Intent launch = new Intent(context, entry.isFuel()
                                 ? WidgetFuelActivity.class : WidgetLaunchActivity.class)
@@ -360,32 +411,63 @@ public final class AtlasAppWidgetProvider extends AppWidgetProvider {
         Canvas canvas = new Canvas(bitmap);
         canvas.drawBitmap(icon(context, prefs, config, entry, layout.iconSize, fuelReading),
                 left + (layout.cellWidth - layout.iconSize) / 2f, top, null);
-        if (config.showAppLabels && grid.labelScale > 0) {
-            TextPaint paint = new TextPaint(Paint.ANTI_ALIAS_FLAG);
-            paint.setColor(Color.rgb(245, 245, 245));
-            paint.setTextSize(TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_SP,
-                    config.appLabelTextSizeSp, context.getResources().getDisplayMetrics())
-                    * grid.labelScale);
-            int inset = Math.round(dp(context, 2) * grid.labelScale);
-            if (config.appLabelOutlineEnabled) {
-                paint.setShadowLayer(dp(context, 2) * grid.labelScale, 0,
-                        dp(context, 1) * grid.labelScale, Color.BLACK);
-            }
-            String label = TextUtils.ellipsize(entry.label, paint,
-                    Math.max(0, layout.cellWidth - inset * 2), TextUtils.TruncateAt.END).toString();
-            Paint.FontMetrics metrics = paint.getFontMetrics();
-            int labelTop = top + layout.iconSize
-                    + (int) (dp(context, config.appLabelGapDp) * grid.labelScale);
-            float baseline = (labelTop + top + layout.cellHeight
-                    - metrics.ascent - metrics.descent) / 2f;
-            canvas.drawText(label, left + (layout.cellWidth - paint.measureText(label)) / 2f,
-                    baseline, paint);
+        // Themed labels go to their own tinted layers, see labelBitmap.
+        if (config.showAppLabels && grid.labelScale > 0 && !config.backgroundFollowsTheme()) {
+            drawLabel(context, config, entry.label, grid, left, top, Color.rgb(245, 245, 245),
+                    config.appLabelOutlineEnabled ? Color.BLACK : Color.TRANSPARENT, canvas);
         }
         return bitmap;
     }
 
+    /**
+     * Draws the label area under a cell icon as a white mask for the host to tint: the text
+     * with the theme text color, or the text with its shadow with the theme outline color.
+     */
+    private static Bitmap labelBitmap(Context context, PanelConfig config, String label,
+            WidgetGrid grid, int row, int column, boolean outline) {
+        PanelLayout layout = grid.layout;
+        int left = column == 0 ? 0 : layout.horizontalGap;
+        int top = row == 0 ? 0 : layout.verticalGap;
+        int labelTop = labelTop(context, config, grid, top);
+        Bitmap bitmap = Bitmap.createBitmap(layout.cellWidth + left,
+                Math.max(1, top + layout.cellHeight - labelTop), Bitmap.Config.ARGB_8888);
+        bitmap.setDensity(context.getResources().getDisplayMetrics().densityDpi);
+        Canvas canvas = new Canvas(bitmap);
+        canvas.translate(0, -labelTop);
+        drawLabel(context, config, label, grid, left, top, Color.WHITE,
+                outline ? Color.WHITE : Color.TRANSPARENT, canvas);
+        return bitmap;
+    }
+
+    private static int labelTop(Context context, PanelConfig config, WidgetGrid grid, int top) {
+        return top + grid.layout.iconSize
+                + (int) (dp(context, config.appLabelGapDp) * grid.labelScale);
+    }
+
+    private static void drawLabel(Context context, PanelConfig config, String text,
+            WidgetGrid grid, int left, int top, int color, int shadowColor, Canvas canvas) {
+        PanelLayout layout = grid.layout;
+        TextPaint paint = new TextPaint(Paint.ANTI_ALIAS_FLAG);
+        paint.setColor(color);
+        paint.setTextSize(TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_SP,
+                config.appLabelTextSizeSp, context.getResources().getDisplayMetrics())
+                * grid.labelScale);
+        int inset = Math.round(dp(context, 2) * grid.labelScale);
+        if (shadowColor != Color.TRANSPARENT) {
+            paint.setShadowLayer(dp(context, 2) * grid.labelScale, 0,
+                    dp(context, 1) * grid.labelScale, shadowColor);
+        }
+        String label = TextUtils.ellipsize(text, paint,
+                Math.max(0, layout.cellWidth - inset * 2), TextUtils.TruncateAt.END).toString();
+        Paint.FontMetrics metrics = paint.getFontMetrics();
+        float baseline = (labelTop(context, config, grid, top) + top + layout.cellHeight
+                - metrics.ascent - metrics.descent) / 2f;
+        canvas.drawText(label, left + (layout.cellWidth - paint.measureText(label)) / 2f,
+                baseline, paint);
+    }
+
     private static Bitmap background(Context context, PanelConfig config,
-            int widthDp, int heightDp) {
+            int widthDp, int heightDp, int fill, boolean stroke) {
         int requestedWidth = Math.max(1, dp(context, widthDp));
         int requestedHeight = Math.max(1, dp(context, heightDp));
         float scale = Math.min(1f, 512f / Math.max(requestedWidth, requestedHeight));
@@ -394,23 +476,21 @@ public final class AtlasAppWidgetProvider extends AppWidgetProvider {
         Bitmap bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888);
         Canvas canvas = new Canvas(bitmap);
         Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
-        int fill = (config.backgroundColor & 0x00FFFFFF)
-                | (Math.max(0, Math.min(255, config.backgroundAlpha)) << 24);
         float radius = config.panelRadiusDp == PanelConfig.PANEL_RADIUS_FULLY_ROUNDED
                 ? Math.min(width, height) / 2f
                 : dp(context, Math.max(0, config.panelRadiusDp)) * scale;
         RectF rect = new RectF(0, 0, width, height);
         paint.setColor(fill);
         canvas.drawRoundRect(rect, radius, radius, paint);
-        if (config.backgroundStrokeEnabled) {
-            float stroke = Math.max(1f, dp(context, config.backgroundStrokeWidthDp) * scale);
+        if (stroke) {
+            float strokeWidth = Math.max(1f, dp(context, config.backgroundStrokeWidthDp) * scale);
             paint.setStyle(Paint.Style.STROKE);
-            paint.setStrokeWidth(stroke);
+            paint.setStrokeWidth(strokeWidth);
             paint.setColor((config.backgroundStrokeColor & 0x00FFFFFF)
                     | (Math.max(0, Math.min(255, config.backgroundStrokeAlpha)) << 24));
-            rect.inset(stroke / 2f, stroke / 2f);
-            canvas.drawRoundRect(rect, Math.max(0, radius - stroke / 2f),
-                    Math.max(0, radius - stroke / 2f), paint);
+            rect.inset(strokeWidth / 2f, strokeWidth / 2f);
+            canvas.drawRoundRect(rect, Math.max(0, radius - strokeWidth / 2f),
+                    Math.max(0, radius - strokeWidth / 2f), paint);
         }
         return bitmap;
     }

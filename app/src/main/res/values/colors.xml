@@ -3,4 +3,12 @@
     <color name="atlas_background">#171717</color>
     <color name="atlas_accent">#7893A0</color>
     <color name="icon_background">#171717</color>
+
+    <!-- Home screen widget, launcher day palette; night values live in values-night. The widget
+         host resolves them, so the widget switches with the OneOS night mode on its own. -->
+    <color name="widget_surface">#EDEEF0</color>
+    <color name="widget_text">#202124</color>
+    <color name="widget_label_outline">#FFFFFF</color>
+    <!-- Darkens the CPU, RAM and fuel fills by 30% by day to keep them 3:1 to the panel. -->
+    <color name="widget_status_fill_shade">#4D000000</color>
 </resources>
