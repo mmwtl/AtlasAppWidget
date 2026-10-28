@@ -121,6 +121,9 @@ public final class MainActivity extends ScaledActivity
     private TextView widgetGeometryHint;
     private Button backgroundColorButton;
     private Button backgroundStrokeColorButton;
+    private Switch dayColorsSwitch;
+    private Button dayBackgroundColorButton;
+    private Button dayBackgroundStrokeColorButton;
     private Switch manualHeightSwitch;
     private SeekBar manualHeightSlider;
     private EditText manualHeightInput;
@@ -1370,6 +1373,30 @@ public final class MainActivity extends ScaledActivity
         ));
         background.addView(backgroundColorButton);
 
+        dayColorsSwitch = new Switch(this);
+        dayColorsSwitch.setText(R.string.day_colors);
+        dayColorsSwitch.setTextColor(Ui.TEXT);
+        dayColorsSwitch.setTextSize(15);
+        dayColorsSwitch.setPadding(0, Ui.dp(this, 14), 0, Ui.dp(this, 4));
+        dayColorsSwitch.setOnCheckedChangeListener((button, checked) -> {
+            if (!updatingSwitch) {
+                prefs.putBoolean(Prefs.KEY_DAY_COLORS_ENABLED, checked);
+            }
+        });
+        background.addView(dayColorsSwitch);
+        widgetOnlyViews.add(dayColorsSwitch);
+
+        dayBackgroundColorButton = Ui.button(this, R.string.change_background_color);
+        Ui.topMargin(dayBackgroundColorButton, 8);
+        dayBackgroundColorButton.setOnClickListener(view -> ColorPickerDialog.show(
+                this,
+                getString(R.string.background_color_day),
+                prefs.getInt(Prefs.KEY_DAY_BACKGROUND_COLOR,
+                        PanelConfig.DAY_BACKGROUND_COLOR_DEFAULT),
+                color -> prefs.putInt(Prefs.KEY_DAY_BACKGROUND_COLOR, color)
+        ));
+        background.addView(dayBackgroundColorButton);
+
         LinearLayout stroke = collapsible(background, R.string.stroke_title,
                 R.string.stroke_summary, 16, 14);
         backgroundStrokeSwitch = new Switch(this);
@@ -1393,6 +1420,17 @@ public final class MainActivity extends ScaledActivity
                 color -> prefs.putInt(Prefs.KEY_BACKGROUND_STROKE_COLOR, color)
         ));
         stroke.addView(backgroundStrokeColorButton);
+
+        dayBackgroundStrokeColorButton = Ui.button(this, R.string.change_stroke_color);
+        Ui.topMargin(dayBackgroundStrokeColorButton, 8);
+        dayBackgroundStrokeColorButton.setOnClickListener(view -> ColorPickerDialog.show(
+                this,
+                getString(R.string.stroke_color_day),
+                prefs.getInt(Prefs.KEY_DAY_BACKGROUND_STROKE_COLOR,
+                        PanelConfig.BACKGROUND_STROKE_COLOR_DEFAULT),
+                color -> prefs.putInt(Prefs.KEY_DAY_BACKGROUND_STROKE_COLOR, color)
+        ));
+        stroke.addView(dayBackgroundStrokeColorButton);
         addSlider(stroke, getString(R.string.stroke_width), 1, 20,
                 prefs.getInt(Prefs.KEY_BACKGROUND_STROKE_WIDTH_DP, 2),
                 value -> getString(R.string.dp_value, value),
@@ -1649,6 +1687,8 @@ public final class MainActivity extends ScaledActivity
         ));
         backgroundStrokeSwitch.setChecked(
                 prefs.getBoolean(Prefs.KEY_BACKGROUND_STROKE_ENABLED, false));
+        boolean dayColors = prefs.getBoolean(Prefs.KEY_DAY_COLORS_ENABLED, false);
+        dayColorsSwitch.setChecked(dayColors);
         updatingSwitch = false;
         setSettingsGroupEnabled(systemStatusOptions, showSystemStatus);
         setSettingsGroupEnabled(systemStatusFineTune, showSystemStatus);
@@ -1664,16 +1704,33 @@ public final class MainActivity extends ScaledActivity
                                 : R.string.selected_summary,
                         selected.size(), capacity));
 
+        // The overlay has one color set; only the widget switches to the day colors.
+        boolean separateDay = widgetMode && dayColors;
         updateColorButton(
                 backgroundColorButton,
-                getString(R.string.background_color),
+                getString(separateDay
+                        ? R.string.background_color_night : R.string.background_color),
                 prefs.getInt(Prefs.KEY_BACKGROUND_COLOR, 0xFF262626)
         );
         updateColorButton(
                 backgroundStrokeColorButton,
-                getString(R.string.stroke_color),
+                getString(separateDay ? R.string.stroke_color_night : R.string.stroke_color),
                 prefs.getInt(Prefs.KEY_BACKGROUND_STROKE_COLOR, Ui.ACCENT)
         );
+        updateColorButton(
+                dayBackgroundColorButton,
+                getString(R.string.background_color_day),
+                prefs.getInt(Prefs.KEY_DAY_BACKGROUND_COLOR,
+                        PanelConfig.DAY_BACKGROUND_COLOR_DEFAULT)
+        );
+        updateColorButton(
+                dayBackgroundStrokeColorButton,
+                getString(R.string.stroke_color_day),
+                prefs.getInt(Prefs.KEY_DAY_BACKGROUND_STROKE_COLOR,
+                        PanelConfig.BACKGROUND_STROKE_COLOR_DEFAULT)
+        );
+        dayBackgroundColorButton.setVisibility(separateDay ? View.VISIBLE : View.GONE);
+        dayBackgroundStrokeColorButton.setVisibility(separateDay ? View.VISIBLE : View.GONE);
     }
 
     /** As GInputBridge shares .gibb: a dated file in the cache, sent through the share sheet. */

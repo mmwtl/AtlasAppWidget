@@ -11,4 +11,7 @@
     <color name="widget_label_outline">#FFFFFF</color>
     <!-- Darkens the CPU, RAM and fuel fills by 30% by day to keep them 3:1 to the panel. -->
     <color name="widget_status_fill_shade">#4D000000</color>
+    <!-- Gates for the panels in the separate day and night colors. -->
+    <color name="widget_day_only">#FFFFFFFF</color>
+    <color name="widget_night_only">#00000000</color>
 </resources>

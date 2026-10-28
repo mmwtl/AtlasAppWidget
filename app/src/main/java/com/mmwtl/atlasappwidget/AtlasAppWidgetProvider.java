@@ -246,7 +246,7 @@ public final class AtlasAppWidgetProvider extends AppWidgetProvider {
     private static void applyStatus(Context context, PanelConfig config, RemoteViews views,
             WidgetGrid grid, SystemStatusSnapshot snapshot,
             FuelLevelProvider.Reading fuelReading) {
-        boolean themed = config.backgroundFollowsTheme();
+        boolean themed = config.textFollowsTheme();
         int position = config.systemStatusPosition;
         Bitmap image = statusBitmap(context, config, grid);
         CharSequence description = drawStatus(context, config, grid, snapshot, fuelReading,
@@ -317,20 +317,34 @@ public final class AtlasAppWidgetProvider extends AppWidgetProvider {
         int heightDp = heightDp(context, options);
         WidgetGrid grid = grid(context, config, options);
         RemoteViews panel = new RemoteViews(context.getPackageName(), R.layout.widget_panel);
-        boolean themed = config.backgroundFollowsTheme();
-        int fill = (config.backgroundColor & 0x00FFFFFF)
-                | (Math.max(0, Math.min(255, config.backgroundAlpha)) << 24);
+        boolean dayColors = config.dayColorsEnabled;
+        boolean themed = !dayColors && config.backgroundFollowsTheme();
+        boolean themedText = config.textFollowsTheme();
+        int fill = withBackgroundAlpha(config, config.backgroundColor);
+        if (dayColors) {
+            // Both panels are drawn whole; the host shows the one for the current theme.
+            int night = config.backgroundFollowsTheme()
+                    ? withBackgroundAlpha(config, nightSurface(context)) : fill;
+            panel.setImageViewBitmap(R.id.widget_background_day, background(context, config,
+                    widthDp, heightDp, withBackgroundAlpha(config, config.dayBackgroundColor),
+                    config.dayBackgroundStrokeColor));
+            panel.setImageViewBitmap(R.id.widget_background_night, background(context, config,
+                    widthDp, heightDp, night, config.backgroundStrokeColor));
+        }
         if (themed) {
             // The host tints this white shape with the day or night surface color.
             panel.setImageViewBitmap(R.id.widget_background_themed, background(context, config,
-                    widthDp, heightDp, fill | 0x00FFFFFF, false));
+                    widthDp, heightDp, fill | 0x00FFFFFF, Color.TRANSPARENT));
         }
-        boolean fixedBackground = !themed || config.backgroundStrokeEnabled;
+        boolean fixedBackground = !dayColors && (!themed || config.backgroundStrokeEnabled);
         if (fixedBackground) {
             panel.setImageViewBitmap(R.id.widget_background, background(context, config,
                     widthDp, heightDp, themed ? Color.TRANSPARENT : fill,
-                    config.backgroundStrokeEnabled));
+                    config.backgroundStrokeColor));
         }
+        panel.setViewVisibility(R.id.widget_background_day, dayColors ? View.VISIBLE : View.GONE);
+        panel.setViewVisibility(R.id.widget_background_night,
+                dayColors ? View.VISIBLE : View.GONE);
         panel.setViewVisibility(R.id.widget_background_themed, themed ? View.VISIBLE : View.GONE);
         panel.setViewVisibility(R.id.widget_background,
                 fixedBackground ? View.VISIBLE : View.GONE);
@@ -372,7 +386,7 @@ public final class AtlasAppWidgetProvider extends AppWidgetProvider {
                     AppEntry entry = entries.get(index);
                     cell.setImageViewBitmap(R.id.widget_cell_icon, cellBitmap(context, prefs,
                             config, entry, grid, rowIndex, column, fuelReading));
-                    if (themed && config.showAppLabels && grid.labelScale > 0) {
+                    if (themedText && config.showAppLabels && grid.labelScale > 0) {
                         cell.setImageViewBitmap(R.id.widget_cell_label, labelBitmap(context,
                                 config, entry.label, grid, rowIndex, column, false));
                         if (config.appLabelOutlineEnabled) {
@@ -420,7 +434,7 @@ public final class AtlasAppWidgetProvider extends AppWidgetProvider {
         canvas.drawBitmap(icon(context, prefs, config, entry, layout.iconSize, fuelReading),
                 left + (layout.cellWidth - layout.iconSize) / 2f, top, null);
         // Themed labels go to their own tinted layers, see labelBitmap.
-        if (config.showAppLabels && grid.labelScale > 0 && !config.backgroundFollowsTheme()) {
+        if (config.showAppLabels && grid.labelScale > 0 && !config.textFollowsTheme()) {
             drawLabel(context, config, entry.label, grid, left, top, Color.rgb(245, 245, 245),
                     config.appLabelOutlineEnabled ? Color.BLACK : Color.TRANSPARENT, canvas);
         }
@@ -474,8 +488,22 @@ public final class AtlasAppWidgetProvider extends AppWidgetProvider {
                 baseline, paint);
     }
 
+    private static int withBackgroundAlpha(PanelConfig config, int color) {
+        return (color & 0x00FFFFFF) | (Math.max(0, Math.min(255, config.backgroundAlpha)) << 24);
+    }
+
+    /** The launcher night surface, resolved here for a panel drawn into a fixed bitmap. */
+    private static int nightSurface(Context context) {
+        Configuration night = new Configuration(context.getResources().getConfiguration());
+        night.uiMode = (night.uiMode & ~Configuration.UI_MODE_NIGHT_MASK)
+                | Configuration.UI_MODE_NIGHT_YES;
+        return context.createConfigurationContext(night).getColor(R.color.widget_surface);
+    }
+
+    /** Draws the panel shape, with the stroke in {@code strokeColor} when the stroke is on. */
     private static Bitmap background(Context context, PanelConfig config,
-            int widthDp, int heightDp, int fill, boolean stroke) {
+            int widthDp, int heightDp, int fill, int strokeColor) {
+        boolean stroke = config.backgroundStrokeEnabled && strokeColor != Color.TRANSPARENT;
         int requestedWidth = Math.max(1, dp(context, widthDp));
         int requestedHeight = Math.max(1, dp(context, heightDp));
         float scale = Math.min(1f, 512f / Math.max(requestedWidth, requestedHeight));
@@ -494,7 +522,7 @@ public final class AtlasAppWidgetProvider extends AppWidgetProvider {
             float strokeWidth = Math.max(1f, dp(context, config.backgroundStrokeWidthDp) * scale);
             paint.setStyle(Paint.Style.STROKE);
             paint.setStrokeWidth(strokeWidth);
-            paint.setColor((config.backgroundStrokeColor & 0x00FFFFFF)
+            paint.setColor((strokeColor & 0x00FFFFFF)
                     | (Math.max(0, Math.min(255, config.backgroundStrokeAlpha)) << 24));
             rect.inset(strokeWidth / 2f, strokeWidth / 2f);
             canvas.drawRoundRect(rect, Math.max(0, radius - strokeWidth / 2f),

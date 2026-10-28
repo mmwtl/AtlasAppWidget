@@ -163,9 +163,14 @@
     <string name="background_opacity">Непрозрачность фона</string>
     <string name="change_background_color">Изменить цвет фона</string>
     <string name="background_color">Цвет фона</string>
+    <string name="background_color_day">Цвет фона днём</string>
+    <string name="background_color_night">Цвет фона ночью</string>
+    <string name="day_colors">Отдельные цвета для светлого режима</string>
     <string name="show_background_stroke">Показывать обводку фона</string>
     <string name="change_stroke_color">Изменить цвет обводки</string>
     <string name="stroke_color">Цвет обводки</string>
+    <string name="stroke_color_day">Цвет обводки днём</string>
+    <string name="stroke_color_night">Цвет обводки ночью</string>
     <string name="stroke_width">Толщина обводки</string>
     <string name="stroke_opacity">Прозрачность обводки</string>
     <string name="head_unit_note_title">Важно для автомобильной ГУ</string>

@@ -26,7 +26,7 @@ final class SettingsBackup {
     static final String FILE_NAME = "AtlasAppWidget-settings.json";
     static final String MIME = "application/json";
     private static final String FORMAT = "atlas-app-widget-settings";
-    private static final int SCHEMA_VERSION = 12;
+    private static final int SCHEMA_VERSION = 13;
     private static final int MAX_FILE_BYTES = 256 * 1024;
     private static final int MAX_BACKUP_ICON_BYTES = 128 * 1024;
     private static final int MAX_SELECTED_COMPONENTS = 200;
@@ -290,11 +290,15 @@ final class SettingsBackup {
         final int backgroundStrokeColor;
         final int panelRadiusDp;
         final int contentAlpha;
+        final boolean dayColorsEnabled;
+        final int dayBackgroundColor;
+        final int dayBackgroundStrokeColor;
 
         AppearanceData(int backgroundColor, int backgroundAlpha,
                 boolean backgroundStrokeEnabled, int backgroundStrokeWidthDp,
                 int backgroundStrokeAlpha, int backgroundStrokeColor, int panelRadiusDp,
-                int contentAlpha) {
+                int contentAlpha, boolean dayColorsEnabled, int dayBackgroundColor,
+                int dayBackgroundStrokeColor) {
             this.backgroundColor = backgroundColor;
             this.backgroundAlpha = backgroundAlpha;
             this.backgroundStrokeEnabled = backgroundStrokeEnabled;
@@ -303,6 +307,9 @@ final class SettingsBackup {
             this.backgroundStrokeColor = backgroundStrokeColor;
             this.panelRadiusDp = panelRadiusDp;
             this.contentAlpha = contentAlpha;
+            this.dayColorsEnabled = dayColorsEnabled;
+            this.dayBackgroundColor = dayBackgroundColor;
+            this.dayBackgroundStrokeColor = dayBackgroundStrokeColor;
         }
 
         private AppearanceData validated() throws IOException {
@@ -431,7 +438,12 @@ final class SettingsBackup {
                         clamp(prefs.getInt(Prefs.KEY_PANEL_RADIUS_DP,
                                 PanelConfig.PANEL_RADIUS_DEFAULT_DP),
                                 0, PanelConfig.PANEL_RADIUS_FULLY_ROUNDED),
-                        clamp(prefs.getInt(Prefs.KEY_CONTENT_ALPHA, 255), 0, 255)));
+                        clamp(prefs.getInt(Prefs.KEY_CONTENT_ALPHA, 255), 0, 255),
+                        prefs.getBoolean(Prefs.KEY_DAY_COLORS_ENABLED, false),
+                        prefs.getInt(Prefs.KEY_DAY_BACKGROUND_COLOR,
+                                PanelConfig.DAY_BACKGROUND_COLOR_DEFAULT),
+                        prefs.getInt(Prefs.KEY_DAY_BACKGROUND_STROKE_COLOR,
+                                PanelConfig.BACKGROUND_STROKE_COLOR_DEFAULT)));
     }
 
     private static Map<String, byte[]> captureCustomIcons(Context context, Prefs prefs)
@@ -561,7 +573,11 @@ final class SettingsBackup {
                             .put("backgroundStrokeColor",
                                     data.appearance.backgroundStrokeColor)
                             .put("panelRadiusDp", data.appearance.panelRadiusDp)
-                            .put("contentAlpha", data.appearance.contentAlpha));
+                            .put("contentAlpha", data.appearance.contentAlpha)
+                            .put("dayColorsEnabled", data.appearance.dayColorsEnabled)
+                            .put("dayBackgroundColor", data.appearance.dayBackgroundColor)
+                            .put("dayBackgroundStrokeColor",
+                                    data.appearance.dayBackgroundStrokeColor));
             if (data.positionX == null) {
                 settings.put("overlayPosition", JSONObject.NULL);
             } else {
@@ -753,7 +769,15 @@ final class SettingsBackup {
                             requireInt(appearance, "panelRadiusDp",
                                     "settings.appearance.panelRadiusDp"),
                             version >= 12 ? requireInt(appearance, "contentAlpha",
-                                    "settings.appearance.contentAlpha") : 255));
+                                    "settings.appearance.contentAlpha") : 255,
+                            version >= 13 && requireBoolean(appearance, "dayColorsEnabled",
+                                    "settings.appearance.dayColorsEnabled"),
+                            version >= 13 ? requireInt(appearance, "dayBackgroundColor",
+                                    "settings.appearance.dayBackgroundColor")
+                                    : PanelConfig.DAY_BACKGROUND_COLOR_DEFAULT,
+                            version >= 13 ? requireInt(appearance, "dayBackgroundStrokeColor",
+                                    "settings.appearance.dayBackgroundStrokeColor")
+                                    : PanelConfig.BACKGROUND_STROKE_COLOR_DEFAULT));
         } catch (JSONException error) {
             throw invalid("Повреждённый JSON настроек", error);
         }

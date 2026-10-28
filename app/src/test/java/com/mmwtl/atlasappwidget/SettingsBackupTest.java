@@ -45,6 +45,9 @@ public final class SettingsBackupTest {
         assertEquals(960, restored.geometry.widthPixels);
         assertEquals(0xFF123456, restored.appearance.backgroundColor);
         assertEquals(160, restored.appearance.contentAlpha);
+        assertTrue(restored.appearance.dayColorsEnabled);
+        assertEquals(0xFFF0E6D2, restored.appearance.dayBackgroundColor);
+        assertEquals(0xFF336699, restored.appearance.dayBackgroundStrokeColor);
         JSONObject root = new JSONObject(json);
         assertEquals("atlas-app-widget-settings", root.getString("format"));
         assertEquals("1.2.3", root.getString("appVersion"));
@@ -239,9 +242,24 @@ public final class SettingsBackupTest {
         assertEquals(255, SettingsBackup.decode(root.toString()).appearance.contentAlpha);
     }
 
+    @Test public void schema12WithoutDayColorsKeepsOneColorSet() throws Exception {
+        JSONObject root = new JSONObject(SettingsBackup.encode(data(15, null, null), "test"));
+        root.put("schemaVersion", 12);
+        JSONObject appearance = root.getJSONObject("settings").getJSONObject("appearance");
+        appearance.remove("dayColorsEnabled");
+        appearance.remove("dayBackgroundColor");
+        appearance.remove("dayBackgroundStrokeColor");
+
+        SettingsBackup.AppearanceData restored = SettingsBackup.decode(root.toString()).appearance;
+        assertFalse(restored.dayColorsEnabled);
+        assertEquals(PanelConfig.DAY_BACKGROUND_COLOR_DEFAULT, restored.dayBackgroundColor);
+        assertEquals(PanelConfig.BACKGROUND_STROKE_COLOR_DEFAULT,
+                restored.dayBackgroundStrokeColor);
+    }
+
     @Test public void rejectsUnsupportedSchemaVersion() throws Exception {
         JSONObject root = new JSONObject(SettingsBackup.encode(data(15, null, null), "test"));
-        root.put("schemaVersion", 13);
+        root.put("schemaVersion", 14);
 
         IOException error = assertThrows(IOException.class,
                 () -> SettingsBackup.decode(root.toString()));
@@ -614,6 +632,9 @@ public final class SettingsBackupTest {
                         180,
                         0xFF7893A0,
                         12,
-                        160));
+                        160,
+                        true,
+                        0xFFF0E6D2,
+                        0xFF336699));
     }
 }
