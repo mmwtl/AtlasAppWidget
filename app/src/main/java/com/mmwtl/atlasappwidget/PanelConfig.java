@@ -78,6 +78,8 @@ final class PanelConfig {
     final int backgroundStrokeAlpha;
     final int backgroundStrokeColor;
     final int panelRadiusDp;
+    /** Opacity of icons, labels and the status strip, 0..255. */
+    final int contentAlpha;
 
     PanelConfig(Prefs prefs) {
         showDragHandle = prefs.getBoolean(Prefs.KEY_SHOW_DRAG_HANDLE, true);
@@ -145,6 +147,7 @@ final class PanelConfig {
         backgroundStrokeAlpha = prefs.getInt(Prefs.KEY_BACKGROUND_STROKE_ALPHA, 200);
         backgroundStrokeColor = prefs.getInt(Prefs.KEY_BACKGROUND_STROKE_COLOR, 0xFF7893A0);
         panelRadiusDp = prefs.getInt(Prefs.KEY_PANEL_RADIUS_DP, PANEL_RADIUS_DEFAULT_DP);
+        contentAlpha = Math.max(0, Math.min(255, prefs.getInt(Prefs.KEY_CONTENT_ALPHA, 255)));
     }
 
     /**

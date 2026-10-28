@@ -155,6 +155,7 @@
     <string name="rows">Ряды</string>
     <string name="icon_size">Размер иконок</string>
     <string name="icon_shape">Форма иконок</string>
+    <string name="content_opacity">Непрозрачность иконок и данных</string>
     <string name="padding">Внутренний отступ</string>
     <string name="icon_gap">Интервал между иконками</string>
     <string name="background_title">Фон</string>

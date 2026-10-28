@@ -44,6 +44,7 @@ public final class SettingsBackupTest {
         assertEquals(6, restored.geometry.columns);
         assertEquals(960, restored.geometry.widthPixels);
         assertEquals(0xFF123456, restored.appearance.backgroundColor);
+        assertEquals(160, restored.appearance.contentAlpha);
         JSONObject root = new JSONObject(json);
         assertEquals("atlas-app-widget-settings", root.getString("format"));
         assertEquals("1.2.3", root.getString("appVersion"));
@@ -230,9 +231,17 @@ public final class SettingsBackupTest {
         assertEquals(Integer.valueOf(654), restored.positionY);
     }
 
+    @Test public void schema11WithoutContentAlphaKeepsContentOpaque() throws Exception {
+        JSONObject root = new JSONObject(SettingsBackup.encode(data(15, null, null), "test"));
+        root.put("schemaVersion", 11);
+        root.getJSONObject("settings").getJSONObject("appearance").remove("contentAlpha");
+
+        assertEquals(255, SettingsBackup.decode(root.toString()).appearance.contentAlpha);
+    }
+
     @Test public void rejectsUnsupportedSchemaVersion() throws Exception {
         JSONObject root = new JSONObject(SettingsBackup.encode(data(15, null, null), "test"));
-        root.put("schemaVersion", 12);
+        root.put("schemaVersion", 13);
 
         IOException error = assertThrows(IOException.class,
                 () -> SettingsBackup.decode(root.toString()));
@@ -604,6 +613,7 @@ public final class SettingsBackupTest {
                         3,
                         180,
                         0xFF7893A0,
-                        12));
+                        12,
+                        160));
     }
 }

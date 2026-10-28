@@ -78,6 +78,7 @@ final class Prefs {
     static final String KEY_BACKGROUND_STROKE_ALPHA = "background_stroke_alpha";
     static final String KEY_BACKGROUND_STROKE_COLOR = "background_stroke_color";
     static final String KEY_PANEL_RADIUS_DP = "panel_radius_dp";
+    static final String KEY_CONTENT_ALPHA = "content_alpha";
     static final String KEY_POSITION_X = "position_x";
     static final String KEY_POSITION_Y = "position_y";
     static final String KEY_POSITION_CORNER = "position_corner";
@@ -590,6 +591,7 @@ final class Prefs {
                 .putInt(KEY_BACKGROUND_STROKE_COLOR,
                         data.appearance.backgroundStrokeColor)
                 .putInt(KEY_PANEL_RADIUS_DP, data.appearance.panelRadiusDp)
+                .putInt(KEY_CONTENT_ALPHA, data.appearance.contentAlpha)
                 .putString(KEY_SELECTED_COMPONENTS, selectedJson(data.selectedComponents))
                 .putString(KEY_SHORTCUT_CATALOG, shortcutJson(data.shortcuts))
                 .putString(KEY_CLIMATE_TRANSITION_COMPONENTS,

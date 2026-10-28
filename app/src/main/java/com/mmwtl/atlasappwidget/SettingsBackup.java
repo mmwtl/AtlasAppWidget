@@ -26,7 +26,7 @@ final class SettingsBackup {
     static final String FILE_NAME = "AtlasAppWidget-settings.json";
     static final String MIME = "application/json";
     private static final String FORMAT = "atlas-app-widget-settings";
-    private static final int SCHEMA_VERSION = 11;
+    private static final int SCHEMA_VERSION = 12;
     private static final int MAX_FILE_BYTES = 256 * 1024;
     private static final int MAX_BACKUP_ICON_BYTES = 128 * 1024;
     private static final int MAX_SELECTED_COMPONENTS = 200;
@@ -289,10 +289,12 @@ final class SettingsBackup {
         final int backgroundStrokeAlpha;
         final int backgroundStrokeColor;
         final int panelRadiusDp;
+        final int contentAlpha;
 
         AppearanceData(int backgroundColor, int backgroundAlpha,
                 boolean backgroundStrokeEnabled, int backgroundStrokeWidthDp,
-                int backgroundStrokeAlpha, int backgroundStrokeColor, int panelRadiusDp) {
+                int backgroundStrokeAlpha, int backgroundStrokeColor, int panelRadiusDp,
+                int contentAlpha) {
             this.backgroundColor = backgroundColor;
             this.backgroundAlpha = backgroundAlpha;
             this.backgroundStrokeEnabled = backgroundStrokeEnabled;
@@ -300,6 +302,7 @@ final class SettingsBackup {
             this.backgroundStrokeAlpha = backgroundStrokeAlpha;
             this.backgroundStrokeColor = backgroundStrokeColor;
             this.panelRadiusDp = panelRadiusDp;
+            this.contentAlpha = contentAlpha;
         }
 
         private AppearanceData validated() throws IOException {
@@ -310,6 +313,7 @@ final class SettingsBackup {
                     backgroundStrokeAlpha, 0, 255);
             requireRange("settings.appearance.panelRadiusDp", panelRadiusDp,
                     0, PanelConfig.PANEL_RADIUS_FULLY_ROUNDED);
+            requireRange("settings.appearance.contentAlpha", contentAlpha, 0, 255);
             return this;
         }
     }
@@ -426,7 +430,8 @@ final class SettingsBackup {
                         prefs.getInt(Prefs.KEY_BACKGROUND_STROKE_COLOR, Ui.ACCENT),
                         clamp(prefs.getInt(Prefs.KEY_PANEL_RADIUS_DP,
                                 PanelConfig.PANEL_RADIUS_DEFAULT_DP),
-                                0, PanelConfig.PANEL_RADIUS_FULLY_ROUNDED)));
+                                0, PanelConfig.PANEL_RADIUS_FULLY_ROUNDED),
+                        clamp(prefs.getInt(Prefs.KEY_CONTENT_ALPHA, 255), 0, 255)));
     }
 
     private static Map<String, byte[]> captureCustomIcons(Context context, Prefs prefs)
@@ -555,7 +560,8 @@ final class SettingsBackup {
                                     data.appearance.backgroundStrokeAlpha)
                             .put("backgroundStrokeColor",
                                     data.appearance.backgroundStrokeColor)
-                            .put("panelRadiusDp", data.appearance.panelRadiusDp));
+                            .put("panelRadiusDp", data.appearance.panelRadiusDp)
+                            .put("contentAlpha", data.appearance.contentAlpha));
             if (data.positionX == null) {
                 settings.put("overlayPosition", JSONObject.NULL);
             } else {
@@ -745,7 +751,9 @@ final class SettingsBackup {
                             requireInt(appearance, "backgroundStrokeColor",
                                     "settings.appearance.backgroundStrokeColor"),
                             requireInt(appearance, "panelRadiusDp",
-                                    "settings.appearance.panelRadiusDp")));
+                                    "settings.appearance.panelRadiusDp"),
+                            version >= 12 ? requireInt(appearance, "contentAlpha",
+                                    "settings.appearance.contentAlpha") : 255));
         } catch (JSONException error) {
             throw invalid("Повреждённый JSON настроек", error);
         }

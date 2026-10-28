@@ -1152,6 +1152,11 @@ public final class MainActivity extends ScaledActivity
                         ? getString(R.string.shape_circle)
                         : getString(R.string.percent_value, value),
                 value -> prefs.putInt(Prefs.KEY_ICON_CORNER_PERCENT, value));
+        addSlider(grid, getString(R.string.content_opacity), 25, 255,
+                prefs.getInt(Prefs.KEY_CONTENT_ALPHA, 255),
+                value -> getString(R.string.percent_value,
+                        Math.round(value * 100f / 255f)),
+                value -> prefs.putInt(Prefs.KEY_CONTENT_ALPHA, value));
         LinearLayout spacing = collapsible(grid, R.string.spacing_title,
                 R.string.spacing_summary, 16, 14);
         addSlider(spacing, getString(R.string.padding), 4, 40,

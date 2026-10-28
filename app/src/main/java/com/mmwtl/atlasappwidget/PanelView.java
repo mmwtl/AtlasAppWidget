@@ -302,7 +302,10 @@ final class PanelView extends LinearLayout {
                 && config.systemStatusPosition == PanelConfig.STATUS_RIGHT) {
             addSideSystemStatusView(systemStatusView, systemStatusSideWidth, true);
         }
+        float contentAlpha = config.contentAlpha / 255f;
+        grid.setAlpha(contentAlpha);
         if (systemStatusView != null) {
+            systemStatusView.setAlpha(contentAlpha);
             systemStatusView.update(preview
                     ? SystemStatusSnapshot.preview()
                     : SystemStatusSnapshot.unavailable());

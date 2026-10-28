@@ -261,6 +261,10 @@ public final class AtlasAppWidgetProvider extends AppWidgetProvider {
                     SystemStatusView.FILL_MASK, shade);
             views.setImageViewBitmap(STATUS_SHADE_IDS[position], shade);
         }
+        for (int layerId : new int[] {STATUS_IMAGE_IDS[position], STATUS_THEMED_IDS[position],
+                STATUS_SHADE_IDS[position]}) {
+            views.setInt(layerId, "setImageAlpha", config.contentAlpha);
+        }
         views.setViewVisibility(STATUS_THEMED_IDS[position], themed ? View.VISIBLE : View.GONE);
         views.setViewVisibility(STATUS_SHADE_IDS[position], themed ? View.VISIBLE : View.GONE);
         int viewId = STATUS_VIEW_IDS[position];
@@ -353,6 +357,10 @@ public final class AtlasAppWidgetProvider extends AppWidgetProvider {
             for (int column = 0; column < grid.columns; column++) {
                 int index = rowIndex * grid.columns + column;
                 RemoteViews cell = new RemoteViews(context.getPackageName(), R.layout.widget_cell);
+                // Host views cannot fade a whole cell, so each image layer carries the alpha.
+                cell.setInt(R.id.widget_cell_icon, "setImageAlpha", config.contentAlpha);
+                cell.setInt(R.id.widget_cell_label, "setImageAlpha", config.contentAlpha);
+                cell.setInt(R.id.widget_cell_outline, "setImageAlpha", config.contentAlpha);
                 if (index >= shown) {
                     int shape = (column == 0 ? 0 : 1) + (rowIndex == 0 ? 0 : 2);
                     if (blankCells[shape] == null) {
