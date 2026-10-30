@@ -47,7 +47,14 @@
     <string name="widget_setup_increase">Увеличить: %1$s</string>
     <string name="widget_setup_switch_mode">Переключить в режим Android-виджета</string>
     <string name="widget_setup_switch_mode_hint">Сейчас выбран оверлей. Без переключения виджет покажет «Включите режим Android-виджета…».</string>
-    <string name="widget_setup_note">Настройки общие для всех виджетов и оверлея; остальное — в приложении.</string>
+    <string name="widget_setup_note">Настройки только этого виджета; остальное — в приложении.</string>
+    <string name="edited_widget_title">Какой виджет настраивать</string>
+    <string name="edited_widget_item">Виджет %1$d · %2$d × %3$d dp</string>
+    <string name="edited_widget_template">Шаблон для новых виджетов</string>
+    <string name="edited_widget_hint">Ярлыки и оформление на остальных вкладках меняют только выбранный виджет. Новый виджет начинает с шаблона, им же показывается оверлей. Значок, название и анимация ярлыка общие для всех.</string>
+    <string name="apply_to_all_widgets">Применить ко всем виджетам</string>
+    <string name="applied_to_all_widgets">Настройки применены ко всем виджетам</string>
+    <string name="widget_preview_template">Шаблон · %1$d × %2$d dp</string>
     <string name="widget_setup_add">Добавить</string>
     <string name="widget_setup_add_and_open">Добавить и открыть все настройки</string>
     <string name="widget_setup_open_all">Открыть все настройки</string>
@@ -132,7 +139,6 @@
     <string name="freeform_hide_threshold_hint">Панель скрывается, если одно окно достигает порога одновременно по ширине и высоте или если все видимые freeform-окна вместе покрывают этот процент экрана. Пересечения считаются один раз. GSplit и системные исключения скрывают панель при любом размере.</string>
     <string name="widget_geometry_hint">Размер и место виджета задаёт HOME. При нехватке места иконки уменьшаются, число ячеек сохраняется.</string>
     <string name="widget_preview_size">Виджет %1$d × %2$d dp</string>
-    <string name="widget_preview_example">Пример %1$d × %2$d dp</string>
     <string name="widget_fuel_channel">Живые данные Android-виджета</string>
     <string name="widget_fuel_notification_title">Живые данные виджета</string>
     <string name="widget_fuel_notification_text">Обновление топлива и CPU / RAM на рабочем столе</string>

@@ -12,7 +12,10 @@ public final class WidgetLaunchActivity extends Activity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        Prefs prefs = new Prefs(this);
+        int widgetId = getIntent().getIntExtra(
+                android.appwidget.AppWidgetManager.EXTRA_APPWIDGET_ID,
+                android.appwidget.AppWidgetManager.INVALID_APPWIDGET_ID);
+        Prefs prefs = new Prefs(this).forWidget(widgetId);
         String key = getIntent().getStringExtra(EXTRA_ENTRY_KEY);
         if (!prefs.isWidgetMode() || key == null) {
             finish();
@@ -31,6 +34,7 @@ public final class WidgetLaunchActivity extends Activity {
         }
         if (selected.isFuel()) {
             startActivity(new Intent(this, WidgetFuelActivity.class)
+                    .putExtra(android.appwidget.AppWidgetManager.EXTRA_APPWIDGET_ID, widgetId)
                     .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
             finish();
             return;

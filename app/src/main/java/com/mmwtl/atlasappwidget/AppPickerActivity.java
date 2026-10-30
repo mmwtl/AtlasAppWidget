@@ -76,7 +76,9 @@ public final class AppPickerActivity extends ScaledActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        prefs = new Prefs(this);
+        prefs = new Prefs(this).forWidget(getIntent().getIntExtra(
+                android.appwidget.AppWidgetManager.EXTRA_APPWIDGET_ID,
+                android.appwidget.AppWidgetManager.INVALID_APPWIDGET_ID));
         if (savedInstanceState != null) {
             pendingIconComponent = savedInstanceState.getString(STATE_PENDING_ICON_COMPONENT);
         }

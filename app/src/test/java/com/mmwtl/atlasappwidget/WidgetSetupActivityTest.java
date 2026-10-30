@@ -61,9 +61,11 @@ public final class WidgetSetupActivityTest {
         described(root, "Увеличить: Столбцы").performClick();
         described(root, "Увеличить: Ряды").performClick();
         MainActivityTest.find(root, "Подписи под иконками").performClick();
-        assertEquals("written immediately for the preview", 6, prefs.getInt(Prefs.KEY_COLUMNS, 0));
-        assertEquals(2, prefs.getInt(Prefs.KEY_ROWS, 0));
-        assertTrue(prefs.getBoolean(Prefs.KEY_SHOW_APP_LABELS, false));
+        Prefs widget = prefs.forWidget(61);
+        assertEquals("written immediately for the preview", 6, widget.getInt(Prefs.KEY_COLUMNS, 0));
+        assertEquals(2, widget.getInt(Prefs.KEY_ROWS, 0));
+        assertTrue(widget.getBoolean(Prefs.KEY_SHOW_APP_LABELS, false));
+        assertEquals("the template keeps its value", 5, prefs.getInt(Prefs.KEY_COLUMNS, 0));
 
         MainActivityTest.find(root, "✕").performClick();
         assertTrue(activity.isFinishing());
@@ -71,7 +73,8 @@ public final class WidgetSetupActivityTest {
         assertEquals(Activity.RESULT_CANCELED, Shadows.shadowOf(activity).getResultCode());
         assertEquals(61, Shadows.shadowOf(activity).getResultIntent()
                 .getIntExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, 0));
-        assertEquals(5, prefs.getInt(Prefs.KEY_COLUMNS, 0));
+        assertFalse("a new widget leaves no profile", widget.hasProfile());
+        assertEquals(5, widget.getInt(Prefs.KEY_COLUMNS, 0));
         assertFalse("unset key stays unset", prefs.raw().contains(Prefs.KEY_ROWS));
         assertFalse(prefs.getBoolean(Prefs.KEY_SHOW_APP_LABELS, true));
         assertFalse(prefs.isWidgetConfigured(61));
@@ -99,7 +102,7 @@ public final class WidgetSetupActivityTest {
             assertEquals(Activity.RESULT_OK, Shadows.shadowOf(activity).getResultCode());
             assertEquals(id, Shadows.shadowOf(activity).getResultIntent()
                     .getIntExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, 0));
-            assertEquals(3, prefs.getInt(Prefs.KEY_COLUMNS, 0));
+            assertEquals(3, prefs.forWidget(id).getInt(Prefs.KEY_COLUMNS, 0));
             assertEquals(switchMode, prefs.isWidgetMode());
             assertEquals("overlay stops only on switch", !switchMode,
                     prefs.getBoolean(Prefs.KEY_SERVICE_ENABLED, false));
@@ -150,6 +153,8 @@ public final class WidgetSetupActivityTest {
         assertNotNull(settings);
         assertEquals(new ComponentName(context, MainActivity.class), settings.getComponent());
         assertTrue((settings.getFlags() & Intent.FLAG_ACTIVITY_NEW_TASK) != 0);
+        assertTrue((settings.getFlags() & Intent.FLAG_ACTIVITY_CLEAR_TOP) != 0);
+        assertEquals(65, settings.getIntExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, 0));
         controller.pause().stop().destroy();
     }
 

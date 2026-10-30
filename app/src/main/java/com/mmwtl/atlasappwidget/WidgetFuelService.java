@@ -90,13 +90,16 @@ public final class WidgetFuelService extends Service {
         if (!prefs.isWidgetMode()) {
             return false;
         }
-        if (!prefs.selectedComponents().contains(AppEntry.FUEL_COMPONENT_KEY)
-                && !prefs.panelConfig().showSystemStatus) {
-            return false;
-        }
         AppWidgetManager manager = AppWidgetManager.getInstance(context);
-        return manager.getAppWidgetIds(
-                new ComponentName(context, AtlasAppWidgetProvider.class)).length > 0;
+        for (int widgetId : manager.getAppWidgetIds(
+                new ComponentName(context, AtlasAppWidgetProvider.class))) {
+            Prefs widget = prefs.forWidget(widgetId);
+            if (widget.selectedComponents().contains(AppEntry.FUEL_COMPONENT_KEY)
+                    || widget.panelConfig().showSystemStatus) {
+                return true;
+            }
+        }
+        return false;
     }
 
     @Override
@@ -164,11 +167,18 @@ public final class WidgetFuelService extends Service {
             return;
         }
         Prefs prefs = new Prefs(this);
-        PanelConfig config = prefs.panelConfig();
-        sampleCpu = config.showSystemStatus && config.showCpuStatus;
-        sampleRam = config.showSystemStatus && config.showRamStatus;
-        if (prefs.selectedComponents().contains(AppEntry.FUEL_COMPONENT_KEY)
-                || config.showSystemStatus && config.showFuelStatus) {
+        boolean needsFuel = false;
+        sampleCpu = false;
+        sampleRam = false;
+        for (int widgetId : AtlasAppWidgetProvider.ids(this)) {
+            Prefs widget = prefs.forWidget(widgetId);
+            PanelConfig config = widget.panelConfig();
+            sampleCpu |= config.showSystemStatus && config.showCpuStatus;
+            sampleRam |= config.showSystemStatus && config.showRamStatus;
+            needsFuel |= widget.selectedComponents().contains(AppEntry.FUEL_COMPONENT_KEY)
+                    || config.showSystemStatus && config.showFuelStatus;
+        }
+        if (needsFuel) {
             fuel.start();
         } else {
             fuel.stop();

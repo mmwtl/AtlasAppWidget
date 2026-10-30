@@ -17,6 +17,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -26,13 +27,18 @@ final class SettingsBackup {
     static final String FILE_NAME = "AtlasAppWidget-settings.json";
     static final String MIME = "application/json";
     private static final String FORMAT = "atlas-app-widget-settings";
-    private static final int SCHEMA_VERSION = 13;
+    private static final int SCHEMA_VERSION = 14;
+    private static final int MAX_WIDGET_PROFILES = 32;
     private static final int MAX_FILE_BYTES = 256 * 1024;
     private static final int MAX_BACKUP_ICON_BYTES = 128 * 1024;
     private static final int MAX_SELECTED_COMPONENTS = 200;
     private static final int MAX_COMPONENT_LENGTH = 2_048;
 
     static final class Data {
+        /** Placed widgets by position; null follows the shared look and shortcuts. */
+        List<Map<String, Object>> widgetProfiles = List.of();
+        /** Climate transitions of shortcuts that only widget profiles show. */
+        List<String> widgetClimateComponents = List.of();
         final boolean autoStart;
         final boolean showOnlyInAppList;
         final int appUiScaleTenths;
@@ -330,7 +336,8 @@ final class SettingsBackup {
         return capture(null, prefs);
     }
 
-    static Data capture(Context context, Prefs prefs) throws IOException {
+    static Data capture(Context context, Prefs editedPrefs) throws IOException {
+        Prefs prefs = editedPrefs.global();
         int x = prefs.getInt(Prefs.KEY_POSITION_X, Prefs.POSITION_UNSET);
         int y = prefs.getInt(Prefs.KEY_POSITION_Y, Prefs.POSITION_UNSET);
         Integer positionX = x == Prefs.POSITION_UNSET || y == Prefs.POSITION_UNSET ? null : x;
@@ -354,7 +361,7 @@ final class SettingsBackup {
                 climateComponents.add(component);
             }
         }
-        return new Data(
+        Data data = new Data(
                 prefs.getBoolean(Prefs.KEY_AUTO_START, false),
                 prefs.getBoolean(Prefs.KEY_SHOW_ONLY_IN_APP_LIST, false),
                 clamp(prefs.getInt(Prefs.KEY_APP_UI_SCALE_TENTHS,
@@ -441,6 +448,11 @@ final class SettingsBackup {
                         prefs.getInt(Prefs.KEY_DAY_BACKGROUND_COLOR, PanelConfig.THEME_COLOR),
                         prefs.getInt(Prefs.KEY_DAY_BACKGROUND_STROKE_COLOR,
                                 PanelConfig.THEME_COLOR)));
+        data.widgetProfiles = prefs.widgetProfiles();
+        List<String> widgetClimate = new ArrayList<>(prefs.climateTransitionComponents());
+        widgetClimate.removeAll(climateComponents);
+        data.widgetClimateComponents = widgetClimate;
+        return data;
     }
 
     private static Map<String, byte[]> captureCustomIcons(Context context, Prefs prefs)
@@ -587,6 +599,12 @@ final class SettingsBackup {
                 }
                 settings.put("overlayPosition", position);
             }
+            JSONArray widgetProfiles = new JSONArray();
+            for (Map<String, Object> profile : data.widgetProfiles) {
+                widgetProfiles.put(profile == null ? JSONObject.NULL : new JSONObject(profile));
+            }
+            settings.put("widgetProfiles", widgetProfiles)
+                    .put("widgetClimateComponents", new JSONArray(data.widgetClimateComponents));
             root.put("settings", settings);
             String encoded = root.toString(2) + '\n';
             if (encoded.getBytes(StandardCharsets.UTF_8).length > MAX_FILE_BYTES) {
@@ -693,7 +711,7 @@ final class SettingsBackup {
                         ? selectedNonFuelComponents(selectedComponents) : List.of();
                 climateDuration = Prefs.CLIMATE_TRANSITION_DURATION_DEFAULT_MS;
             }
-            return new Data(
+            Data data = new Data(
                     requireBoolean(settings, "autoStart", "settings.autoStart"),
                     settings.has("showOnlyInAppList")
                             && requireBoolean(settings, "showOnlyInAppList",
@@ -780,9 +798,55 @@ final class SettingsBackup {
                             version >= 13 ? requireInt(appearance, "dayBackgroundStrokeColor",
                                     "settings.appearance.dayBackgroundStrokeColor")
                                     : backgroundStrokeColor));
+            if (version >= 14) {
+                data.widgetProfiles = decodeWidgetProfiles(settings);
+                data.widgetClimateComponents = decodeWidgetClimate(settings);
+            }
+            return data;
         } catch (JSONException error) {
             throw invalid("Повреждённый JSON настроек", error);
         }
+    }
+
+    /** Keys outside the profile and values of another type are dropped; the getters clamp. */
+    private static List<Map<String, Object>> decodeWidgetProfiles(JSONObject settings)
+            throws JSONException {
+        List<Map<String, Object>> profiles = new ArrayList<>();
+        JSONArray array = settings.optJSONArray("widgetProfiles");
+        for (int index = 0; array != null && index < array.length()
+                && index < MAX_WIDGET_PROFILES; index++) {
+            JSONObject profile = array.optJSONObject(index);
+            if (profile == null) {
+                profiles.add(null);
+                continue;
+            }
+            Map<String, Object> values = new LinkedHashMap<>();
+            for (Iterator<String> keys = profile.keys(); keys.hasNext(); ) {
+                String key = keys.next();
+                Object value = profile.get(key);
+                boolean selectedKey = Prefs.KEY_SELECTED_COMPONENTS.equals(key);
+                if (Prefs.isProfileKey(key) && (selectedKey ? value instanceof String
+                        : value instanceof Integer || value instanceof Boolean)) {
+                    values.put(key, value);
+                }
+            }
+            profiles.add(values);
+        }
+        return profiles;
+    }
+
+    private static List<String> decodeWidgetClimate(JSONObject settings) {
+        List<String> components = new ArrayList<>();
+        JSONArray array = settings.optJSONArray("widgetClimateComponents");
+        for (int index = 0; array != null && index < array.length()
+                && index < MAX_SELECTED_COMPONENTS; index++) {
+            String component = array.optString(index, "");
+            if (!component.isEmpty() && !AppEntry.FUEL_COMPONENT_KEY.equals(component)
+                    && component.length() <= MAX_COMPONENT_LENGTH) {
+                components.add(component);
+            }
+        }
+        return components;
     }
 
     private static int decodeWidthPixels(JSONObject geometry, int version,

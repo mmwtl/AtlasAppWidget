@@ -23,6 +23,7 @@ import android.text.TextPaint;
 import android.text.TextUtils;
 import android.widget.RemoteViews;
 
+import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -56,12 +57,20 @@ public final class AtlasAppWidgetProvider extends AppWidgetProvider {
 
     @Override
     public void onRestored(Context context, int[] oldWidgetIds, int[] newWidgetIds) {
+        Prefs prefs = new Prefs(context);
+        for (int index = 0; index < oldWidgetIds.length && index < newWidgetIds.length; index++) {
+            prefs.moveProfile(oldWidgetIds[index], newWidgetIds[index]);
+        }
         updateAll(context);
     }
 
     @Override
     public void onDeleted(Context context, int[] appWidgetIds) {
-        new Prefs(context).setWidgetsConfigured(appWidgetIds, false);
+        Prefs prefs = new Prefs(context);
+        prefs.setWidgetsConfigured(appWidgetIds, false);
+        for (int widgetId : appWidgetIds) {
+            prefs.forWidget(widgetId).removeProfile();
+        }
         WidgetFuelService.sync(context);
     }
 
@@ -74,6 +83,13 @@ public final class AtlasAppWidgetProvider extends AppWidgetProvider {
         Context app = context.getApplicationContext();
         return AppWidgetManager.getInstance(app).getAppWidgetIds(
                 new ComponentName(app, AtlasAppWidgetProvider.class));
+    }
+
+    /** Placed widgets in a stable order: the settings list and the backups number them by it. */
+    static int[] sortedIds(Context context) {
+        int[] ids = ids(context);
+        Arrays.sort(ids);
+        return ids;
     }
 
     static boolean owns(Context context, int widgetId) {
@@ -112,15 +128,18 @@ public final class AtlasAppWidgetProvider extends AppWidgetProvider {
 
     private static void renderStatus(Context context, int[] ids) {
         Prefs prefs = new Prefs(context);
-        PanelConfig config = prefs.panelConfig();
-        if (!prefs.isWidgetMode() || !config.showSystemStatus
-                || prefs.selectedComponents().isEmpty()) {
+        if (!prefs.isWidgetMode()) {
             return;
         }
         AppWidgetManager manager = AppWidgetManager.getInstance(context);
         SystemStatusSnapshot snapshot = WidgetFuelService.statusSnapshot();
         FuelLevelProvider.Reading fuelReading = WidgetFuelService.reading();
         for (int widgetId : ids) {
+            Prefs widget = prefs.forWidget(widgetId);
+            PanelConfig config = widget.panelConfig();
+            if (!config.showSystemStatus || widget.selectedComponents().isEmpty()) {
+                continue;
+            }
             try {
                 Bundle options = manager.getAppWidgetOptions(widgetId);
                 RemoteViews views = new RemoteViews(context.getPackageName(),
@@ -140,17 +159,17 @@ public final class AtlasAppWidgetProvider extends AppWidgetProvider {
         }
         AppWidgetManager manager = AppWidgetManager.getInstance(context);
         Prefs prefs = new Prefs(context);
-        List<AppEntry> entries = prefs.isWidgetMode()
-                ? AppRepository.loadSelectedActivities(context, prefs) : List.of();
-        PanelConfig config = prefs.panelConfig();
         for (int widgetId : ids) {
             if (widgetId == AppWidgetManager.INVALID_APPWIDGET_ID) {
                 continue;
             }
             try {
+                Prefs widget = prefs.forWidget(widgetId);
+                List<AppEntry> entries = prefs.isWidgetMode()
+                        ? AppRepository.loadSelectedActivities(context, widget) : List.of();
                 RemoteViews views = entries.isEmpty()
-                        ? emptyViews(context, prefs, widgetId)
-                        : panelViews(context, prefs, config, entries,
+                        ? emptyViews(context, widget, widgetId)
+                        : panelViews(context, widget, widget.panelConfig(), entries,
                                 manager.getAppWidgetOptions(widgetId), widgetId);
                 manager.updateAppWidget(widgetId, views);
             } catch (RuntimeException error) {
@@ -413,6 +432,7 @@ public final class AtlasAppWidgetProvider extends AppWidgetProvider {
                         Intent launch = new Intent(context, entry.isFuel()
                                 ? WidgetFuelActivity.class : WidgetLaunchActivity.class)
                                 .putExtra(WidgetLaunchActivity.EXTRA_ENTRY_KEY, entry.componentKey)
+                                .putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, widgetId)
                                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                                 .setData(Uri.parse("atlaswidget://launch/" + widgetId + "/" + index));
                         PendingIntent click = PendingIntent.getActivity(context,

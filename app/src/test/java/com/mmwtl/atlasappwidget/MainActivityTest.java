@@ -148,16 +148,20 @@ public final class MainActivityTest {
             TextView widget = (TextView) find(root, "Виджет");
             widget.performClick();
             assertTrue(prefs.isWidgetMode());
-            assertTrue(widget.isSelected());
             assertFalse(prefs.getBoolean(Prefs.KEY_SERVICE_ENABLED, true));
             assertTrue(stoppedServices().contains(
                     new ComponentName(context, OverlayService.class)));
+            // Switching rebuilds the screen, which then edits a widget instead of the overlay.
+            org.robolectric.shadows.ShadowLooper.idleMainLooper();
+            root = root(controller);
+            assertTrue(find(root, "Виджет").isSelected());
             assertTrue(shown(find(root, "На рабочем столе")));
             assertFalse(shown(find(root, "Перемещение")));
 
             find(root, "Оверлей").performClick();
             assertFalse(prefs.isWidgetMode());
-            assertTrue(shown(find(root, "Перемещение")));
+            org.robolectric.shadows.ShadowLooper.idleMainLooper();
+            assertTrue(shown(find(root(controller), "Перемещение")));
         } finally {
             close(controller);
         }

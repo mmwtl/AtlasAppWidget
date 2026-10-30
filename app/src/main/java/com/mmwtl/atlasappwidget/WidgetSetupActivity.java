@@ -19,11 +19,14 @@ import java.util.List;
  * ACTION_APPWIDGET_CONFIGURE as a short dialog over HOME: the grid and labels that matter when
  * placing the widget, then confirm. MainActivity stays the full settings editor.
  *
- * <p>Columns, rows and labels are written immediately so the preview is honest; cancelling
- * restores them. App selection is edited in AppPickerActivity and is not rolled back.
+ * <p>Everything here belongs to this widget. Columns, rows and labels are written immediately so
+ * the preview is honest; cancelling restores them, and a widget that had no profile loses the one
+ * this dialog created. On a placed widget the app selection, edited in AppPickerActivity, is not
+ * rolled back.
  */
 public final class WidgetSetupActivity extends ScaledActivity {
     private static final String STATE_CHANGED = "setup_changed";
+    private static final String STATE_HAD_PROFILE = "setup_had_profile";
     private static final String STATE_COLUMNS = "setup_original_columns";
     private static final String STATE_ROWS = "setup_original_rows";
     private static final String STATE_LABELS = "setup_original_labels";
@@ -33,6 +36,7 @@ public final class WidgetSetupActivity extends ScaledActivity {
     private boolean reconfigure;
     private boolean confirmed;
     private boolean changed;
+    private boolean hadProfile;
     // Original values, or null when the key was unset and the default applied.
     private Integer originalColumns;
     private Integer originalRows;
@@ -56,16 +60,18 @@ public final class WidgetSetupActivity extends ScaledActivity {
             finish();
             return;
         }
-        prefs = new Prefs(this);
+        prefs = new Prefs(this).forWidget(widgetId);
         reconfigure = prefs.isWidgetConfigured(widgetId);
         if (savedInstanceState == null) {
+            hadProfile = prefs.hasProfile();
             originalColumns = storedInt(Prefs.KEY_COLUMNS);
             originalRows = storedInt(Prefs.KEY_ROWS);
-            originalLabels = prefs.raw().contains(Prefs.KEY_SHOW_APP_LABELS)
+            originalLabels = prefs.contains(Prefs.KEY_SHOW_APP_LABELS)
                     ? prefs.getBoolean(Prefs.KEY_SHOW_APP_LABELS, false) : null;
         } else {
             // A recreated dialog must still roll back to the values from before it opened.
             changed = savedInstanceState.getBoolean(STATE_CHANGED);
+            hadProfile = savedInstanceState.getBoolean(STATE_HAD_PROFILE);
             originalColumns = savedInstanceState.containsKey(STATE_COLUMNS)
                     ? savedInstanceState.getInt(STATE_COLUMNS) : null;
             originalRows = savedInstanceState.containsKey(STATE_ROWS)
@@ -89,6 +95,7 @@ public final class WidgetSetupActivity extends ScaledActivity {
     protected void onSaveInstanceState(Bundle outState) {
         super.onSaveInstanceState(outState);
         outState.putBoolean(STATE_CHANGED, changed);
+        outState.putBoolean(STATE_HAD_PROFILE, hadProfile);
         if (originalColumns != null) outState.putInt(STATE_COLUMNS, originalColumns);
         if (originalRows != null) outState.putInt(STATE_ROWS, originalRows);
         if (originalLabels != null) outState.putBoolean(STATE_LABELS, originalLabels);
@@ -96,16 +103,18 @@ public final class WidgetSetupActivity extends ScaledActivity {
 
     @Override
     protected void onDestroy() {
-        if (prefs != null && isFinishing() && !confirmed && changed) {
-            android.content.SharedPreferences.Editor editor = prefs.raw().edit();
-            restoreInt(editor, Prefs.KEY_COLUMNS, originalColumns);
-            restoreInt(editor, Prefs.KEY_ROWS, originalRows);
-            if (originalLabels == null) {
-                editor.remove(Prefs.KEY_SHOW_APP_LABELS);
+        if (prefs != null && isFinishing() && !confirmed && (changed || !hadProfile)) {
+            if (hadProfile) {
+                restoreInt(Prefs.KEY_COLUMNS, originalColumns);
+                restoreInt(Prefs.KEY_ROWS, originalRows);
+                if (originalLabels == null) {
+                    prefs.remove(Prefs.KEY_SHOW_APP_LABELS);
+                } else {
+                    prefs.putBoolean(Prefs.KEY_SHOW_APP_LABELS, originalLabels);
+                }
             } else {
-                editor.putBoolean(Prefs.KEY_SHOW_APP_LABELS, originalLabels);
+                prefs.removeProfile();
             }
-            editor.apply();
             AtlasAppWidgetProvider.updateAll(this);
         }
         super.onDestroy();
@@ -152,7 +161,8 @@ public final class WidgetSetupActivity extends ScaledActivity {
                 0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
         chooseAppsButton = Ui.button(this, R.string.widget_setup_choose_apps);
         chooseAppsButton.setOnClickListener(view ->
-                startActivity(new Intent(this, AppPickerActivity.class)));
+                startActivity(new Intent(this, AppPickerActivity.class)
+                        .putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, widgetId)));
         apps.addView(chooseAppsButton);
         card.addView(apps, fullWrap(16));
 
@@ -258,6 +268,7 @@ public final class WidgetSetupActivity extends ScaledActivity {
             return;
         }
         confirmed = true;
+        prefs.ensureProfile();
         prefs.setWidgetsConfigured(new int[]{widgetId}, true);
         if (widgetModeSwitch != null && widgetModeSwitch.isChecked()) {
             MainActivity.applyDisplayMode(this, prefs, true);
@@ -267,7 +278,9 @@ public final class WidgetSetupActivity extends ScaledActivity {
         setResult(RESULT_OK, resultIntent());
         if (openSettings) {
             startActivity(new Intent(this, MainActivity.class)
-                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
+                    .putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, widgetId)
+                    // Settings left open behind HOME would come back on their previous widget.
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP));
         }
         finish();
     }
@@ -317,15 +330,14 @@ public final class WidgetSetupActivity extends ScaledActivity {
     }
 
     private Integer storedInt(String key) {
-        return prefs.raw().contains(key) ? prefs.getInt(key, 0) : null;
+        return prefs.contains(key) ? prefs.getInt(key, 0) : null;
     }
 
-    private static void restoreInt(android.content.SharedPreferences.Editor editor, String key,
-            Integer value) {
+    private void restoreInt(String key, Integer value) {
         if (value == null) {
-            editor.remove(key);
+            prefs.remove(key);
         } else {
-            editor.putInt(key, value);
+            prefs.putInt(key, value);
         }
     }
 

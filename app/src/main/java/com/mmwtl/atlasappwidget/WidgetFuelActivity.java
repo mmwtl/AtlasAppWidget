@@ -23,7 +23,9 @@ public final class WidgetFuelActivity extends Activity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        Prefs prefs = new Prefs(this);
+        Prefs prefs = new Prefs(this).forWidget(getIntent().getIntExtra(
+                android.appwidget.AppWidgetManager.EXTRA_APPWIDGET_ID,
+                android.appwidget.AppWidgetManager.INVALID_APPWIDGET_ID));
         if (!prefs.isWidgetMode()
                 || !prefs.selectedComponents().contains(AppEntry.FUEL_COMPONENT_KEY)) {
             finish();

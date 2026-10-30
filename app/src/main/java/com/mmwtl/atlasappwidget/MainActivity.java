@@ -43,6 +43,7 @@ import android.widget.Toast;
 
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Date;
 import java.util.List;
 import java.util.Locale;
@@ -58,6 +59,9 @@ public final class MainActivity extends ScaledActivity
     private static final int REQUEST_NOTIFICATIONS = 301;
     private static final int REQUEST_IMPORT_SETTINGS = 303;
     private static final String STATE_TAB = "settings_tab";
+    private static final String STATE_EDITED_WIDGET = "edited_widget";
+    /** Stands for the shared settings: the template of new widgets and the overlay itself. */
+    private static final int TEMPLATE = AppWidgetManager.INVALID_APPWIDGET_ID;
     private static final int TAB_PANEL = 0;
     private static final int TAB_SHORTCUTS = 1;
     private static final int TAB_LOOK = 2;
@@ -70,6 +74,9 @@ public final class MainActivity extends ScaledActivity
     private final Handler main = new Handler(Looper.getMainLooper());
     private final ExecutorService ioExecutor = Executors.newSingleThreadExecutor();
     private Prefs prefs;
+    private boolean builtWidgetMode;
+    private int[] widgetIds = new int[0];
+    private int editedWidget = TEMPLATE;
     private final LinearLayout[] tabPages = new LinearLayout[TAB_LABELS.length];
     private final TextView[] tabButtons = new TextView[TAB_LABELS.length];
     private int selectedTab;
@@ -147,7 +154,7 @@ public final class MainActivity extends ScaledActivity
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        prefs = new Prefs(this);
+        openEditedWidget(savedInstanceState);
         View content = buildContent(savedInstanceState == null
                 ? TAB_PANEL : savedInstanceState.getInt(STATE_TAB, TAB_PANEL));
         setContentView(content);
@@ -159,11 +166,51 @@ public final class MainActivity extends ScaledActivity
     protected void onSaveInstanceState(Bundle outState) {
         super.onSaveInstanceState(outState);
         outState.putInt(STATE_TAB, selectedTab);
+        if (builtWidgetMode) {
+            outState.putInt(STATE_EDITED_WIDGET, editedWidget);
+        }
+    }
+
+    /** Every setting reads and writes through {@link #prefs}, so it alone picks the widget. */
+    private void openEditedWidget(Bundle savedInstanceState) {
+        Prefs shared = new Prefs(this);
+        builtWidgetMode = shared.isWidgetMode();
+        widgetIds = AtlasAppWidgetProvider.sortedIds(this);
+        editedWidget = builtWidgetMode ? requestedWidget(savedInstanceState) : TEMPLATE;
+        prefs = editedWidget == TEMPLATE ? shared : shared.forWidget(editedWidget);
+        if (editedWidget == TEMPLATE && builtWidgetMode) {
+            // Editing the template must not change widgets that still follow it.
+            for (int id : widgetIds) {
+                shared.forWidget(id).ensureProfile();
+            }
+        }
+    }
+
+    private int requestedWidget(Bundle savedInstanceState) {
+        int fallback = widgetIds.length == 0 ? TEMPLATE : widgetIds[0];
+        int requested = savedInstanceState != null
+                && savedInstanceState.containsKey(STATE_EDITED_WIDGET)
+                ? savedInstanceState.getInt(STATE_EDITED_WIDGET)
+                : getIntent().getIntExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, fallback);
+        if (requested == TEMPLATE) {
+            return savedInstanceState != null ? TEMPLATE : fallback;
+        }
+        return Arrays.stream(widgetIds).anyMatch(id -> id == requested) ? requested : fallback;
+    }
+
+    private Intent appPickerIntent() {
+        return new Intent(this, AppPickerActivity.class)
+                .putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, editedWidget);
     }
 
     @Override
     protected void onResume() {
         super.onResume();
+        if (builtWidgetMode && !Arrays.equals(widgetIds,
+                AtlasAppWidgetProvider.sortedIds(this))) {
+            recreate();
+            return;
+        }
         AccessibilityWindowState.setStateListener(accessibilityStateRefresh);
         refreshStatus();
         refreshPositionControls();
@@ -389,7 +436,7 @@ public final class MainActivity extends ScaledActivity
         apps.addView(selectedSummary);
         Button appsButton = Ui.button(this, R.string.choose_apps);
         Ui.topMargin(appsButton, 12);
-        appsButton.setOnClickListener(view -> startActivity(new Intent(this, AppPickerActivity.class)));
+        appsButton.setOnClickListener(view -> startActivity(appPickerIntent()));
         apps.addView(appsButton);
         page.addView(apps);
 
@@ -610,7 +657,8 @@ public final class MainActivity extends ScaledActivity
             return;
         }
         applyDisplayMode(this, prefs, widget);
-        refreshStatus();
+        // The overlay edits the shared settings and widget mode edits one widget's profile.
+        recreate();
     }
 
     /**
@@ -640,7 +688,87 @@ public final class MainActivity extends ScaledActivity
         hint.setLineSpacing(0, 1.1f);
         Ui.topMargin(hint, 10);
         card.addView(hint);
+        addEditedWidgetChooser(card);
         return card;
+    }
+
+    private void addEditedWidgetChooser(LinearLayout card) {
+        TextView title = Ui.text(this, R.string.edited_widget_title, 14, Ui.TEXT_SECONDARY);
+        Ui.topMargin(title, 14);
+        card.addView(title);
+        List<String> labels = new ArrayList<>();
+        int selection = widgetIds.length;
+        for (int index = 0; index < widgetIds.length; index++) {
+            labels.add(editedWidgetLabel(widgetIds[index]));
+            if (widgetIds[index] == editedWidget) {
+                selection = index;
+            }
+        }
+        labels.add(getString(R.string.edited_widget_template));
+        Spinner chooser = new Spinner(this);
+        chooser.setContentDescription(getString(R.string.edited_widget_title));
+        chooser.setAdapter(new ArrayAdapter<>(this,
+                android.R.layout.simple_spinner_dropdown_item, labels));
+        chooser.setSelection(selection, false);
+        chooser.setOnItemSelectedListener(
+                new android.widget.AdapterView.OnItemSelectedListener() {
+                    @Override
+                    public void onItemSelected(android.widget.AdapterView<?> parent,
+                            View view, int position, long id) {
+                        int target = position < widgetIds.length
+                                ? widgetIds[position] : TEMPLATE;
+                        if (target != editedWidget) {
+                            editedWidget = target;
+                            recreate();
+                        }
+                    }
+
+                    @Override
+                    public void onNothingSelected(android.widget.AdapterView<?> parent) {
+                    }
+                });
+        card.addView(dropdownField(chooser));
+        TextView note = Ui.text(this, R.string.edited_widget_hint, 13, Ui.TEXT_SECONDARY);
+        note.setLineSpacing(0, 1.1f);
+        Ui.topMargin(note, 8);
+        card.addView(note);
+        if (editedWidget != TEMPLATE && widgetIds.length > 1) {
+            Button applyToAll = Ui.button(this, R.string.apply_to_all_widgets);
+            Ui.topMargin(applyToAll, 10);
+            applyToAll.setOnClickListener(view -> {
+                prefs.copyProfileTo(widgetIds);
+                AtlasAppWidgetProvider.updateAll(this);
+                Toast.makeText(this, R.string.applied_to_all_widgets,
+                        Toast.LENGTH_SHORT).show();
+            });
+            card.addView(applyToAll);
+        }
+    }
+
+    private String editedWidgetLabel(int id) {
+        Bundle options = AppWidgetManager.getInstance(this).getAppWidgetOptions(id);
+        return getString(R.string.edited_widget_item, Arrays.binarySearch(widgetIds, id) + 1,
+                AtlasAppWidgetProvider.widthDp(this, options),
+                AtlasAppWidgetProvider.heightDp(this, options));
+    }
+
+    private FrameLayout dropdownField(Spinner spinner) {
+        FrameLayout field = new FrameLayout(this);
+        field.setBackground(Ui.rounded(Ui.SURFACE_RAISED, Ui.dp(this, 8)));
+        spinner.setBackgroundColor(0x00000000);
+        spinner.setPadding(Ui.dp(this, 12), 0, Ui.dp(this, 34), 0);
+        field.addView(spinner, new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+        TextView arrow = Ui.text(this, "▾", 16, Ui.ACCENT);
+        arrow.setGravity(Gravity.CENTER);
+        arrow.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
+        FrameLayout.LayoutParams arrowParams = new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.MATCH_PARENT,
+                Gravity.END | Gravity.CENTER_VERTICAL);
+        arrowParams.rightMargin = Ui.dp(this, 10);
+        field.addView(arrow, arrowParams);
+        field.setOnClickListener(view -> spinner.performClick());
+        return field;
     }
 
     private LinearLayout buildOverlayCard() {
@@ -803,21 +931,7 @@ public final class MainActivity extends ScaledActivity
                     public void onNothingSelected(android.widget.AdapterView<?> parent) {
                     }
                 });
-        FrameLayout positionCornerField = new FrameLayout(this);
-        positionCornerField.setBackground(Ui.rounded(Ui.SURFACE_RAISED, Ui.dp(this, 8)));
-        positionCornerSpinner.setBackgroundColor(0x00000000);
-        positionCornerSpinner.setPadding(Ui.dp(this, 12), 0, Ui.dp(this, 34), 0);
-        positionCornerField.addView(positionCornerSpinner, new FrameLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
-        TextView positionCornerArrow = Ui.text(this, "▾", 16, Ui.ACCENT);
-        positionCornerArrow.setGravity(Gravity.CENTER);
-        positionCornerArrow.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
-        FrameLayout.LayoutParams positionCornerArrowParams = new FrameLayout.LayoutParams(
-                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.MATCH_PARENT,
-                Gravity.END | Gravity.CENTER_VERTICAL);
-        positionCornerArrowParams.rightMargin = Ui.dp(this, 10);
-        positionCornerField.addView(positionCornerArrow, positionCornerArrowParams);
-        positionCornerField.setOnClickListener(view -> positionCornerSpinner.performClick());
+        FrameLayout positionCornerField = dropdownField(positionCornerSpinner);
 
         LinearLayout positionGrid = new LinearLayout(this);
         positionGrid.setOrientation(LinearLayout.VERTICAL);
@@ -2371,19 +2485,14 @@ public final class MainActivity extends ScaledActivity
 
     private void refreshWidgetPreview() {
         Context app = getApplicationContext();
-        int[] ids = AtlasAppWidgetProvider.ids(app);
-        int requestedId = getIntent().getIntExtra(AppWidgetManager.EXTRA_APPWIDGET_ID,
-                AppWidgetManager.INVALID_APPWIDGET_ID);
-        int widgetId = ids.length == 0 ? AppWidgetManager.INVALID_APPWIDGET_ID : ids[0];
-        for (int id : ids) {
-            if (id == requestedId) widgetId = id;
-        }
+        int widgetId = editedWidget != TEMPLATE || widgetIds.length == 0
+                ? editedWidget : widgetIds[0];
         Bundle options = widgetId == AppWidgetManager.INVALID_APPWIDGET_ID
                 ? new Bundle() : AppWidgetManager.getInstance(app).getAppWidgetOptions(widgetId);
-        previewTitle.setText(getString(widgetId == AppWidgetManager.INVALID_APPWIDGET_ID
-                        ? R.string.widget_preview_example : R.string.widget_preview_size,
-                AtlasAppWidgetProvider.widthDp(app, options),
-                AtlasAppWidgetProvider.heightDp(app, options)));
+        previewTitle.setText(editedWidget != TEMPLATE ? editedWidgetLabel(editedWidget)
+                : getString(R.string.widget_preview_template,
+                        AtlasAppWidgetProvider.widthDp(app, options),
+                        AtlasAppWidgetProvider.heightDp(app, options)));
         int maxHeight = Math.round(getWindowManager().getCurrentWindowMetrics().getBounds().height() * 0.30f);
         Configuration mode = new Configuration(app.getResources().getConfiguration());
         mode.uiMode = (mode.uiMode & ~Configuration.UI_MODE_NIGHT_MASK)
@@ -2396,7 +2505,7 @@ public final class MainActivity extends ScaledActivity
         if (prefs.isWidgetMode()) return;
         if (AppRepository.loadSelectedActivities(this, prefs).isEmpty()) {
             Toast.makeText(this, R.string.select_app_first, Toast.LENGTH_LONG).show();
-            startActivity(new Intent(this, AppPickerActivity.class));
+            startActivity(appPickerIntent());
             return;
         }
         if (!Settings.canDrawOverlays(this)) {

@@ -98,10 +98,30 @@ final class Prefs {
 
     static final int POSITION_UNSET = Integer.MIN_VALUE;
 
+    private static final int NO_WIDGET = 0;
+    private static final String KEY_PROFILE_PREFIX = "widget_profile_";
+    private static final String PROFILE_MARKER = "exists";
+    /** Look and shortcuts a widget keeps for itself; everything else is shared by the app. */
+    private static final Set<String> PROFILE_KEYS = Set.of(
+            KEY_SHOW_APP_LABELS, KEY_APP_LABEL_TEXT_SIZE_SP, KEY_APP_LABEL_GAP_DP,
+            KEY_APP_LABEL_OUTLINE_ENABLED, KEY_SHOW_SYSTEM_STATUS, KEY_SHOW_CPU_STATUS,
+            KEY_SHOW_RAM_STATUS, KEY_SHOW_FUEL_STATUS, KEY_SYSTEM_STATUS_POSITION,
+            KEY_SYSTEM_STATUS_LINE_HEIGHT_DP, KEY_SYSTEM_STATUS_TEXT_SIZE_SP,
+            KEY_SYSTEM_STATUS_TEXT_WEIGHT, KEY_COLUMNS, KEY_ROWS, KEY_ICON_SIZE_DP,
+            KEY_ICON_CORNER_PERCENT, KEY_PADDING_DP, KEY_GAP_DP, KEY_BACKGROUND_COLOR,
+            KEY_BACKGROUND_ALPHA, KEY_BACKGROUND_STROKE_ENABLED, KEY_BACKGROUND_STROKE_WIDTH_DP,
+            KEY_BACKGROUND_STROKE_ALPHA, KEY_BACKGROUND_STROKE_COLOR, KEY_PANEL_RADIUS_DP,
+            KEY_CONTENT_ALPHA, KEY_DAY_BACKGROUND_COLOR, KEY_DAY_BACKGROUND_STROKE_COLOR,
+            KEY_SELECTED_COMPONENTS);
+
+    private final Context appContext;
     private final SharedPreferences values;
+    private final int widgetId;
 
     Prefs(Context context) {
         Context app = context.getApplicationContext();
+        appContext = app;
+        widgetId = NO_WIDGET;
         Context storage = app.createDeviceProtectedStorageContext();
         migrateCredentialPreferencesWhenAvailable(app, storage);
         values = storage.getSharedPreferences(NAME, Context.MODE_PRIVATE);
@@ -110,6 +130,211 @@ final class Prefs {
         migrateLegacyWidth(app);
         migrateLegacyClimateTransitionSettings();
         migrateThemeColors();
+    }
+
+    private Prefs(Prefs base, int widgetId) {
+        appContext = base.appContext;
+        values = base.values;
+        this.widgetId = widgetId;
+    }
+
+    /**
+     * The same settings as seen by one widget: its own look and shortcuts once it has a profile,
+     * and the shared ones (the overlay's, also the template for new widgets) until then.
+     */
+    Prefs forWidget(int id) {
+        return new Prefs(this, id);
+    }
+
+    /** The shared settings, whichever widget this instance edits. */
+    Prefs global() {
+        return widgetId == NO_WIDGET ? this : new Prefs(this, NO_WIDGET);
+    }
+
+    boolean hasProfile() {
+        return widgetId != NO_WIDGET && values.contains(profilePrefix(widgetId) + PROFILE_MARKER);
+    }
+
+    /** Detaches the widget from the template, keeping how it looks right now. */
+    void ensureProfile() {
+        if (widgetId == NO_WIDGET || hasProfile()) {
+            return;
+        }
+        SharedPreferences.Editor editor = values.edit();
+        putProfile(editor, widgetId, profile());
+        editor.apply();
+    }
+
+    void removeProfile() {
+        if (widgetId == NO_WIDGET) {
+            return;
+        }
+        SharedPreferences.Editor editor = values.edit();
+        removeProfile(editor, widgetId);
+        editor.apply();
+    }
+
+    /** A restored widget gets a new id from the launcher and keeps its profile. */
+    void moveProfile(int oldId, int newId) {
+        Prefs old = forWidget(oldId);
+        if (!old.hasProfile()) {
+            return;
+        }
+        SharedPreferences.Editor editor = values.edit();
+        putProfile(editor, newId, old.profile());
+        removeProfile(editor, oldId);
+        editor.apply();
+    }
+
+    /** Gives the listed widgets a copy of this profile; the template and overlay keep theirs. */
+    void copyProfileTo(int[] ids) {
+        Map<String, Object> copied = profile();
+        SharedPreferences.Editor editor = values.edit();
+        for (int id : ids) {
+            if (id != widgetId) {
+                putProfile(editor, id, copied);
+            }
+        }
+        editor.apply();
+    }
+
+    /** Placed widgets in id order; null stands for a widget still following the template. */
+    List<Map<String, Object>> widgetProfiles() {
+        List<Map<String, Object>> profiles = new ArrayList<>();
+        for (int id : AtlasAppWidgetProvider.sortedIds(appContext)) {
+            Prefs widget = forWidget(id);
+            profiles.add(widget.hasProfile() ? widget.profile() : null);
+        }
+        return profiles;
+    }
+
+    static boolean isProfileKey(String key) {
+        return PROFILE_KEYS.contains(key);
+    }
+
+    private Map<String, Object> profile() {
+        Map<String, Object> result = new LinkedHashMap<>();
+        boolean own = hasProfile();
+        String prefix = profilePrefix(widgetId);
+        for (Map.Entry<String, ?> entry : values.getAll().entrySet()) {
+            String key = entry.getKey();
+            if (!own) {
+                if (isProfileKey(key)) result.put(key, entry.getValue());
+            } else if (key.startsWith(prefix) && !key.endsWith("_" + PROFILE_MARKER)) {
+                result.put(key.substring(prefix.length()), entry.getValue());
+            }
+        }
+        return result;
+    }
+
+    private static String profilePrefix(int id) {
+        return KEY_PROFILE_PREFIX + id + "_";
+    }
+
+    private void putProfile(SharedPreferences.Editor editor, int id, Map<String, Object> profile) {
+        removeProfile(editor, id);
+        String prefix = profilePrefix(id);
+        for (Map.Entry<String, Object> entry : profile.entrySet()) {
+            if (entry.getValue() instanceof Integer number) {
+                editor.putInt(prefix + entry.getKey(), number);
+            } else if (entry.getValue() instanceof Boolean flag) {
+                editor.putBoolean(prefix + entry.getKey(), flag);
+            } else if (entry.getValue() instanceof String text) {
+                editor.putString(prefix + entry.getKey(), text);
+            }
+        }
+        editor.putBoolean(prefix + PROFILE_MARKER, true);
+    }
+
+    private void removeProfile(SharedPreferences.Editor editor, int id) {
+        String prefix = profilePrefix(id);
+        for (String key : values.getAll().keySet()) {
+            if (key.startsWith(prefix)) {
+                editor.remove(key);
+            }
+        }
+    }
+
+    private String readKey(String key) {
+        return hasProfile() && isProfileKey(key) ? profilePrefix(widgetId) + key : key;
+    }
+
+    private String writeKey(String key) {
+        if (widgetId == NO_WIDGET || !isProfileKey(key)) {
+            return key;
+        }
+        ensureProfile();
+        return profilePrefix(widgetId) + key;
+    }
+
+    private SharedPreferences.Editor edit() {
+        return widgetId == NO_WIDGET ? values.edit() : new ProfileEditor(values.edit());
+    }
+
+    /** Writes the profile keys of an edited widget to its profile; other keys pass through. */
+    private final class ProfileEditor implements SharedPreferences.Editor {
+        private final SharedPreferences.Editor editor;
+
+        ProfileEditor(SharedPreferences.Editor editor) {
+            this.editor = editor;
+        }
+
+        @Override
+        public SharedPreferences.Editor putString(String key, String value) {
+            editor.putString(writeKey(key), value);
+            return this;
+        }
+
+        @Override
+        public SharedPreferences.Editor putStringSet(String key, Set<String> value) {
+            editor.putStringSet(writeKey(key), value);
+            return this;
+        }
+
+        @Override
+        public SharedPreferences.Editor putInt(String key, int value) {
+            editor.putInt(writeKey(key), value);
+            return this;
+        }
+
+        @Override
+        public SharedPreferences.Editor putLong(String key, long value) {
+            editor.putLong(writeKey(key), value);
+            return this;
+        }
+
+        @Override
+        public SharedPreferences.Editor putFloat(String key, float value) {
+            editor.putFloat(writeKey(key), value);
+            return this;
+        }
+
+        @Override
+        public SharedPreferences.Editor putBoolean(String key, boolean value) {
+            editor.putBoolean(writeKey(key), value);
+            return this;
+        }
+
+        @Override
+        public SharedPreferences.Editor remove(String key) {
+            editor.remove(writeKey(key));
+            return this;
+        }
+
+        @Override
+        public SharedPreferences.Editor clear() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public boolean commit() {
+            return editor.commit();
+        }
+
+        @Override
+        public void apply() {
+            editor.apply();
+        }
     }
 
     /**
@@ -235,20 +460,24 @@ final class Prefs {
         values.edit().putStringSet(KEY_CONFIGURED_WIDGET_IDS, stored).apply();
     }
 
+    boolean contains(String key) {
+        return values.contains(readKey(key));
+    }
+
     boolean getBoolean(String key, boolean fallback) {
-        return values.getBoolean(key, fallback);
+        return values.getBoolean(readKey(key), fallback);
     }
 
     void putBoolean(String key, boolean value) {
-        values.edit().putBoolean(key, value).apply();
+        edit().putBoolean(key, value).apply();
     }
 
     int getInt(String key, int fallback) {
-        return values.getInt(key, fallback);
+        return values.getInt(readKey(key), fallback);
     }
 
     void putInt(String key, int value) {
-        values.edit().putInt(key, value).apply();
+        edit().putInt(key, value).apply();
     }
 
     void putPosition(OverlayCorner corner, int offsetX, int offsetY) {
@@ -268,7 +497,7 @@ final class Prefs {
     }
 
     void applyOneOsPreset() {
-        values.edit()
+        edit()
                 .putBoolean(KEY_SHOW_APP_LABELS, true)
                 .putInt(KEY_APP_LABEL_TEXT_SIZE_SP, PanelConfig.ONEOS_APP_LABEL_TEXT_SIZE_SP)
                 .putInt(KEY_APP_LABEL_GAP_DP, PanelConfig.ONEOS_APP_LABEL_GAP_DP)
@@ -300,7 +529,7 @@ final class Prefs {
     }
 
     void remove(String key) {
-        values.edit().remove(key).apply();
+        edit().remove(key).apply();
     }
 
     PanelConfig panelConfig() {
@@ -325,8 +554,27 @@ final class Prefs {
     }
 
     synchronized List<String> selectedComponents() {
+        return parseSelected(values.getString(readKey(KEY_SELECTED_COMPONENTS), "[]"));
+    }
+
+    /** What the overlay and every widget profile show, for settings kept per component. */
+    private Set<String> allSelectedComponents() {
+        Set<String> result = new HashSet<>();
+        for (Map.Entry<String, ?> entry : values.getAll().entrySet()) {
+            if (isSelectedKey(entry.getKey()) && entry.getValue() instanceof String json) {
+                result.addAll(parseSelected(json));
+            }
+        }
+        return result;
+    }
+
+    private static boolean isSelectedKey(String key) {
+        return key.equals(KEY_SELECTED_COMPONENTS) || key.startsWith(KEY_PROFILE_PREFIX)
+                && key.endsWith("_" + KEY_SELECTED_COMPONENTS);
+    }
+
+    private static List<String> parseSelected(String json) {
         ArrayList<String> result = new ArrayList<>();
-        String json = values.getString(KEY_SELECTED_COMPONENTS, "[]");
         try {
             JSONArray array = new JSONArray(json);
             for (int index = 0; index < array.length(); index++) {
@@ -348,10 +596,11 @@ final class Prefs {
         current.remove(component);
         if (selected) {
             current.add(component);
-        } else {
-            removeClimateTransitionComponent(component);
         }
         writeSelected(current);
+        if (!selected && !allSelectedComponents().contains(component)) {
+            removeClimateTransitionComponent(component);
+        }
     }
 
     synchronized void moveSelected(String component, int delta) {
@@ -374,7 +623,7 @@ final class Prefs {
         if (current.removeIf(component -> !availableComponents.contains(component))) {
             writeSelected(current);
         }
-        Set<String> selected = new HashSet<>(current);
+        Set<String> selected = allSelectedComponents();
         Set<String> climate = climateTransitionComponents();
         if (climate.removeIf(component -> !selected.contains(component))) {
             writeClimateTransitionComponents(climate);
@@ -526,7 +775,17 @@ final class Prefs {
         if (current.removeIf(item -> item.key.equals(key))) {
             values.edit().putString(KEY_SHORTCUT_CATALOG, shortcutJson(current)).apply();
         }
-        setComponentSelected(key, false);
+        SharedPreferences.Editor editor = values.edit();
+        for (Map.Entry<String, ?> entry : values.getAll().entrySet()) {
+            if (isSelectedKey(entry.getKey()) && entry.getValue() instanceof String json) {
+                List<String> selected = parseSelected(json);
+                if (selected.remove(key)) {
+                    editor.putString(entry.getKey(), selectedJson(selected));
+                }
+            }
+        }
+        editor.commit();
+        removeClimateTransitionComponent(key);
     }
 
     private static String shortcutJson(List<ShortcutSpec> shortcuts) {
@@ -546,7 +805,7 @@ final class Prefs {
     }
 
     private void writeSelected(List<String> selected) {
-        values.edit().putString(KEY_SELECTED_COMPONENTS, selectedJson(selected)).apply();
+        edit().putString(KEY_SELECTED_COMPONENTS, selectedJson(selected)).apply();
     }
 
     boolean replacePortableSettings(Context context, SettingsBackup.Data data) {
@@ -629,7 +888,7 @@ final class Prefs {
                 .putString(KEY_SELECTED_COMPONENTS, selectedJson(data.selectedComponents))
                 .putString(KEY_SHORTCUT_CATALOG, shortcutJson(data.shortcuts))
                 .putString(KEY_CLIMATE_TRANSITION_COMPONENTS,
-                        climateTransitionJson(data.climateTransitionComponents))
+                        climateTransitionJson(allClimateComponents(data)))
                 .putInt(KEY_CLIMATE_TRANSITION_DURATION_MS, data.climateTransitionDurationMs)
                 .putBoolean(KEY_LEGACY_CLIMATE_MIGRATION_DONE, true)
                 .remove(KEY_USE_LAUNCH_PROXY)
@@ -647,6 +906,18 @@ final class Prefs {
                 editor.remove(KEY_POSITION_CORNER);
             } else {
                 editor.putString(KEY_POSITION_CORNER, data.positionCorner.preferenceValue);
+            }
+        }
+        for (String key : values.getAll().keySet()) {
+            if (key.startsWith(KEY_PROFILE_PREFIX)) {
+                editor.remove(key);
+            }
+        }
+        int[] ids = AtlasAppWidgetProvider.sortedIds(appContext);
+        for (int index = 0; index < ids.length && index < data.widgetProfiles.size(); index++) {
+            Map<String, Object> profile = data.widgetProfiles.get(index);
+            if (profile != null) {
+                putProfile(editor, ids[index], profile);
             }
         }
         boolean saved = editor.commit();
@@ -669,6 +940,12 @@ final class Prefs {
             IconLoader.clearComponent(component);
         }
         return true;
+    }
+
+    private static List<String> allClimateComponents(SettingsBackup.Data data) {
+        LinkedHashSet<String> components = new LinkedHashSet<>(data.climateTransitionComponents);
+        components.addAll(data.widgetClimateComponents);
+        return new ArrayList<>(components);
     }
 
     private static String selectedJson(List<String> selected) {
