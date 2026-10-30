@@ -19,7 +19,8 @@
         android:layout_gravity="bottom"
         android:contentDescription="@null"
         android:scaleType="center"
-        android:tint="@color/widget_label_outline" />
+        android:tint="@color/widget_label_outline"
+        android:tintMode="multiply" />
 
     <ImageView
         android:id="@+id/widget_cell_label"
