@@ -8,7 +8,8 @@
          host resolves them, so the widget switches with the OneOS night mode on its own. -->
     <color name="widget_surface">#EDEEF0</color>
     <color name="widget_text">#202124</color>
-    <color name="widget_label_outline">#FFFFFF</color>
+    <!-- Only light text has an outline; on a light panel a white one just blurs dark text. -->
+    <color name="widget_label_outline">#00000000</color>
     <!-- Labels and status text for a panel that is dark by day and light at night. -->
     <color name="widget_text_inverse">#F1F2F4</color>
     <color name="widget_label_outline_inverse">#000000</color>

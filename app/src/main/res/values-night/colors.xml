@@ -5,7 +5,7 @@
     <color name="widget_text">#F1F2F4</color>
     <color name="widget_label_outline">#000000</color>
     <color name="widget_text_inverse">#202124</color>
-    <color name="widget_label_outline_inverse">#FFFFFF</color>
+    <color name="widget_label_outline_inverse">#00000000</color>
     <color name="widget_status_fill_shade">#00000000</color>
     <!-- Gates for the panels in the separate day and night colors. -->
     <color name="widget_day_only">#00000000</color>

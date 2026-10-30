@@ -42,6 +42,17 @@ public final class ThemeColorsTest {
         assertEquals(context.getColor(R.color.widget_surface), PanelConfig.DAY_SURFACE);
     }
 
+    @Test public void darkTextHasNoOutlineByDay() {
+        assertEquals(0, context.getColor(R.color.widget_label_outline));
+        assertEquals(0xFF000000, context.getColor(R.color.widget_label_outline_inverse));
+    }
+
+    @Config(qualifiers = "night")
+    @Test public void darkTextHasNoOutlineAtNight() {
+        assertEquals(0xFF000000, context.getColor(R.color.widget_label_outline));
+        assertEquals(0, context.getColor(R.color.widget_label_outline_inverse));
+    }
+
     @Config(qualifiers = "night")
     @Test public void nightSurfaceMatchesTheResources() {
         assertEquals(context.getColor(R.color.widget_surface), PanelConfig.NIGHT_SURFACE);

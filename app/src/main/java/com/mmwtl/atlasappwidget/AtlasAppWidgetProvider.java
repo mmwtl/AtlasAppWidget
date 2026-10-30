@@ -454,8 +454,8 @@ public final class AtlasAppWidgetProvider extends AppWidgetProvider {
             boolean dark = text == PanelConfig.TextMode.DARK;
             drawLabel(context, config, entry.label, grid, left, top,
                     dark ? 0xFF202124 : Color.rgb(245, 245, 245),
-                    !config.appLabelOutlineEnabled ? Color.TRANSPARENT
-                            : dark ? Color.WHITE : Color.BLACK, canvas);
+                    config.appLabelOutlineEnabled && !dark ? Color.BLACK : Color.TRANSPARENT,
+                    canvas);
         }
         return bitmap;
     }
