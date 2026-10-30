@@ -60,6 +60,7 @@ public final class MainActivity extends ScaledActivity
     private static final int REQUEST_IMPORT_SETTINGS = 303;
     private static final String STATE_TAB = "settings_tab";
     private static final String STATE_EDITED_WIDGET = "edited_widget";
+    private static final int OPACITY_STEPS = 20;
     /** Stands for the shared settings: the template of new widgets and the overlay itself. */
     private static final int TEMPLATE = AppWidgetManager.INVALID_APPWIDGET_ID;
     private static final int TAB_PANEL = 0;
@@ -1353,11 +1354,8 @@ public final class MainActivity extends ScaledActivity
                         ? getString(R.string.shape_circle)
                         : getString(R.string.percent_value, value),
                 value -> prefs.putInt(Prefs.KEY_ICON_CORNER_PERCENT, value));
-        addSlider(grid, getString(R.string.content_opacity), 25, 255,
-                prefs.getInt(Prefs.KEY_CONTENT_ALPHA, 255),
-                value -> getString(R.string.percent_value,
-                        Math.round(value * 100f / 255f)),
-                value -> prefs.putInt(Prefs.KEY_CONTENT_ALPHA, value));
+        addOpacitySlider(grid, getString(R.string.content_opacity), 2,
+                prefs.getInt(Prefs.KEY_CONTENT_ALPHA, 255), Prefs.KEY_CONTENT_ALPHA);
         LinearLayout spacing = collapsible(grid, R.string.spacing_title,
                 R.string.spacing_summary, 16, 14);
         addSlider(spacing, getString(R.string.padding), 4, 40,
@@ -1555,11 +1553,8 @@ public final class MainActivity extends ScaledActivity
                         ? getString(R.string.radius_full)
                         : getString(R.string.dp_value, value),
                 value -> prefs.putInt(Prefs.KEY_PANEL_RADIUS_DP, value));
-        addSlider(background, getString(R.string.background_opacity), 0, 255,
-                prefs.getInt(Prefs.KEY_BACKGROUND_ALPHA, 235),
-                value -> getString(R.string.percent_value,
-                        Math.round(value * 100f / 255f)),
-                value -> prefs.putInt(Prefs.KEY_BACKGROUND_ALPHA, value));
+        addOpacitySlider(background, getString(R.string.background_opacity), 0,
+                prefs.getInt(Prefs.KEY_BACKGROUND_ALPHA, 235), Prefs.KEY_BACKGROUND_ALPHA);
 
         LinearLayout stroke = collapsible(background, R.string.stroke_title,
                 R.string.stroke_summary, 16, 14);
@@ -1579,11 +1574,9 @@ public final class MainActivity extends ScaledActivity
                 prefs.getInt(Prefs.KEY_BACKGROUND_STROKE_WIDTH_DP, 2),
                 value -> getString(R.string.dp_value, value),
                 value -> prefs.putInt(Prefs.KEY_BACKGROUND_STROKE_WIDTH_DP, value));
-        addSlider(stroke, getString(R.string.stroke_opacity), 0, 255,
+        addOpacitySlider(stroke, getString(R.string.stroke_opacity), 0,
                 prefs.getInt(Prefs.KEY_BACKGROUND_STROKE_ALPHA, 200),
-                value -> getString(R.string.percent_value,
-                        Math.round(value * 100f / 255f)),
-                value -> prefs.putInt(Prefs.KEY_BACKGROUND_STROKE_ALPHA, value));
+                Prefs.KEY_BACKGROUND_STROKE_ALPHA);
         return background;
     }
 
@@ -1637,6 +1630,22 @@ public final class MainActivity extends ScaledActivity
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.WRAP_CONTENT
         ));
+    }
+
+    /** Stored as alpha 0–255, moved in steps of 5%; a stored value changes only when moved. */
+    private void addOpacitySlider(LinearLayout parent, String label, int minStep, int alpha,
+            String key) {
+        addSlider(parent, label, minStep, OPACITY_STEPS, opacityStep(alpha),
+                step -> getString(R.string.percent_value, step * 5),
+                step -> prefs.putInt(key, opacityAlpha(step)));
+    }
+
+    static int opacityStep(int alpha) {
+        return Math.round(alpha * (float) OPACITY_STEPS / 255f);
+    }
+
+    static int opacityAlpha(int step) {
+        return Math.round(step * 255f / OPACITY_STEPS);
     }
 
     private void addScaleSlider(LinearLayout parent) {
