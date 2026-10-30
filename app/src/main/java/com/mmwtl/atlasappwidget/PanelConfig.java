@@ -10,11 +10,15 @@ final class PanelConfig {
     static final int PANEL_RADIUS_DEFAULT_DP = 24;
     /** Default before 2.0.1; kept for installs that never moved the slider. */
     static final int PANEL_RADIUS_LEGACY_DEFAULT_DP = 8;
-    /** Graphite panel color; in the widget it stands for the launcher day or night surface. */
-    static final int BACKGROUND_COLOR_DEFAULT = 0xFF262626;
-    /** Launcher day surface; the light-mode panel color until the user picks another. */
-    static final int DAY_BACKGROUND_COLOR_DEFAULT = 0xFFEDEEF0;
-    static final int BACKGROUND_STROKE_COLOR_DEFAULT = 0xFF7893A0;
+    /** A color left to the theme, stored instead of a picked color, which is always opaque. */
+    static final int THEME_COLOR = 0;
+    /** Overlay panel color while it is left to the theme; earlier versions stored it as is. */
+    static final int GRAPHITE = 0xFF262626;
+    /** The stroke color left to the theme; earlier versions stored it as is. */
+    static final int STROKE_ACCENT = 0xFF7893A0;
+    /** Launcher surfaces, the same as widget_surface in values and values-night. */
+    static final int DAY_SURFACE = 0xFFEDEEF0;
+    static final int NIGHT_SURFACE = 0xFF232528;
     static final int HANDLE_LEFT = 0;
     static final int HANDLE_RIGHT = 1;
     static final int HANDLE_TOP = 2;
@@ -81,8 +85,7 @@ final class PanelConfig {
     final int backgroundStrokeAlpha;
     final int backgroundStrokeColor;
     final int panelRadiusDp;
-    /** Whether the widget takes the day colors below in the light theme. */
-    final boolean dayColorsEnabled;
+    /** The widget's day colors; the two above are the night ones and the overlay's. */
     final int dayBackgroundColor;
     final int dayBackgroundStrokeColor;
     /** Opacity of icons, labels and the status strip, 0..255. */
@@ -147,37 +150,75 @@ final class PanelConfig {
         iconCornerPercent = prefs.getInt(Prefs.KEY_ICON_CORNER_PERCENT, 12);
         paddingDp = prefs.getInt(Prefs.KEY_PADDING_DP, 14);
         gapDp = prefs.getInt(Prefs.KEY_GAP_DP, 12);
-        backgroundColor = prefs.getInt(Prefs.KEY_BACKGROUND_COLOR, BACKGROUND_COLOR_DEFAULT);
+        backgroundColor = prefs.getInt(Prefs.KEY_BACKGROUND_COLOR, THEME_COLOR);
         backgroundAlpha = prefs.getInt(Prefs.KEY_BACKGROUND_ALPHA, 235);
         backgroundStrokeEnabled = prefs.getBoolean(Prefs.KEY_BACKGROUND_STROKE_ENABLED, false);
         backgroundStrokeWidthDp = prefs.getInt(Prefs.KEY_BACKGROUND_STROKE_WIDTH_DP, 2);
         backgroundStrokeAlpha = prefs.getInt(Prefs.KEY_BACKGROUND_STROKE_ALPHA, 200);
-        backgroundStrokeColor = prefs.getInt(Prefs.KEY_BACKGROUND_STROKE_COLOR,
-                BACKGROUND_STROKE_COLOR_DEFAULT);
+        backgroundStrokeColor = prefs.getInt(Prefs.KEY_BACKGROUND_STROKE_COLOR, THEME_COLOR);
         panelRadiusDp = prefs.getInt(Prefs.KEY_PANEL_RADIUS_DP, PANEL_RADIUS_DEFAULT_DP);
-        dayColorsEnabled = prefs.getBoolean(Prefs.KEY_DAY_COLORS_ENABLED, false);
-        dayBackgroundColor = prefs.getInt(Prefs.KEY_DAY_BACKGROUND_COLOR,
-                DAY_BACKGROUND_COLOR_DEFAULT);
+        dayBackgroundColor = prefs.getInt(Prefs.KEY_DAY_BACKGROUND_COLOR, THEME_COLOR);
         dayBackgroundStrokeColor = prefs.getInt(Prefs.KEY_DAY_BACKGROUND_STROKE_COLOR,
-                BACKGROUND_STROKE_COLOR_DEFAULT);
+                THEME_COLOR);
         contentAlpha = Math.max(0, Math.min(255, prefs.getInt(Prefs.KEY_CONTENT_ALPHA, 255)));
     }
 
-    /**
-     * Whether the widget panel, its labels and its status strip follow the day/night theme.
-     * Only the default color does: a color the user picked stays as chosen in both themes.
-     * Backups and older installs store the default explicitly, so the color is compared.
-     */
-    boolean backgroundFollowsTheme() {
-        return (backgroundColor & 0x00FFFFFF) == (BACKGROUND_COLOR_DEFAULT & 0x00FFFFFF);
+    /** The color an earlier version stored for what is now left to the theme. */
+    static int fromLegacyColor(int color, int legacyDefault) {
+        return (color & 0x00FFFFFF) == (legacyDefault & 0x00FFFFFF) ? THEME_COLOR : color;
     }
 
-    /**
-     * Whether the widget labels and status strip take the day or night text colors. Separate
-     * day colors imply a light panel by day, so they switch with the theme too.
-     */
-    boolean textFollowsTheme() {
-        return dayColorsEnabled || backgroundFollowsTheme();
+    /** The panel color of a mode, with a color left to the theme resolved. */
+    static int surface(int color, boolean night) {
+        return color != THEME_COLOR ? color : night ? NIGHT_SURFACE : DAY_SURFACE;
+    }
+
+    static int stroke(int color) {
+        return color != THEME_COLOR ? color : STROKE_ACCENT;
+    }
+
+    int overlayBackgroundColor() {
+        return backgroundColor != THEME_COLOR ? backgroundColor : GRAPHITE;
+    }
+
+    /** Whether light text contrasts better than dark text with this color. */
+    static boolean isDark(int color) {
+        // Black and white text have equal WCAG contrast at this luminance.
+        return luminance(color) < 0.179;
+    }
+
+    private static double luminance(int color) {
+        return 0.2126 * linear((color >> 16) & 0xFF) + 0.7152 * linear((color >> 8) & 0xFF)
+                + 0.0722 * linear(color & 0xFF);
+    }
+
+    private static double linear(int channel) {
+        double value = channel / 255.0;
+        return value <= 0.04045 ? value / 12.92 : Math.pow((value + 0.055) / 1.055, 2.4);
+    }
+
+    /** How the widget's labels and status strip read on its day and night panels. */
+    enum TextMode {
+        /** Dark by day and light at night: the host tints a mask with widget_text. */
+        THEME,
+        /** Light by day and dark at night: the host tints a mask with widget_text_inverse. */
+        INVERSE,
+        /** Light in both modes, drawn into the bitmaps. */
+        LIGHT,
+        /** Dark in both modes, drawn into the bitmaps. */
+        DARK;
+
+        boolean masked() {
+            return this == THEME || this == INVERSE;
+        }
+    }
+
+    TextMode textMode() {
+        boolean lightByDay = isDark(surface(dayBackgroundColor, false));
+        boolean lightAtNight = isDark(surface(backgroundColor, true));
+        return lightByDay == lightAtNight
+                ? lightByDay ? TextMode.LIGHT : TextMode.DARK
+                : lightAtNight ? TextMode.THEME : TextMode.INVERSE;
     }
 
     int systemStatusMetricCount() {

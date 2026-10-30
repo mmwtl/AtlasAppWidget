@@ -28,6 +28,8 @@ final class Prefs {
             "use_diagnostic_launch_activity";
     private static final String KEY_PANEL_RADIUS_DEFAULT_MIGRATION_DONE =
             "panel_radius_default_migration_done";
+    private static final String KEY_LEGACY_DAY_COLORS_ENABLED = "day_colors_enabled";
+    private static final String KEY_THEME_COLORS_MIGRATION_DONE = "theme_colors_migration_done";
     private static final String KEY_LEGACY_CLIMATE_MIGRATION_DONE =
             "climate_transition_legacy_migration_done";
     static final String KEY_CLIMATE_TRANSITION_COMPONENTS =
@@ -79,7 +81,6 @@ final class Prefs {
     static final String KEY_BACKGROUND_STROKE_COLOR = "background_stroke_color";
     static final String KEY_PANEL_RADIUS_DP = "panel_radius_dp";
     static final String KEY_CONTENT_ALPHA = "content_alpha";
-    static final String KEY_DAY_COLORS_ENABLED = "day_colors_enabled";
     static final String KEY_DAY_BACKGROUND_COLOR = "day_background_color";
     static final String KEY_DAY_BACKGROUND_STROKE_COLOR = "day_background_stroke_color";
     static final String KEY_POSITION_X = "position_x";
@@ -108,6 +109,33 @@ final class Prefs {
         migrateLegacyPanelRadiusDefault();
         migrateLegacyWidth(app);
         migrateLegacyClimateTransitionSettings();
+        migrateThemeColors();
+    }
+
+    /**
+     * Earlier versions stored the graphite panel and the accent stroke as plain colors and had
+     * one color set: the old defaults become «по теме», and a picked color stays in both modes.
+     */
+    private void migrateThemeColors() {
+        synchronized (MIGRATION_LOCK) {
+            if (values.getBoolean(KEY_THEME_COLORS_MIGRATION_DONE, false)) {
+                return;
+            }
+            int background = PanelConfig.fromLegacyColor(
+                    values.getInt(KEY_BACKGROUND_COLOR, PanelConfig.GRAPHITE),
+                    PanelConfig.GRAPHITE);
+            int stroke = PanelConfig.fromLegacyColor(
+                    values.getInt(KEY_BACKGROUND_STROKE_COLOR, PanelConfig.STROKE_ACCENT),
+                    PanelConfig.STROKE_ACCENT);
+            values.edit()
+                    .putBoolean(KEY_THEME_COLORS_MIGRATION_DONE, true)
+                    .putInt(KEY_BACKGROUND_COLOR, background)
+                    .putInt(KEY_DAY_BACKGROUND_COLOR, background)
+                    .putInt(KEY_BACKGROUND_STROKE_COLOR, stroke)
+                    .putInt(KEY_DAY_BACKGROUND_STROKE_COLOR, stroke)
+                    .remove(KEY_LEGACY_DAY_COLORS_ENABLED)
+                    .commit();
+        }
     }
 
     /**
@@ -595,7 +623,6 @@ final class Prefs {
                         data.appearance.backgroundStrokeColor)
                 .putInt(KEY_PANEL_RADIUS_DP, data.appearance.panelRadiusDp)
                 .putInt(KEY_CONTENT_ALPHA, data.appearance.contentAlpha)
-                .putBoolean(KEY_DAY_COLORS_ENABLED, data.appearance.dayColorsEnabled)
                 .putInt(KEY_DAY_BACKGROUND_COLOR, data.appearance.dayBackgroundColor)
                 .putInt(KEY_DAY_BACKGROUND_STROKE_COLOR,
                         data.appearance.dayBackgroundStrokeColor)

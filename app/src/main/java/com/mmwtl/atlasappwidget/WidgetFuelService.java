@@ -10,6 +10,7 @@ import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.ServiceInfo;
+import android.content.res.Configuration;
 import android.os.Build;
 import android.os.Handler;
 import android.os.IBinder;
@@ -34,6 +35,7 @@ public final class WidgetFuelService extends Service {
             SystemStatusSnapshot.unavailable();
 
     private final Handler handler = new Handler(Looper.getMainLooper());
+    private int lastNightMode;
     private final ExecutorService sampling = Executors.newSingleThreadExecutor();
     private final Runnable refresh = new Runnable() {
         @Override
@@ -100,6 +102,8 @@ public final class WidgetFuelService extends Service {
     @Override
     public void onCreate() {
         super.onCreate();
+        lastNightMode = getResources().getConfiguration().uiMode
+                & Configuration.UI_MODE_NIGHT_MASK;
         NotificationManager manager = getSystemService(NotificationManager.class);
         NotificationChannel channel = new NotificationChannel(CHANNEL_ID,
                 getString(R.string.widget_fuel_channel), NotificationManager.IMPORTANCE_LOW);
@@ -138,6 +142,20 @@ public final class WidgetFuelService extends Service {
         }
         configure();
         return START_STICKY;
+    }
+
+    /**
+     * A host that keeps its views over a mode change shows them in the old theme until the next
+     * update; nested views inflated by an update take the new one.
+     */
+    @Override
+    public void onConfigurationChanged(Configuration configuration) {
+        super.onConfigurationChanged(configuration);
+        int night = configuration.uiMode & Configuration.UI_MODE_NIGHT_MASK;
+        if (night != lastNightMode) {
+            lastNightMode = night;
+            AtlasAppWidgetProvider.refreshFuel(this);
+        }
     }
 
     /** Applies the current preferences and restarts the refresh cycle immediately. */

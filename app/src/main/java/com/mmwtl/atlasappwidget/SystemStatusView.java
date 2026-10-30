@@ -32,6 +32,9 @@ final class SystemStatusView extends LinearLayout {
     /** The overlay strip, fixed graphite. */
     static final Palette DARK = new Palette(Ui.TEXT, 0xFF454545, 0xFF5A5A5A,
             CPU_COLOR, RAM_COLOR, FUEL_COLOR);
+    /** The widget strip on a panel that is light in both modes, with fills darkened by 30%. */
+    static final Palette ON_LIGHT = new Palette(0xFF202124, 0x2A202124, 0x45202124,
+            shaded(CPU_COLOR), shaded(RAM_COLOR), shaded(FUEL_COLOR));
     /**
      * White text, tracks and dividers that the widget host tints with the day or night text
      * color; the alphas reproduce the graphite tracks and dividers at night.
@@ -44,6 +47,11 @@ final class SystemStatusView extends LinearLayout {
     /** White fill shapes that the widget host tints to darken {@link #FILLS} by day. */
     static final Palette FILL_MASK = new Palette(Color.TRANSPARENT, Color.TRANSPARENT,
             Color.TRANSPARENT, Color.WHITE, Color.WHITE, Color.WHITE);
+
+    private static int shaded(int color) {
+        return Color.rgb(Color.red(color) * 7 / 10, Color.green(color) * 7 / 10,
+                Color.blue(color) * 7 / 10);
+    }
 
     private final Palette palette;
 

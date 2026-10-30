@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- A status strip: the _themed mask is tinted with the theme text color under the fixed-color
+     _image fills, which the _shade mask darkens by day. The _inverse mask replaces it on a panel
+     that is dark by day and light at night. -->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content">
+
+    <ImageView
+        android:id="@+id/widget_status_themed"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:contentDescription="@null"
+        android:scaleType="center"
+        android:tint="@color/widget_text"
+        android:visibility="gone" />
+
+    <ImageView
+        android:id="@+id/widget_status_inverse"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:contentDescription="@null"
+        android:scaleType="center"
+        android:tint="@color/widget_text_inverse"
+        android:visibility="gone" />
+
+    <ImageView
+        android:id="@+id/widget_status_image"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:contentDescription="@null"
+        android:scaleType="center" />
+
+    <ImageView
+        android:id="@+id/widget_status_shade"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:contentDescription="@null"
+        android:scaleType="center"
+        android:tint="@color/widget_status_fill_shade"
+        android:tintMode="src_in"
+        android:visibility="gone" />
+</FrameLayout>

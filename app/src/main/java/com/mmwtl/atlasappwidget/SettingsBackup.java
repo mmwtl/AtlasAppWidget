@@ -290,14 +290,13 @@ final class SettingsBackup {
         final int backgroundStrokeColor;
         final int panelRadiusDp;
         final int contentAlpha;
-        final boolean dayColorsEnabled;
         final int dayBackgroundColor;
         final int dayBackgroundStrokeColor;
 
         AppearanceData(int backgroundColor, int backgroundAlpha,
                 boolean backgroundStrokeEnabled, int backgroundStrokeWidthDp,
                 int backgroundStrokeAlpha, int backgroundStrokeColor, int panelRadiusDp,
-                int contentAlpha, boolean dayColorsEnabled, int dayBackgroundColor,
+                int contentAlpha, int dayBackgroundColor,
                 int dayBackgroundStrokeColor) {
             this.backgroundColor = backgroundColor;
             this.backgroundAlpha = backgroundAlpha;
@@ -307,7 +306,6 @@ final class SettingsBackup {
             this.backgroundStrokeColor = backgroundStrokeColor;
             this.panelRadiusDp = panelRadiusDp;
             this.contentAlpha = contentAlpha;
-            this.dayColorsEnabled = dayColorsEnabled;
             this.dayBackgroundColor = dayBackgroundColor;
             this.dayBackgroundStrokeColor = dayBackgroundStrokeColor;
         }
@@ -429,21 +427,20 @@ final class SettingsBackup {
                         clamp(prefs.getInt(Prefs.KEY_PADDING_DP, 14), 4, 40),
                         clamp(prefs.getInt(Prefs.KEY_GAP_DP, 12), 0, 40)),
                 new AppearanceData(
-                        prefs.getInt(Prefs.KEY_BACKGROUND_COLOR, 0xFF262626),
+                        prefs.getInt(Prefs.KEY_BACKGROUND_COLOR, PanelConfig.THEME_COLOR),
                         clamp(prefs.getInt(Prefs.KEY_BACKGROUND_ALPHA, 235), 0, 255),
                         prefs.getBoolean(Prefs.KEY_BACKGROUND_STROKE_ENABLED, false),
                         clamp(prefs.getInt(Prefs.KEY_BACKGROUND_STROKE_WIDTH_DP, 2), 1, 20),
                         clamp(prefs.getInt(Prefs.KEY_BACKGROUND_STROKE_ALPHA, 200), 0, 255),
-                        prefs.getInt(Prefs.KEY_BACKGROUND_STROKE_COLOR, Ui.ACCENT),
+                        prefs.getInt(Prefs.KEY_BACKGROUND_STROKE_COLOR,
+                                PanelConfig.THEME_COLOR),
                         clamp(prefs.getInt(Prefs.KEY_PANEL_RADIUS_DP,
                                 PanelConfig.PANEL_RADIUS_DEFAULT_DP),
                                 0, PanelConfig.PANEL_RADIUS_FULLY_ROUNDED),
                         clamp(prefs.getInt(Prefs.KEY_CONTENT_ALPHA, 255), 0, 255),
-                        prefs.getBoolean(Prefs.KEY_DAY_COLORS_ENABLED, false),
-                        prefs.getInt(Prefs.KEY_DAY_BACKGROUND_COLOR,
-                                PanelConfig.DAY_BACKGROUND_COLOR_DEFAULT),
+                        prefs.getInt(Prefs.KEY_DAY_BACKGROUND_COLOR, PanelConfig.THEME_COLOR),
                         prefs.getInt(Prefs.KEY_DAY_BACKGROUND_STROKE_COLOR,
-                                PanelConfig.BACKGROUND_STROKE_COLOR_DEFAULT)));
+                                PanelConfig.THEME_COLOR)));
     }
 
     private static Map<String, byte[]> captureCustomIcons(Context context, Prefs prefs)
@@ -574,7 +571,6 @@ final class SettingsBackup {
                                     data.appearance.backgroundStrokeColor)
                             .put("panelRadiusDp", data.appearance.panelRadiusDp)
                             .put("contentAlpha", data.appearance.contentAlpha)
-                            .put("dayColorsEnabled", data.appearance.dayColorsEnabled)
                             .put("dayBackgroundColor", data.appearance.dayBackgroundColor)
                             .put("dayBackgroundStrokeColor",
                                     data.appearance.dayBackgroundStrokeColor));
@@ -626,6 +622,16 @@ final class SettingsBackup {
             JSONObject fuel = requireObject(settings, "fuel", "settings.fuel");
             JSONObject geometry = requireObject(settings, "geometry", "settings.geometry");
             JSONObject appearance = requireObject(settings, "appearance", "settings.appearance");
+            int backgroundColor = requireInt(appearance, "backgroundColor",
+                    "settings.appearance.backgroundColor");
+            int backgroundStrokeColor = requireInt(appearance, "backgroundStrokeColor",
+                    "settings.appearance.backgroundStrokeColor");
+            if (version < 13) {
+                // Schema 13 made the old defaults an explicit «по теме»; a picked color may equal them.
+                backgroundColor = PanelConfig.fromLegacyColor(backgroundColor, PanelConfig.GRAPHITE);
+                backgroundStrokeColor = PanelConfig.fromLegacyColor(backgroundStrokeColor,
+                        PanelConfig.STROKE_ACCENT);
+            }
             if (version >= 5 && !content.has("appLabelTextSizeSp")) {
                 throw invalid("В JSON отсутствует размер названий приложений");
             }
@@ -754,8 +760,7 @@ final class SettingsBackup {
                             requireInt(geometry, "paddingDp", "settings.geometry.paddingDp"),
                             requireInt(geometry, "gapDp", "settings.geometry.gapDp")),
                     new AppearanceData(
-                            requireInt(appearance, "backgroundColor",
-                                    "settings.appearance.backgroundColor"),
+                            backgroundColor,
                             requireInt(appearance, "backgroundAlpha",
                                     "settings.appearance.backgroundAlpha"),
                             requireBoolean(appearance, "backgroundStrokeEnabled",
@@ -764,20 +769,17 @@ final class SettingsBackup {
                                     "settings.appearance.backgroundStrokeWidthDp"),
                             requireInt(appearance, "backgroundStrokeAlpha",
                                     "settings.appearance.backgroundStrokeAlpha"),
-                            requireInt(appearance, "backgroundStrokeColor",
-                                    "settings.appearance.backgroundStrokeColor"),
+                            backgroundStrokeColor,
                             requireInt(appearance, "panelRadiusDp",
                                     "settings.appearance.panelRadiusDp"),
                             version >= 12 ? requireInt(appearance, "contentAlpha",
                                     "settings.appearance.contentAlpha") : 255,
-                            version >= 13 && requireBoolean(appearance, "dayColorsEnabled",
-                                    "settings.appearance.dayColorsEnabled"),
                             version >= 13 ? requireInt(appearance, "dayBackgroundColor",
                                     "settings.appearance.dayBackgroundColor")
-                                    : PanelConfig.DAY_BACKGROUND_COLOR_DEFAULT,
+                                    : backgroundColor,
                             version >= 13 ? requireInt(appearance, "dayBackgroundStrokeColor",
                                     "settings.appearance.dayBackgroundStrokeColor")
-                                    : PanelConfig.BACKGROUND_STROKE_COLOR_DEFAULT));
+                                    : backgroundStrokeColor));
         } catch (JSONException error) {
             throw invalid("Повреждённый JSON настроек", error);
         }

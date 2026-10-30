@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <!-- White panel shape tinted with the theme surface; used while the panel color is default. -->
+    <ImageView
+        android:id="@+id/widget_background_themed"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:contentDescription="@null"
+        android:scaleType="fitXY"
+        android:tint="@color/widget_surface"
+        android:visibility="gone" />
+
+    <ImageView
+        android:id="@+id/widget_background"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:contentDescription="@null"
+        android:scaleType="fitXY" />
+
+    <!-- Panels in the separate day and night colors. Multiplying by an opaque white or a
+         transparent tint keeps or hides each one, so the host picks the panel for the theme. -->
+    <ImageView
+        android:id="@+id/widget_background_day"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:contentDescription="@null"
+        android:scaleType="fitXY"
+        android:tint="@color/widget_day_only"
+        android:tintMode="multiply"
+        android:visibility="gone" />
+
+    <ImageView
+        android:id="@+id/widget_background_night"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:contentDescription="@null"
+        android:scaleType="fitXY"
+        android:tint="@color/widget_night_only"
+        android:tintMode="multiply"
+        android:visibility="gone" />
+</FrameLayout>

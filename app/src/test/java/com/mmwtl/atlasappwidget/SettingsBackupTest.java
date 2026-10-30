@@ -45,7 +45,6 @@ public final class SettingsBackupTest {
         assertEquals(960, restored.geometry.widthPixels);
         assertEquals(0xFF123456, restored.appearance.backgroundColor);
         assertEquals(160, restored.appearance.contentAlpha);
-        assertTrue(restored.appearance.dayColorsEnabled);
         assertEquals(0xFFF0E6D2, restored.appearance.dayBackgroundColor);
         assertEquals(0xFF336699, restored.appearance.dayBackgroundStrokeColor);
         JSONObject root = new JSONObject(json);
@@ -242,19 +241,47 @@ public final class SettingsBackupTest {
         assertEquals(255, SettingsBackup.decode(root.toString()).appearance.contentAlpha);
     }
 
-    @Test public void schema12WithoutDayColorsKeepsOneColorSet() throws Exception {
+    @Test public void schema12KeepsAPickedColorInBothModes() throws Exception {
+        JSONObject root = schema12();
+        JSONObject appearance = root.getJSONObject("settings").getJSONObject("appearance");
+        appearance.put("backgroundStrokeColor", 0xFF336699);
+
+        SettingsBackup.AppearanceData restored = SettingsBackup.decode(root.toString()).appearance;
+        assertEquals(0xFF123456, restored.backgroundColor);
+        assertEquals(0xFF123456, restored.dayBackgroundColor);
+        assertEquals(0xFF336699, restored.backgroundStrokeColor);
+        assertEquals(0xFF336699, restored.dayBackgroundStrokeColor);
+    }
+
+    @Test public void schema12OldDefaultsFollowTheTheme() throws Exception {
+        JSONObject root = schema12();
+        JSONObject appearance = root.getJSONObject("settings").getJSONObject("appearance");
+        appearance.put("backgroundColor", PanelConfig.GRAPHITE);
+        appearance.put("backgroundStrokeColor", PanelConfig.STROKE_ACCENT);
+
+        SettingsBackup.AppearanceData restored = SettingsBackup.decode(root.toString()).appearance;
+        assertEquals(PanelConfig.THEME_COLOR, restored.backgroundColor);
+        assertEquals(PanelConfig.THEME_COLOR, restored.dayBackgroundColor);
+        assertEquals(PanelConfig.THEME_COLOR, restored.backgroundStrokeColor);
+        assertEquals(PanelConfig.THEME_COLOR, restored.dayBackgroundStrokeColor);
+    }
+
+    @Test public void schema13KeepsAGraphitePickedAfterTheMigration() throws Exception {
+        JSONObject root = new JSONObject(SettingsBackup.encode(data(15, null, null), "test"));
+        JSONObject appearance = root.getJSONObject("settings").getJSONObject("appearance");
+        appearance.put("backgroundColor", PanelConfig.GRAPHITE);
+
+        assertEquals(PanelConfig.GRAPHITE,
+                SettingsBackup.decode(root.toString()).appearance.backgroundColor);
+    }
+
+    private JSONObject schema12() throws Exception {
         JSONObject root = new JSONObject(SettingsBackup.encode(data(15, null, null), "test"));
         root.put("schemaVersion", 12);
         JSONObject appearance = root.getJSONObject("settings").getJSONObject("appearance");
-        appearance.remove("dayColorsEnabled");
         appearance.remove("dayBackgroundColor");
         appearance.remove("dayBackgroundStrokeColor");
-
-        SettingsBackup.AppearanceData restored = SettingsBackup.decode(root.toString()).appearance;
-        assertFalse(restored.dayColorsEnabled);
-        assertEquals(PanelConfig.DAY_BACKGROUND_COLOR_DEFAULT, restored.dayBackgroundColor);
-        assertEquals(PanelConfig.BACKGROUND_STROKE_COLOR_DEFAULT,
-                restored.dayBackgroundStrokeColor);
+        return root;
     }
 
     @Test public void rejectsUnsupportedSchemaVersion() throws Exception {
@@ -633,7 +660,6 @@ public final class SettingsBackupTest {
                         0xFF7893A0,
                         12,
                         160,
-                        true,
                         0xFFF0E6D2,
                         0xFF336699));
     }

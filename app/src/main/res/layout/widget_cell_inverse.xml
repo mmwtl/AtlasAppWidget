@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/widget_cell"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content">
+
+    <ImageView
+        android:id="@+id/widget_cell_icon"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:contentDescription="@null"
+        android:scaleType="centerInside" />
+
+    <!-- widget_cell for a panel that is dark by day and light at night. -->
+    <ImageView
+        android:id="@+id/widget_cell_outline"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom"
+        android:contentDescription="@null"
+        android:scaleType="center"
+        android:tint="@color/widget_label_outline_inverse" />
+
+    <ImageView
+        android:id="@+id/widget_cell_label"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom"
+        android:contentDescription="@null"
+        android:scaleType="center"
+        android:tint="@color/widget_text_inverse" />
+</FrameLayout>

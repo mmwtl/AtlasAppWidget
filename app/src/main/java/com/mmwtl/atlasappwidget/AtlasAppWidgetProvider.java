@@ -231,44 +231,47 @@ public final class AtlasAppWidgetProvider extends AppWidgetProvider {
     // Indexed by PanelConfig.STATUS_TOP, STATUS_BOTTOM, STATUS_LEFT and STATUS_RIGHT.
     private static final int[] STATUS_VIEW_IDS = {R.id.widget_status_top,
             R.id.widget_status_bottom, R.id.widget_status_left, R.id.widget_status_right};
-    private static final int[] STATUS_IMAGE_IDS = {R.id.widget_status_top_image,
-            R.id.widget_status_bottom_image, R.id.widget_status_left_image,
-            R.id.widget_status_right_image};
-    private static final int[] STATUS_THEMED_IDS = {R.id.widget_status_top_themed,
-            R.id.widget_status_bottom_themed, R.id.widget_status_left_themed,
-            R.id.widget_status_right_themed};
-    private static final int[] STATUS_SHADE_IDS = {R.id.widget_status_top_shade,
-            R.id.widget_status_bottom_shade, R.id.widget_status_left_shade,
-            R.id.widget_status_right_shade};
 
     // A themed strip is three bitmaps: a white mask the host tints with the theme text color,
     // the fixed-color metric fills on top of it and a fill mask the host tints to shade them.
+    // An inverse strip tints its mask the other way and keeps the fills as they are.
     private static void applyStatus(Context context, PanelConfig config, RemoteViews views,
             WidgetGrid grid, SystemStatusSnapshot snapshot,
             FuelLevelProvider.Reading fuelReading) {
-        boolean themed = config.textFollowsTheme();
+        PanelConfig.TextMode text = config.textMode();
+        boolean themed = text == PanelConfig.TextMode.THEME;
+        boolean inverse = text == PanelConfig.TextMode.INVERSE;
         int position = config.systemStatusPosition;
+        RemoteViews layers = new RemoteViews(context.getPackageName(), R.layout.widget_status);
         Bitmap image = statusBitmap(context, config, grid);
         CharSequence description = drawStatus(context, config, grid, snapshot, fuelReading,
-                themed ? SystemStatusView.FILLS : SystemStatusView.DARK, image);
-        views.setImageViewBitmap(STATUS_IMAGE_IDS[position], image);
-        if (themed) {
+                text.masked() ? SystemStatusView.FILLS
+                        : text == PanelConfig.TextMode.DARK ? SystemStatusView.ON_LIGHT
+                        : SystemStatusView.DARK, image);
+        layers.setImageViewBitmap(R.id.widget_status_image, image);
+        if (text.masked()) {
             Bitmap mask = statusBitmap(context, config, grid);
             drawStatus(context, config, grid, snapshot, fuelReading, SystemStatusView.MASK, mask);
-            views.setImageViewBitmap(STATUS_THEMED_IDS[position], mask);
+            layers.setImageViewBitmap(inverse ? R.id.widget_status_inverse
+                    : R.id.widget_status_themed, mask);
+        }
+        if (themed) {
             Bitmap shade = statusBitmap(context, config, grid);
             drawStatus(context, config, grid, snapshot, fuelReading,
                     SystemStatusView.FILL_MASK, shade);
-            views.setImageViewBitmap(STATUS_SHADE_IDS[position], shade);
+            layers.setImageViewBitmap(R.id.widget_status_shade, shade);
         }
-        for (int layerId : new int[] {STATUS_IMAGE_IDS[position], STATUS_THEMED_IDS[position],
-                STATUS_SHADE_IDS[position]}) {
-            views.setInt(layerId, "setImageAlpha", config.contentAlpha);
+        for (int layerId : new int[] {R.id.widget_status_image, R.id.widget_status_themed,
+                R.id.widget_status_inverse, R.id.widget_status_shade}) {
+            layers.setInt(layerId, "setImageAlpha", config.contentAlpha);
         }
-        views.setViewVisibility(STATUS_THEMED_IDS[position], themed ? View.VISIBLE : View.GONE);
-        views.setViewVisibility(STATUS_SHADE_IDS[position], themed ? View.VISIBLE : View.GONE);
+        layers.setViewVisibility(R.id.widget_status_themed, themed ? View.VISIBLE : View.GONE);
+        layers.setViewVisibility(R.id.widget_status_inverse, inverse ? View.VISIBLE : View.GONE);
+        layers.setViewVisibility(R.id.widget_status_shade, themed ? View.VISIBLE : View.GONE);
         int viewId = STATUS_VIEW_IDS[position];
         hideStatus(views, viewId);
+        views.removeAllViews(viewId);
+        views.addView(viewId, layers);
         views.setContentDescription(viewId, description);
         views.setViewVisibility(viewId, View.VISIBLE);
     }
@@ -317,37 +320,48 @@ public final class AtlasAppWidgetProvider extends AppWidgetProvider {
         int heightDp = heightDp(context, options);
         WidgetGrid grid = grid(context, config, options);
         RemoteViews panel = new RemoteViews(context.getPackageName(), R.layout.widget_panel);
-        boolean dayColors = config.dayColorsEnabled;
-        boolean themed = !dayColors && config.backgroundFollowsTheme();
-        boolean themedText = config.textFollowsTheme();
+        RemoteViews background = new RemoteViews(context.getPackageName(),
+                R.layout.widget_background);
+        // Only colors that differ between the modes need a panel for each of them.
+        boolean dayColors = config.dayBackgroundColor != config.backgroundColor
+                || config.backgroundStrokeEnabled
+                && config.dayBackgroundStrokeColor != config.backgroundStrokeColor;
+        boolean themed = !dayColors && config.backgroundColor == PanelConfig.THEME_COLOR;
+        PanelConfig.TextMode text = config.textMode();
+        boolean inverseText = text == PanelConfig.TextMode.INVERSE;
         int fill = withBackgroundAlpha(config, config.backgroundColor);
         if (dayColors) {
             // Both panels are drawn whole; the host shows the one for the current theme.
-            int night = config.backgroundFollowsTheme()
-                    ? withBackgroundAlpha(config, nightSurface(context)) : fill;
-            panel.setImageViewBitmap(R.id.widget_background_day, background(context, config,
-                    widthDp, heightDp, withBackgroundAlpha(config, config.dayBackgroundColor),
-                    config.dayBackgroundStrokeColor));
-            panel.setImageViewBitmap(R.id.widget_background_night, background(context, config,
-                    widthDp, heightDp, night, config.backgroundStrokeColor));
+            background.setImageViewBitmap(R.id.widget_background_day, background(context, config,
+                    widthDp, heightDp, withBackgroundAlpha(config,
+                            PanelConfig.surface(config.dayBackgroundColor, false)),
+                    PanelConfig.stroke(config.dayBackgroundStrokeColor)));
+            background.setImageViewBitmap(R.id.widget_background_night, background(context, config,
+                    widthDp, heightDp, withBackgroundAlpha(config,
+                            PanelConfig.surface(config.backgroundColor, true)),
+                    PanelConfig.stroke(config.backgroundStrokeColor)));
         }
         if (themed) {
             // The host tints this white shape with the day or night surface color.
-            panel.setImageViewBitmap(R.id.widget_background_themed, background(context, config,
+            background.setImageViewBitmap(R.id.widget_background_themed, background(context, config,
                     widthDp, heightDp, fill | 0x00FFFFFF, Color.TRANSPARENT));
         }
         boolean fixedBackground = !dayColors && (!themed || config.backgroundStrokeEnabled);
         if (fixedBackground) {
-            panel.setImageViewBitmap(R.id.widget_background, background(context, config,
+            background.setImageViewBitmap(R.id.widget_background, background(context, config,
                     widthDp, heightDp, themed ? Color.TRANSPARENT : fill,
-                    config.backgroundStrokeColor));
+                    PanelConfig.stroke(config.backgroundStrokeColor)));
         }
-        panel.setViewVisibility(R.id.widget_background_day, dayColors ? View.VISIBLE : View.GONE);
-        panel.setViewVisibility(R.id.widget_background_night,
+        background.setViewVisibility(R.id.widget_background_day,
                 dayColors ? View.VISIBLE : View.GONE);
-        panel.setViewVisibility(R.id.widget_background_themed, themed ? View.VISIBLE : View.GONE);
-        panel.setViewVisibility(R.id.widget_background,
+        background.setViewVisibility(R.id.widget_background_night,
+                dayColors ? View.VISIBLE : View.GONE);
+        background.setViewVisibility(R.id.widget_background_themed,
+                themed ? View.VISIBLE : View.GONE);
+        background.setViewVisibility(R.id.widget_background,
                 fixedBackground ? View.VISIBLE : View.GONE);
+        panel.removeAllViews(R.id.widget_background_host);
+        panel.addView(R.id.widget_background_host, background);
         panel.removeAllViews(R.id.widget_grid);
         int shown = Math.min(entries.size(), grid.capacity());
         FuelLevelProvider.Reading fuelReading = WidgetFuelService.reading();
@@ -370,7 +384,8 @@ public final class AtlasAppWidgetProvider extends AppWidgetProvider {
             RemoteViews row = new RemoteViews(context.getPackageName(), R.layout.widget_row);
             for (int column = 0; column < grid.columns; column++) {
                 int index = rowIndex * grid.columns + column;
-                RemoteViews cell = new RemoteViews(context.getPackageName(), R.layout.widget_cell);
+                RemoteViews cell = new RemoteViews(context.getPackageName(),
+                        inverseText ? R.layout.widget_cell_inverse : R.layout.widget_cell);
                 // Host views cannot fade a whole cell, so each image layer carries the alpha.
                 cell.setInt(R.id.widget_cell_icon, "setImageAlpha", config.contentAlpha);
                 cell.setInt(R.id.widget_cell_label, "setImageAlpha", config.contentAlpha);
@@ -386,7 +401,7 @@ public final class AtlasAppWidgetProvider extends AppWidgetProvider {
                     AppEntry entry = entries.get(index);
                     cell.setImageViewBitmap(R.id.widget_cell_icon, cellBitmap(context, prefs,
                             config, entry, grid, rowIndex, column, fuelReading));
-                    if (themedText && config.showAppLabels && grid.labelScale > 0) {
+                    if (text.masked() && config.showAppLabels && grid.labelScale > 0) {
                         cell.setImageViewBitmap(R.id.widget_cell_label, labelBitmap(context,
                                 config, entry.label, grid, rowIndex, column, false));
                         if (config.appLabelOutlineEnabled) {
@@ -434,9 +449,13 @@ public final class AtlasAppWidgetProvider extends AppWidgetProvider {
         canvas.drawBitmap(icon(context, prefs, config, entry, layout.iconSize, fuelReading),
                 left + (layout.cellWidth - layout.iconSize) / 2f, top, null);
         // Themed labels go to their own tinted layers, see labelBitmap.
-        if (config.showAppLabels && grid.labelScale > 0 && !config.textFollowsTheme()) {
-            drawLabel(context, config, entry.label, grid, left, top, Color.rgb(245, 245, 245),
-                    config.appLabelOutlineEnabled ? Color.BLACK : Color.TRANSPARENT, canvas);
+        PanelConfig.TextMode text = config.textMode();
+        if (config.showAppLabels && grid.labelScale > 0 && !text.masked()) {
+            boolean dark = text == PanelConfig.TextMode.DARK;
+            drawLabel(context, config, entry.label, grid, left, top,
+                    dark ? 0xFF202124 : Color.rgb(245, 245, 245),
+                    !config.appLabelOutlineEnabled ? Color.TRANSPARENT
+                            : dark ? Color.WHITE : Color.BLACK, canvas);
         }
         return bitmap;
     }
@@ -490,14 +509,6 @@ public final class AtlasAppWidgetProvider extends AppWidgetProvider {
 
     private static int withBackgroundAlpha(PanelConfig config, int color) {
         return (color & 0x00FFFFFF) | (Math.max(0, Math.min(255, config.backgroundAlpha)) << 24);
-    }
-
-    /** The launcher night surface, resolved here for a panel drawn into a fixed bitmap. */
-    private static int nightSurface(Context context) {
-        Configuration night = new Configuration(context.getResources().getConfiguration());
-        night.uiMode = (night.uiMode & ~Configuration.UI_MODE_NIGHT_MASK)
-                | Configuration.UI_MODE_NIGHT_YES;
-        return context.createConfigurationContext(night).getColor(R.color.widget_surface);
     }
 
     /** Draws the panel shape, with the stroke in {@code strokeColor} when the stroke is on. */

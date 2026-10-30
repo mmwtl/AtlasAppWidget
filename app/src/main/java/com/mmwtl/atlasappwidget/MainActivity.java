@@ -9,6 +9,7 @@ import android.content.Context;
 import android.content.ActivityNotFoundException;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.content.res.Configuration;
 import android.content.pm.PackageManager;
 import android.graphics.Color;
 import android.graphics.Insets;
@@ -121,9 +122,11 @@ public final class MainActivity extends ScaledActivity
     private TextView widgetGeometryHint;
     private Button backgroundColorButton;
     private Button backgroundStrokeColorButton;
-    private Switch dayColorsSwitch;
-    private Button dayBackgroundColorButton;
-    private Button dayBackgroundStrokeColorButton;
+    private TextView colorsDaySegment;
+    private TextView colorsNightSegment;
+    private TextView colorsHint;
+    /** The widget mode whose colors the settings edit and the preview shows; not stored. */
+    private boolean editNight;
     private Switch manualHeightSwitch;
     private SeekBar manualHeightSlider;
     private EditText manualHeightInput;
@@ -418,6 +421,87 @@ public final class MainActivity extends ScaledActivity
         overlayOnlyViews.add(panelSize);
         page.addView(buildBackgroundCard());
         page.addView(buildSystemStatusCard());
+        buildColorsCard(page);
+    }
+
+    private void buildColorsCard(LinearLayout page) {
+        editNight = (getResources().getConfiguration().uiMode & Configuration.UI_MODE_NIGHT_MASK)
+                == Configuration.UI_MODE_NIGHT_YES;
+        LinearLayout colors = collapsibleCard(page, R.string.colors_title,
+                R.string.colors_summary);
+        LinearLayout modes = new LinearLayout(this);
+        modes.setOrientation(LinearLayout.HORIZONTAL);
+        Ui.topMargin(modes, 12);
+        colorsDaySegment = Ui.segment(this, getString(R.string.colors_day));
+        colorsNightSegment = Ui.segment(this, getString(R.string.colors_night));
+        colorsDaySegment.setOnClickListener(view -> setEditNight(false));
+        colorsNightSegment.setOnClickListener(view -> setEditNight(true));
+        Ui.addSegment(modes, colorsDaySegment);
+        Ui.addSegment(modes, colorsNightSegment);
+        colors.addView(modes);
+        widgetOnlyViews.add(modes);
+        colorsHint = Ui.text(this, "", 13, Ui.TEXT_SECONDARY);
+        colorsHint.setLineSpacing(0, 1.1f);
+        Ui.topMargin(colorsHint, 10);
+        colors.addView(colorsHint);
+
+        backgroundColorButton = Ui.button(this, R.string.change_background_color);
+        Ui.topMargin(backgroundColorButton, 12);
+        backgroundColorButton.setOnClickListener(view -> pickColor(R.string.background_color,
+                editedBackgroundKey(), PanelConfig.surface(
+                        prefs.getInt(editedBackgroundKey(), PanelConfig.THEME_COLOR),
+                        editedNight())));
+        colors.addView(backgroundColorButton);
+        backgroundStrokeColorButton = Ui.button(this, R.string.change_stroke_color);
+        Ui.topMargin(backgroundStrokeColorButton, 8);
+        backgroundStrokeColorButton.setOnClickListener(view -> pickColor(R.string.stroke_color,
+                editedStrokeKey(), PanelConfig.stroke(
+                        prefs.getInt(editedStrokeKey(), PanelConfig.THEME_COLOR))));
+        colors.addView(backgroundStrokeColorButton);
+    }
+
+    private void setEditNight(boolean night) {
+        editNight = night;
+        refreshColorButtons();
+        refreshPreviewSoon();
+    }
+
+    /** The overlay has one color set, the night one. */
+    private boolean editedNight() {
+        return editNight || !prefs.isWidgetMode();
+    }
+
+    private String editedBackgroundKey() {
+        return editedNight() ? Prefs.KEY_BACKGROUND_COLOR : Prefs.KEY_DAY_BACKGROUND_COLOR;
+    }
+
+    private String editedStrokeKey() {
+        return editedNight() ? Prefs.KEY_BACKGROUND_STROKE_COLOR
+                : Prefs.KEY_DAY_BACKGROUND_STROKE_COLOR;
+    }
+
+    private void pickColor(int titleRes, String key, int shown) {
+        ColorPickerDialog.show(this, getString(titleRes), shown, true, color -> {
+            prefs.putInt(key, color);
+            refreshColorButtons();
+        });
+    }
+
+    private void refreshColorButtons() {
+        boolean widgetMode = prefs.isWidgetMode();
+        Ui.setSegmentSelected(this, colorsDaySegment, !editNight);
+        Ui.setSegmentSelected(this, colorsNightSegment, editNight);
+        colorsHint.setText(widgetMode ? R.string.colors_widget_hint : R.string.colors_overlay_hint);
+        int background = prefs.getInt(editedBackgroundKey(), PanelConfig.THEME_COLOR);
+        updateColorButton(backgroundColorButton, getString(R.string.background_color),
+                PanelConfig.surface(background, editedNight()),
+                background == PanelConfig.THEME_COLOR);
+        int stroke = prefs.getInt(editedStrokeKey(), PanelConfig.THEME_COLOR);
+        updateColorButton(backgroundStrokeColorButton, getString(R.string.stroke_color),
+                PanelConfig.stroke(stroke), stroke == PanelConfig.THEME_COLOR);
+        backgroundStrokeColorButton.setVisibility(
+                prefs.getBoolean(Prefs.KEY_BACKGROUND_STROKE_ENABLED, false)
+                        ? View.VISIBLE : View.GONE);
     }
 
     private void buildSystemTab(LinearLayout page) {
@@ -1363,40 +1447,6 @@ public final class MainActivity extends ScaledActivity
                         Math.round(value * 100f / 255f)),
                 value -> prefs.putInt(Prefs.KEY_BACKGROUND_ALPHA, value));
 
-        backgroundColorButton = Ui.button(this, R.string.change_background_color);
-        Ui.topMargin(backgroundColorButton, 12);
-        backgroundColorButton.setOnClickListener(view -> ColorPickerDialog.show(
-                this,
-                getString(R.string.background_color),
-                prefs.getInt(Prefs.KEY_BACKGROUND_COLOR, 0xFF262626),
-                color -> prefs.putInt(Prefs.KEY_BACKGROUND_COLOR, color)
-        ));
-        background.addView(backgroundColorButton);
-
-        dayColorsSwitch = new Switch(this);
-        dayColorsSwitch.setText(R.string.day_colors);
-        dayColorsSwitch.setTextColor(Ui.TEXT);
-        dayColorsSwitch.setTextSize(15);
-        dayColorsSwitch.setPadding(0, Ui.dp(this, 14), 0, Ui.dp(this, 4));
-        dayColorsSwitch.setOnCheckedChangeListener((button, checked) -> {
-            if (!updatingSwitch) {
-                prefs.putBoolean(Prefs.KEY_DAY_COLORS_ENABLED, checked);
-            }
-        });
-        background.addView(dayColorsSwitch);
-        widgetOnlyViews.add(dayColorsSwitch);
-
-        dayBackgroundColorButton = Ui.button(this, R.string.change_background_color);
-        Ui.topMargin(dayBackgroundColorButton, 8);
-        dayBackgroundColorButton.setOnClickListener(view -> ColorPickerDialog.show(
-                this,
-                getString(R.string.background_color_day),
-                prefs.getInt(Prefs.KEY_DAY_BACKGROUND_COLOR,
-                        PanelConfig.DAY_BACKGROUND_COLOR_DEFAULT),
-                color -> prefs.putInt(Prefs.KEY_DAY_BACKGROUND_COLOR, color)
-        ));
-        background.addView(dayBackgroundColorButton);
-
         LinearLayout stroke = collapsible(background, R.string.stroke_title,
                 R.string.stroke_summary, 16, 14);
         backgroundStrokeSwitch = new Switch(this);
@@ -1411,26 +1461,6 @@ public final class MainActivity extends ScaledActivity
         });
         stroke.addView(backgroundStrokeSwitch);
 
-        backgroundStrokeColorButton = Ui.button(this, R.string.change_stroke_color);
-        Ui.topMargin(backgroundStrokeColorButton, 8);
-        backgroundStrokeColorButton.setOnClickListener(view -> ColorPickerDialog.show(
-                this,
-                getString(R.string.stroke_color),
-                prefs.getInt(Prefs.KEY_BACKGROUND_STROKE_COLOR, Ui.ACCENT),
-                color -> prefs.putInt(Prefs.KEY_BACKGROUND_STROKE_COLOR, color)
-        ));
-        stroke.addView(backgroundStrokeColorButton);
-
-        dayBackgroundStrokeColorButton = Ui.button(this, R.string.change_stroke_color);
-        Ui.topMargin(dayBackgroundStrokeColorButton, 8);
-        dayBackgroundStrokeColorButton.setOnClickListener(view -> ColorPickerDialog.show(
-                this,
-                getString(R.string.stroke_color_day),
-                prefs.getInt(Prefs.KEY_DAY_BACKGROUND_STROKE_COLOR,
-                        PanelConfig.BACKGROUND_STROKE_COLOR_DEFAULT),
-                color -> prefs.putInt(Prefs.KEY_DAY_BACKGROUND_STROKE_COLOR, color)
-        ));
-        stroke.addView(dayBackgroundStrokeColorButton);
         addSlider(stroke, getString(R.string.stroke_width), 1, 20,
                 prefs.getInt(Prefs.KEY_BACKGROUND_STROKE_WIDTH_DP, 2),
                 value -> getString(R.string.dp_value, value),
@@ -1687,8 +1717,6 @@ public final class MainActivity extends ScaledActivity
         ));
         backgroundStrokeSwitch.setChecked(
                 prefs.getBoolean(Prefs.KEY_BACKGROUND_STROKE_ENABLED, false));
-        boolean dayColors = prefs.getBoolean(Prefs.KEY_DAY_COLORS_ENABLED, false);
-        dayColorsSwitch.setChecked(dayColors);
         updatingSwitch = false;
         setSettingsGroupEnabled(systemStatusOptions, showSystemStatus);
         setSettingsGroupEnabled(systemStatusFineTune, showSystemStatus);
@@ -1704,33 +1732,7 @@ public final class MainActivity extends ScaledActivity
                                 : R.string.selected_summary,
                         selected.size(), capacity));
 
-        // The overlay has one color set; only the widget switches to the day colors.
-        boolean separateDay = widgetMode && dayColors;
-        updateColorButton(
-                backgroundColorButton,
-                getString(separateDay
-                        ? R.string.background_color_night : R.string.background_color),
-                prefs.getInt(Prefs.KEY_BACKGROUND_COLOR, 0xFF262626)
-        );
-        updateColorButton(
-                backgroundStrokeColorButton,
-                getString(separateDay ? R.string.stroke_color_night : R.string.stroke_color),
-                prefs.getInt(Prefs.KEY_BACKGROUND_STROKE_COLOR, Ui.ACCENT)
-        );
-        updateColorButton(
-                dayBackgroundColorButton,
-                getString(R.string.background_color_day),
-                prefs.getInt(Prefs.KEY_DAY_BACKGROUND_COLOR,
-                        PanelConfig.DAY_BACKGROUND_COLOR_DEFAULT)
-        );
-        updateColorButton(
-                dayBackgroundStrokeColorButton,
-                getString(R.string.stroke_color_day),
-                prefs.getInt(Prefs.KEY_DAY_BACKGROUND_STROKE_COLOR,
-                        PanelConfig.BACKGROUND_STROKE_COLOR_DEFAULT)
-        );
-        dayBackgroundColorButton.setVisibility(separateDay ? View.VISIBLE : View.GONE);
-        dayBackgroundStrokeColorButton.setVisibility(separateDay ? View.VISIBLE : View.GONE);
+        refreshColorButtons();
     }
 
     /** As GInputBridge shares .gibb: a dated file in the cache, sent through the share sheet. */
@@ -2277,8 +2279,10 @@ public final class MainActivity extends ScaledActivity
                 bounds.width(), bounds.height(), null, false);
     }
 
-    private void updateColorButton(Button button, String label, int color) {
-        button.setText(String.format("%s  #%06X", label, color & 0xFFFFFF));
+    /** @param themed the color is left to the theme, which the button says instead of a code */
+    private void updateColorButton(Button button, String label, int color, boolean themed) {
+        button.setText(themed ? label + "  " + getString(R.string.color_theme_value)
+                : String.format("%s  #%06X", label, color & 0xFFFFFF));
         button.setBackground(Ui.rounded(color, Ui.dp(this, 8)));
         double luminance = (0.2126 * Color.red(color)
                 + 0.7152 * Color.green(color)
@@ -2381,7 +2385,10 @@ public final class MainActivity extends ScaledActivity
                 AtlasAppWidgetProvider.widthDp(app, options),
                 AtlasAppWidgetProvider.heightDp(app, options)));
         int maxHeight = Math.round(getWindowManager().getCurrentWindowMetrics().getBounds().height() * 0.30f);
-        WidgetPreview.render(app, previewContainer, prefs,
+        Configuration mode = new Configuration(app.getResources().getConfiguration());
+        mode.uiMode = (mode.uiMode & ~Configuration.UI_MODE_NIGHT_MASK)
+                | (editNight ? Configuration.UI_MODE_NIGHT_YES : Configuration.UI_MODE_NIGHT_NO);
+        WidgetPreview.render(app.createConfigurationContext(mode), previewContainer, prefs,
                 AppRepository.loadSelectedActivities(app, prefs), options, maxHeight);
     }
 

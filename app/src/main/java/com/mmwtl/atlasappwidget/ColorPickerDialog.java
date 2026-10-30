@@ -18,6 +18,12 @@ final class ColorPickerDialog {
     }
 
     static void show(Context context, String title, int initialColor, Listener listener) {
+        show(context, title, initialColor, false, listener);
+    }
+
+    /** @param themeOption adds «По теме», which selects {@link PanelConfig#THEME_COLOR} */
+    static void show(Context context, String title, int initialColor, boolean themeOption,
+            Listener listener) {
         LinearLayout content = new LinearLayout(context);
         content.setOrientation(LinearLayout.VERTICAL);
         content.setPadding(Ui.dp(context, 24), Ui.dp(context, 10),
@@ -81,12 +87,16 @@ final class ColorPickerDialog {
         }
         update.run();
 
-        AlertDialog dialog = new AlertDialog.Builder(context)
+        AlertDialog.Builder builder = new AlertDialog.Builder(context)
                 .setTitle(title)
                 .setView(content)
                 .setNegativeButton(R.string.cancel, null)
-                .setPositiveButton(R.string.apply, null)
-                .create();
+                .setPositiveButton(R.string.apply, null);
+        if (themeOption) {
+            builder.setNeutralButton(R.string.color_theme,
+                    (shown, which) -> listener.onColorSelected(PanelConfig.THEME_COLOR));
+        }
+        AlertDialog dialog = builder.create();
         dialog.setOnShowListener(ignored -> dialog.getButton(AlertDialog.BUTTON_POSITIVE)
                 .setOnClickListener(view -> {
                     listener.onColorSelected(Color.rgb(channels[0], channels[1], channels[2]));

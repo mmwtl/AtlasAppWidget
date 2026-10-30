@@ -3,44 +3,12 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent">
 
-    <!-- White panel shape tinted with the theme surface; used while the panel color is default. -->
-    <ImageView
-        android:id="@+id/widget_background_themed"
+    <!-- Tinted layers live in nested layouts: a host that reapplies the update on a mode change
+         keeps the top-level views and their tints, but inflates nested views anew. -->
+    <FrameLayout
+        android:id="@+id/widget_background_host"
         android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:contentDescription="@null"
-        android:scaleType="fitXY"
-        android:tint="@color/widget_surface"
-        android:visibility="gone" />
-
-    <ImageView
-        android:id="@+id/widget_background"
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:contentDescription="@null"
-        android:scaleType="fitXY" />
-
-    <!-- Panels in the separate day and night colors. Multiplying by an opaque white or a
-         transparent tint keeps or hides each one, so the host picks the panel for the theme. -->
-    <ImageView
-        android:id="@+id/widget_background_day"
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:contentDescription="@null"
-        android:scaleType="fitXY"
-        android:tint="@color/widget_day_only"
-        android:tintMode="multiply"
-        android:visibility="gone" />
-
-    <ImageView
-        android:id="@+id/widget_background_night"
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:contentDescription="@null"
-        android:scaleType="fitXY"
-        android:tint="@color/widget_night_only"
-        android:tintMode="multiply"
-        android:visibility="gone" />
+        android:layout_height="match_parent" />
 
     <LinearLayout
         android:layout_width="match_parent"
@@ -48,38 +16,11 @@
         android:gravity="center"
         android:orientation="vertical">
 
-        <!-- Status strips: the *_themed mask is tinted with the theme text color under the
-             fixed-color *_image fills, which the *_shade mask darkens by day. -->
         <FrameLayout
             android:id="@+id/widget_status_top"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:visibility="gone">
-
-            <ImageView
-                android:id="@+id/widget_status_top_themed"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:contentDescription="@null"
-                android:scaleType="center"
-                android:tint="@color/widget_text" />
-
-            <ImageView
-                android:id="@+id/widget_status_top_image"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:contentDescription="@null"
-                android:scaleType="center" />
-
-            <ImageView
-                android:id="@+id/widget_status_top_shade"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:contentDescription="@null"
-                android:scaleType="center"
-                android:tint="@color/widget_status_fill_shade"
-                android:tintMode="src_in" />
-        </FrameLayout>
+            android:visibility="gone" />
 
         <LinearLayout
             android:layout_width="wrap_content"
@@ -91,32 +32,7 @@
                 android:id="@+id/widget_status_left"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:visibility="gone">
-
-                <ImageView
-                    android:id="@+id/widget_status_left_themed"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:contentDescription="@null"
-                    android:scaleType="center"
-                    android:tint="@color/widget_text" />
-
-                <ImageView
-                    android:id="@+id/widget_status_left_image"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:contentDescription="@null"
-                    android:scaleType="center" />
-
-                <ImageView
-                    android:id="@+id/widget_status_left_shade"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:contentDescription="@null"
-                    android:scaleType="center"
-                    android:tint="@color/widget_status_fill_shade"
-                    android:tintMode="src_in" />
-            </FrameLayout>
+                android:visibility="gone" />
 
             <LinearLayout
                 android:id="@+id/widget_grid"
@@ -129,63 +45,13 @@
                 android:id="@+id/widget_status_right"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:visibility="gone">
-
-                <ImageView
-                    android:id="@+id/widget_status_right_themed"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:contentDescription="@null"
-                    android:scaleType="center"
-                    android:tint="@color/widget_text" />
-
-                <ImageView
-                    android:id="@+id/widget_status_right_image"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:contentDescription="@null"
-                    android:scaleType="center" />
-
-                <ImageView
-                    android:id="@+id/widget_status_right_shade"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:contentDescription="@null"
-                    android:scaleType="center"
-                    android:tint="@color/widget_status_fill_shade"
-                    android:tintMode="src_in" />
-            </FrameLayout>
+                android:visibility="gone" />
         </LinearLayout>
 
         <FrameLayout
             android:id="@+id/widget_status_bottom"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:visibility="gone">
-
-            <ImageView
-                android:id="@+id/widget_status_bottom_themed"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:contentDescription="@null"
-                android:scaleType="center"
-                android:tint="@color/widget_text" />
-
-            <ImageView
-                android:id="@+id/widget_status_bottom_image"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:contentDescription="@null"
-                android:scaleType="center" />
-
-            <ImageView
-                android:id="@+id/widget_status_bottom_shade"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:contentDescription="@null"
-                android:scaleType="center"
-                android:tint="@color/widget_status_fill_shade"
-                android:tintMode="src_in" />
-        </FrameLayout>
+            android:visibility="gone" />
     </LinearLayout>
 </FrameLayout>

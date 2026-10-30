@@ -9,6 +9,9 @@
     <color name="widget_surface">#EDEEF0</color>
     <color name="widget_text">#202124</color>
     <color name="widget_label_outline">#FFFFFF</color>
+    <!-- Labels and status text for a panel that is dark by day and light at night. -->
+    <color name="widget_text_inverse">#F1F2F4</color>
+    <color name="widget_label_outline_inverse">#000000</color>
     <!-- Darkens the CPU, RAM and fuel fills by 30% by day to keep them 3:1 to the panel. -->
     <color name="widget_status_fill_shade">#4D000000</color>
     <!-- Gates for the panels in the separate day and night colors. -->
