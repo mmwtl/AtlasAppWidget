@@ -188,6 +188,15 @@ public final class AtlasAppWidgetProvider extends AppWidgetProvider {
                 .setData(Uri.parse("atlaswidget://settings/" + widgetId));
         views.setOnClickPendingIntent(R.id.widget_empty, PendingIntent.getActivity(context,
                 widgetId, settings, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE));
+        PanelConfig config = prefs.panelConfig();
+        if (config.fixedTheme()) {
+            // The layout's colors follow the host's mode; a fixed theme sets its own.
+            boolean night = config.themeMode == PanelConfig.THEME_NIGHT;
+            views.setInt(R.id.widget_empty, "setBackgroundColor",
+                    night ? PanelConfig.NIGHT_SURFACE : PanelConfig.DAY_SURFACE);
+            views.setTextColor(R.id.widget_empty_text,
+                    night ? PanelConfig.NIGHT_TEXT : PanelConfig.DAY_TEXT);
+        }
         return views;
     }
 
@@ -341,24 +350,28 @@ public final class AtlasAppWidgetProvider extends AppWidgetProvider {
         RemoteViews panel = new RemoteViews(context.getPackageName(), R.layout.widget_panel);
         RemoteViews background = new RemoteViews(context.getPackageName(),
                 R.layout.widget_background);
-        // Only colors that differ between the modes need a panel for each of them.
-        boolean dayColors = config.dayBackgroundColor != config.backgroundColor
-                || config.backgroundStrokeEnabled
-                && config.dayBackgroundStrokeColor != config.backgroundStrokeColor;
-        boolean themed = !dayColors && config.backgroundColor == PanelConfig.THEME_COLOR;
+        // Only colors that differ between the modes need a panel for each of them. A fixed
+        // theme has the same colors in both, all resolved here, so the host switches nothing.
+        int dayBackground = config.widgetBackground(false);
+        int nightBackground = config.widgetBackground(true);
+        int dayStroke = config.widgetStroke(false);
+        int nightStroke = config.widgetStroke(true);
+        boolean dayColors = dayBackground != nightBackground
+                || config.backgroundStrokeEnabled && dayStroke != nightStroke;
+        boolean themed = !dayColors && nightBackground == PanelConfig.THEME_COLOR;
         PanelConfig.TextMode text = config.textMode();
         boolean inverseText = text == PanelConfig.TextMode.INVERSE;
-        int fill = withBackgroundAlpha(config, config.backgroundColor);
+        int fill = withBackgroundAlpha(config, nightBackground);
         if (dayColors) {
             // Both panels are drawn whole; the host shows the one for the current theme.
             background.setImageViewBitmap(R.id.widget_background_day, background(context, config,
                     widthDp, heightDp, withBackgroundAlpha(config,
-                            PanelConfig.surface(config.dayBackgroundColor, false)),
-                    PanelConfig.stroke(config.dayBackgroundStrokeColor)));
+                            PanelConfig.surface(dayBackground, false)),
+                    PanelConfig.stroke(dayStroke)));
             background.setImageViewBitmap(R.id.widget_background_night, background(context, config,
                     widthDp, heightDp, withBackgroundAlpha(config,
-                            PanelConfig.surface(config.backgroundColor, true)),
-                    PanelConfig.stroke(config.backgroundStrokeColor)));
+                            PanelConfig.surface(nightBackground, true)),
+                    PanelConfig.stroke(nightStroke)));
         }
         if (themed) {
             // The host tints this white shape with the day or night surface color.
@@ -369,7 +382,7 @@ public final class AtlasAppWidgetProvider extends AppWidgetProvider {
         if (fixedBackground) {
             background.setImageViewBitmap(R.id.widget_background, background(context, config,
                     widthDp, heightDp, themed ? Color.TRANSPARENT : fill,
-                    PanelConfig.stroke(config.backgroundStrokeColor)));
+                    PanelConfig.stroke(nightStroke)));
         }
         background.setViewVisibility(R.id.widget_background_day,
                 dayColors ? View.VISIBLE : View.GONE);
@@ -473,7 +486,7 @@ public final class AtlasAppWidgetProvider extends AppWidgetProvider {
         if (config.showAppLabels && grid.labelScale > 0 && !text.masked()) {
             boolean dark = text == PanelConfig.TextMode.DARK;
             drawLabel(context, config, entry.label, grid, left, top,
-                    dark ? 0xFF202124 : Color.rgb(245, 245, 245),
+                    dark ? PanelConfig.DAY_TEXT : Color.rgb(245, 245, 245),
                     config.appLabelOutlineEnabled && !dark ? Color.BLACK : Color.TRANSPARENT,
                     canvas);
         }

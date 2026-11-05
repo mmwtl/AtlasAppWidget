@@ -133,6 +133,7 @@ public final class MainActivity extends ScaledActivity
     private TextView colorsDaySegment;
     private TextView colorsNightSegment;
     private TextView colorsHint;
+    private final TextView[] themeSegments = new TextView[3];
     /** The widget mode whose colors the settings edit and the preview shows; not stored. */
     private boolean editNight;
     private Switch manualHeightSwitch;
@@ -469,12 +470,49 @@ public final class MainActivity extends ScaledActivity
         overlayOnlyViews.add(panelSize);
         page.addView(buildBackgroundCard());
         page.addView(buildSystemStatusCard());
+        buildThemeCard(page);
         buildColorsCard(page);
     }
 
+    private void buildThemeCard(LinearLayout page) {
+        LinearLayout card = Ui.card(this);
+        card.addView(Ui.heading(this, R.string.widget_theme_title, 20));
+        TextView hint = Ui.text(this, R.string.widget_theme_hint, 13, Ui.TEXT_SECONDARY);
+        hint.setLineSpacing(0, 1.1f);
+        Ui.topMargin(hint, 6);
+        card.addView(hint);
+        LinearLayout modes = new LinearLayout(this);
+        modes.setOrientation(LinearLayout.HORIZONTAL);
+        Ui.topMargin(modes, 12);
+        int[] labels = {R.string.widget_theme_auto, R.string.colors_day, R.string.colors_night};
+        for (int mode = PanelConfig.THEME_AUTO; mode <= PanelConfig.THEME_NIGHT; mode++) {
+            TextView segment = Ui.segment(this, getString(labels[mode]));
+            int chosen = mode;
+            segment.setOnClickListener(view -> setThemeMode(chosen));
+            Ui.addSegment(modes, segment);
+            themeSegments[mode] = segment;
+        }
+        card.addView(modes);
+        page.addView(card);
+        widgetOnlyViews.add(card);
+    }
+
+    private void setThemeMode(int mode) {
+        prefs.putInt(Prefs.KEY_THEME_MODE, mode);
+        if (mode != PanelConfig.THEME_AUTO) {
+            // Only the fixed theme's colors show; edit and preview those.
+            editNight = mode == PanelConfig.THEME_NIGHT;
+        }
+        refreshColorButtons();
+        refreshPreviewSoon();
+    }
+
     private void buildColorsCard(LinearLayout page) {
-        editNight = (getResources().getConfiguration().uiMode & Configuration.UI_MODE_NIGHT_MASK)
-                == Configuration.UI_MODE_NIGHT_YES;
+        int theme = prefs.panelConfig().themeMode;
+        editNight = theme == PanelConfig.THEME_AUTO
+                ? (getResources().getConfiguration().uiMode & Configuration.UI_MODE_NIGHT_MASK)
+                        == Configuration.UI_MODE_NIGHT_YES
+                : theme == PanelConfig.THEME_NIGHT;
         LinearLayout colors = collapsibleCard(page, R.string.colors_title,
                 R.string.colors_summary);
         LinearLayout modes = new LinearLayout(this);
@@ -537,6 +575,10 @@ public final class MainActivity extends ScaledActivity
 
     private void refreshColorButtons() {
         boolean widgetMode = prefs.isWidgetMode();
+        int theme = prefs.panelConfig().themeMode;
+        for (int mode = 0; mode < themeSegments.length; mode++) {
+            Ui.setSegmentSelected(this, themeSegments[mode], mode == theme);
+        }
         Ui.setSegmentSelected(this, colorsDaySegment, !editNight);
         Ui.setSegmentSelected(this, colorsNightSegment, editNight);
         colorsHint.setText(widgetMode ? R.string.colors_widget_hint : R.string.colors_overlay_hint);

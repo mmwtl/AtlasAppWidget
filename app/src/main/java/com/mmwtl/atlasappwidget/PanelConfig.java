@@ -19,6 +19,13 @@ final class PanelConfig {
     /** Launcher surfaces, the same as widget_surface in values and values-night. */
     static final int DAY_SURFACE = 0xFFEDEEF0;
     static final int NIGHT_SURFACE = 0xFF232528;
+    /** Launcher text, the same as widget_text in values and values-night. */
+    static final int DAY_TEXT = 0xFF202124;
+    static final int NIGHT_TEXT = 0xFFF1F2F4;
+    /** The widget's theme: the head unit's day or night mode, or one of them fixed. */
+    static final int THEME_AUTO = 0;
+    static final int THEME_DAY = 1;
+    static final int THEME_NIGHT = 2;
     static final int HANDLE_LEFT = 0;
     static final int HANDLE_RIGHT = 1;
     static final int HANDLE_TOP = 2;
@@ -90,6 +97,8 @@ final class PanelConfig {
     final int dayBackgroundStrokeColor;
     /** Opacity of icons, labels and the status strip, 0..255. */
     final int contentAlpha;
+    /** {@link #THEME_AUTO}, {@link #THEME_DAY} or {@link #THEME_NIGHT}; the widget's only. */
+    final int themeMode;
 
     PanelConfig(Prefs prefs) {
         showDragHandle = prefs.getBoolean(Prefs.KEY_SHOW_DRAG_HANDLE, true);
@@ -161,6 +170,31 @@ final class PanelConfig {
         dayBackgroundStrokeColor = prefs.getInt(Prefs.KEY_DAY_BACKGROUND_STROKE_COLOR,
                 THEME_COLOR);
         contentAlpha = Math.max(0, Math.min(255, prefs.getInt(Prefs.KEY_CONTENT_ALPHA, 255)));
+        themeMode = Math.max(THEME_AUTO, Math.min(THEME_NIGHT,
+                prefs.getInt(Prefs.KEY_THEME_MODE, THEME_AUTO)));
+    }
+
+    boolean fixedTheme() {
+        return themeMode != THEME_AUTO;
+    }
+
+    /** The mode whose colors the widget shows while the head unit is in {@code night} mode. */
+    private boolean shownNight(boolean night) {
+        return fixedTheme() ? themeMode == THEME_NIGHT : night;
+    }
+
+    /**
+     * The widget's panel color in a head unit mode. A fixed theme shows its own colors in both
+     * modes, with a color left to the theme resolved: the host would resolve it by its own mode.
+     */
+    int widgetBackground(boolean night) {
+        boolean shown = shownNight(night);
+        int color = shown ? backgroundColor : dayBackgroundColor;
+        return fixedTheme() ? surface(color, shown) : color;
+    }
+
+    int widgetStroke(boolean night) {
+        return shownNight(night) ? backgroundStrokeColor : dayBackgroundStrokeColor;
     }
 
     /** The color an earlier version stored for what is now left to the theme. */
@@ -214,8 +248,8 @@ final class PanelConfig {
     }
 
     TextMode textMode() {
-        boolean lightByDay = isDark(surface(dayBackgroundColor, false));
-        boolean lightAtNight = isDark(surface(backgroundColor, true));
+        boolean lightByDay = isDark(surface(widgetBackground(false), false));
+        boolean lightAtNight = isDark(surface(widgetBackground(true), true));
         return lightByDay == lightAtNight
                 ? lightByDay ? TextMode.LIGHT : TextMode.DARK
                 : lightAtNight ? TextMode.THEME : TextMode.INVERSE;

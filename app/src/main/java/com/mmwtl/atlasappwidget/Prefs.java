@@ -83,6 +83,7 @@ final class Prefs {
     static final String KEY_CONTENT_ALPHA = "content_alpha";
     static final String KEY_DAY_BACKGROUND_COLOR = "day_background_color";
     static final String KEY_DAY_BACKGROUND_STROKE_COLOR = "day_background_stroke_color";
+    static final String KEY_THEME_MODE = "widget_theme_mode";
     static final String KEY_POSITION_X = "position_x";
     static final String KEY_POSITION_Y = "position_y";
     static final String KEY_POSITION_CORNER = "position_corner";
@@ -112,7 +113,7 @@ final class Prefs {
             KEY_BACKGROUND_ALPHA, KEY_BACKGROUND_STROKE_ENABLED, KEY_BACKGROUND_STROKE_WIDTH_DP,
             KEY_BACKGROUND_STROKE_ALPHA, KEY_BACKGROUND_STROKE_COLOR, KEY_PANEL_RADIUS_DP,
             KEY_CONTENT_ALPHA, KEY_DAY_BACKGROUND_COLOR, KEY_DAY_BACKGROUND_STROKE_COLOR,
-            KEY_SELECTED_COMPONENTS);
+            KEY_THEME_MODE, KEY_SELECTED_COMPONENTS);
 
     private final Context appContext;
     private final SharedPreferences values;

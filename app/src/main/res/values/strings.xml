@@ -169,8 +169,11 @@
     <string name="background_opacity">Непрозрачность фона</string>
     <string name="change_background_color">Изменить цвет фона</string>
     <string name="background_color">Цвет фона</string>
+    <string name="widget_theme_title">Тема виджета</string>
+    <string name="widget_theme_hint">«Авто» переключает день и ночь вместе с темой OneOS. «День» или «Ночь» оставляют виджет в одной теме с её цветами.</string>
+    <string name="widget_theme_auto">Авто</string>
     <string name="colors_title">Свои цвета</string>
-    <string name="colors_summary">Необязательно: без них виджет следует теме OneOS</string>
+    <string name="colors_summary">Необязательно: без них виджет берёт цвета темы</string>
     <string name="colors_day">День</string>
     <string name="colors_night">Ночь</string>
     <string name="colors_widget_hint">Цвета отдельно для дня и ночи; предпросмотр показывает выбранный режим. «По теме» в выборе цвета возвращает цвет темы. Подписи и полоса статуса подбираются по яркости фона.</string>
