@@ -25,11 +25,18 @@ import android.widget.RemoteViews;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 public final class AtlasAppWidgetProvider extends AppWidgetProvider {
     private static final ExecutorService RENDERER = Executors.newSingleThreadExecutor();
+    /**
+     * Widgets whose panel this process has sent whole. The system forgets the views on reboot and
+     * when the app is updated, and a partial update then becomes the whole widget: the strip alone.
+     */
+    private static final Set<Integer> RENDERED = ConcurrentHashMap.newKeySet();
 
     @Override
     public void onReceive(Context context, Intent intent) {
@@ -140,12 +147,21 @@ public final class AtlasAppWidgetProvider extends AppWidgetProvider {
             if (!config.showSystemStatus || widget.selectedComponents().isEmpty()) {
                 continue;
             }
+            if (!RENDERED.contains(widgetId)) {
+                render(context, new int[] {widgetId});
+                continue;
+            }
             try {
                 Bundle options = manager.getAppWidgetOptions(widgetId);
+                // Only the strip's bitmaps and description: the system merges a partial update
+                // into the widget's views and replaces such actions, while removeAllViews and
+                // addView are appended, so the views would grow by a strip every update.
                 RemoteViews views = new RemoteViews(context.getPackageName(),
                         R.layout.widget_panel);
-                applyStatus(context, config, views, grid(context, config, options),
-                        snapshot, fuelReading);
+                CharSequence description = drawStatusLayers(context, config,
+                        grid(context, config, options), snapshot, fuelReading, views);
+                views.setContentDescription(STATUS_VIEW_IDS[config.systemStatusPosition],
+                        description);
                 manager.partiallyUpdateAppWidget(widgetId, views);
             } catch (RuntimeException error) {
                 AppLog.warn("Cannot update Android widget status " + widgetId, error);
@@ -172,6 +188,11 @@ public final class AtlasAppWidgetProvider extends AppWidgetProvider {
                         : panelViews(context, widget, widget.panelConfig(), entries,
                                 manager.getAppWidgetOptions(widgetId), widgetId);
                 manager.updateAppWidget(widgetId, views);
+                if (entries.isEmpty()) {
+                    RENDERED.remove(widgetId);
+                } else {
+                    RENDERED.add(widgetId);
+                }
             } catch (RuntimeException error) {
                 AppLog.warn("Cannot update Android widget " + widgetId, error);
             }
@@ -271,24 +292,8 @@ public final class AtlasAppWidgetProvider extends AppWidgetProvider {
         boolean inverse = text == PanelConfig.TextMode.INVERSE;
         int position = config.systemStatusPosition;
         RemoteViews layers = new RemoteViews(context.getPackageName(), R.layout.widget_status);
-        Bitmap image = statusBitmap(context, config, grid);
-        CharSequence description = drawStatus(context, config, grid, snapshot, fuelReading,
-                text.masked() ? SystemStatusView.FILLS
-                        : text == PanelConfig.TextMode.DARK ? SystemStatusView.ON_LIGHT
-                        : SystemStatusView.DARK, image);
-        layers.setImageViewBitmap(R.id.widget_status_image, image);
-        if (text.masked()) {
-            Bitmap mask = statusBitmap(context, config, grid);
-            drawStatus(context, config, grid, snapshot, fuelReading, SystemStatusView.MASK, mask);
-            layers.setImageViewBitmap(inverse ? R.id.widget_status_inverse
-                    : R.id.widget_status_themed, mask);
-        }
-        if (themed) {
-            Bitmap shade = statusBitmap(context, config, grid);
-            drawStatus(context, config, grid, snapshot, fuelReading,
-                    SystemStatusView.FILL_MASK, shade);
-            layers.setImageViewBitmap(R.id.widget_status_shade, shade);
-        }
+        CharSequence description = drawStatusLayers(context, config, grid, snapshot, fuelReading,
+                layers);
         for (int layerId : new int[] {R.id.widget_status_image, R.id.widget_status_themed,
                 R.id.widget_status_inverse, R.id.widget_status_shade}) {
             layers.setInt(layerId, "setImageAlpha", config.contentAlpha);
@@ -302,6 +307,35 @@ public final class AtlasAppWidgetProvider extends AppWidgetProvider {
         views.addView(viewId, layers);
         views.setContentDescription(viewId, description);
         views.setViewVisibility(viewId, View.VISIBLE);
+    }
+
+    /**
+     * Draws the strip's layers into {@code target}, which is the strip's own views or, for a
+     * partial update, the panel's: its nested strip views have the same ids.
+     */
+    private static CharSequence drawStatusLayers(Context context, PanelConfig config,
+            WidgetGrid grid, SystemStatusSnapshot snapshot,
+            FuelLevelProvider.Reading fuelReading, RemoteViews target) {
+        PanelConfig.TextMode text = config.textMode();
+        Bitmap image = statusBitmap(context, config, grid);
+        CharSequence description = drawStatus(context, config, grid, snapshot, fuelReading,
+                text.masked() ? SystemStatusView.FILLS
+                        : text == PanelConfig.TextMode.DARK ? SystemStatusView.ON_LIGHT
+                        : SystemStatusView.DARK, image);
+        target.setImageViewBitmap(R.id.widget_status_image, image);
+        if (text.masked()) {
+            Bitmap mask = statusBitmap(context, config, grid);
+            drawStatus(context, config, grid, snapshot, fuelReading, SystemStatusView.MASK, mask);
+            target.setImageViewBitmap(text == PanelConfig.TextMode.INVERSE
+                    ? R.id.widget_status_inverse : R.id.widget_status_themed, mask);
+        }
+        if (text == PanelConfig.TextMode.THEME) {
+            Bitmap shade = statusBitmap(context, config, grid);
+            drawStatus(context, config, grid, snapshot, fuelReading,
+                    SystemStatusView.FILL_MASK, shade);
+            target.setImageViewBitmap(R.id.widget_status_shade, shade);
+        }
+        return description;
     }
 
     // The strip bitmap carries the gap on its grid side, like cell bitmaps carry theirs.
