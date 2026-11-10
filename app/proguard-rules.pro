@@ -1,2 +1,6 @@
-# The first version deliberately keeps class names intact so APK inspection and
-# head-unit diagnostics remain practical. Add shrinking rules only for release.
+# R8 full mode (AGP 8 default). There are no runtime dependencies; reflection only reaches
+# platform and firmware classes, which are not in the APK, so no extra keep rules are needed.
+
+# Readable stack traces.
+-keepattributes SourceFile,LineNumberTable
+-renamesourcefileattribute SourceFile
