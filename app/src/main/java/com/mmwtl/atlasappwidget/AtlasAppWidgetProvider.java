@@ -42,14 +42,16 @@ public final class AtlasAppWidgetProvider extends AppWidgetProvider {
     public void onReceive(Context context, Intent intent) {
         String action = intent == null ? null : intent.getAction();
         if (AppWidgetManager.ACTION_APPWIDGET_UPDATE.equals(action)
-                || AppWidgetManager.ACTION_APPWIDGET_OPTIONS_CHANGED.equals(action)) {
+                || AppWidgetManager.ACTION_APPWIDGET_OPTIONS_CHANGED.equals(action)
+                || Intent.ACTION_PACKAGE_FULLY_REMOVED.equals(action)) {
             PendingResult result = goAsync();
             Context app = context.getApplicationContext();
             WidgetFuelService.sync(app);
-            int[] ids = AppWidgetManager.ACTION_APPWIDGET_UPDATE.equals(action)
-                    ? intent.getIntArrayExtra(AppWidgetManager.EXTRA_APPWIDGET_IDS)
-                    : new int[]{intent.getIntExtra(AppWidgetManager.EXTRA_APPWIDGET_ID,
-                            AppWidgetManager.INVALID_APPWIDGET_ID)};
+            int[] ids = Intent.ACTION_PACKAGE_FULLY_REMOVED.equals(action) ? ids(app)
+                    : AppWidgetManager.ACTION_APPWIDGET_UPDATE.equals(action)
+                            ? intent.getIntArrayExtra(AppWidgetManager.EXTRA_APPWIDGET_IDS)
+                            : new int[]{intent.getIntExtra(AppWidgetManager.EXTRA_APPWIDGET_ID,
+                                    AppWidgetManager.INVALID_APPWIDGET_ID)};
             RENDERER.execute(() -> {
                 try {
                     render(app, ids);
@@ -508,13 +510,14 @@ public final class AtlasAppWidgetProvider extends AppWidgetProvider {
         PanelLayout layout = grid.layout;
         int left = column == 0 ? 0 : layout.horizontalGap;
         int top = row == 0 ? 0 : layout.verticalGap;
-        Bitmap bitmap = Bitmap.createBitmap(layout.cellWidth + left, layout.cellHeight + top,
-                Bitmap.Config.ARGB_8888);
-        bitmap.setDensity(context.getResources().getDisplayMetrics().densityDpi);
+        Bitmap bitmap = cellLayer(context, grid, layout.cellWidth + left,
+                layout.cellHeight + top);
         if (entry == null) return bitmap;
-        Canvas canvas = new Canvas(bitmap);
+        Canvas canvas = cellCanvas(context, bitmap);
+        float iconLeft = left + (layout.cellWidth - layout.iconSize) / 2f;
         canvas.drawBitmap(icon(context, prefs, config, entry, layout.iconSize, fuelReading),
-                left + (layout.cellWidth - layout.iconSize) / 2f, top, null);
+                null, new RectF(iconLeft, top, iconLeft + layout.iconSize,
+                        top + layout.iconSize), null);
         // Themed labels go to their own tinted layers, see labelBitmap.
         PanelConfig.TextMode text = config.textMode();
         if (config.showAppLabels && grid.labelScale > 0 && !text.masked()) {
@@ -537,14 +540,36 @@ public final class AtlasAppWidgetProvider extends AppWidgetProvider {
         int left = column == 0 ? 0 : layout.horizontalGap;
         int top = row == 0 ? 0 : layout.verticalGap;
         int labelTop = labelTop(context, config, grid, top);
-        Bitmap bitmap = Bitmap.createBitmap(layout.cellWidth + left,
-                Math.max(1, top + layout.cellHeight - labelTop), Bitmap.Config.ARGB_8888);
-        bitmap.setDensity(context.getResources().getDisplayMetrics().densityDpi);
-        Canvas canvas = new Canvas(bitmap);
+        Bitmap bitmap = cellLayer(context, grid, layout.cellWidth + left,
+                Math.max(1, top + layout.cellHeight - labelTop));
+        Canvas canvas = cellCanvas(context, bitmap);
         canvas.translate(0, -labelTop);
         drawLabel(context, config, label, grid, left, top, Color.WHITE,
                 outline ? Color.WHITE : Color.TRANSPARENT, canvas);
         return bitmap;
+    }
+
+    /** RemoteViews limits bitmap memory to 1.5 screenfuls, including all label layers. */
+    private static Bitmap cellLayer(Context context, WidgetGrid grid, int width, int height) {
+        android.util.DisplayMetrics metrics = context.getResources().getDisplayMetrics();
+        double budget = metrics.widthPixels * (double) metrics.heightPixels * 0.30;
+        double area = grid.layout.panelWidth * (double) grid.layout.panelHeight;
+        float scale = (float) Math.min(1, Math.sqrt(budget / Math.max(1, area)));
+        int density = Math.max(1, (int) (metrics.densityDpi * scale));
+        scale = density / (float) metrics.densityDpi;
+        Bitmap bitmap = Bitmap.createBitmap(Math.max(1, Math.round(width * scale)),
+                Math.max(1, Math.round(height * scale)), Bitmap.Config.ARGB_8888);
+        // The host restores physical size through density; only raster resolution is reduced.
+        bitmap.setDensity(density);
+        return bitmap;
+    }
+
+    private static Canvas cellCanvas(Context context, Bitmap bitmap) {
+        Canvas canvas = new Canvas(bitmap);
+        float scale = bitmap.getDensity()
+                / (float) context.getResources().getDisplayMetrics().densityDpi;
+        canvas.scale(scale, scale);
+        return canvas;
     }
 
     private static int labelTop(Context context, PanelConfig config, WidgetGrid grid, int top) {

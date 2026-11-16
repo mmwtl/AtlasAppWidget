@@ -4,6 +4,7 @@ import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.ActivityInfo;
+import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageManager;
 import android.content.pm.ResolveInfo;
 
@@ -32,7 +33,7 @@ final class AppRepository {
         Map<String, AppEntry> unique = new LinkedHashMap<>();
         for (ResolveInfo info : resolved) {
             ActivityInfo activity = info.activityInfo;
-            if (activity == null || !activity.exported) {
+            if (!available(activity)) {
                 continue;
             }
             ComponentName component = new ComponentName(activity.packageName, activity.name);
@@ -88,9 +89,7 @@ final class AppRepository {
         );
         for (ResolveInfo info : resolved) {
             ActivityInfo activity = info.activityInfo;
-            if (activity == null || !activity.exported || !activity.enabled
-                    || activity.applicationInfo == null
-                    || !activity.applicationInfo.enabled) {
+            if (!available(activity)) {
                 continue;
             }
             ComponentName component = new ComponentName(activity.packageName, activity.name);
@@ -191,11 +190,16 @@ final class AppRepository {
         } catch (PackageManager.NameNotFoundException missing) {
             return null;
         }
-        if (info == null || !info.exported || !info.enabled
-                || info.applicationInfo == null || !info.applicationInfo.enabled) {
+        if (!available(info)) {
             return null;
         }
         return info;
+    }
+
+    private static boolean available(ActivityInfo info) {
+        return info != null && info.exported && info.enabled
+                && info.applicationInfo != null && info.applicationInfo.enabled
+                && (info.applicationInfo.flags & ApplicationInfo.FLAG_SUSPENDED) == 0;
     }
 
     private static String safeActivityLabel(PackageManager packageManager,

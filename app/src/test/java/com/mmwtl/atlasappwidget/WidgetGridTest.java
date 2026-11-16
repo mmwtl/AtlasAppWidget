@@ -19,15 +19,17 @@ public final class WidgetGridTest {
     }
 
     @Test
-    public void roomyHostPreservesLargeIconsPaddingAndGaps() {
-        WidgetGrid grid = grid(1200, 800, 3, 2, 240, 40, 36, 40, 24);
-        assertEquals(240, grid.layout.iconSize);
-        assertEquals(40, grid.layout.padding);
-        assertEquals(36, grid.layout.horizontalGap);
-        assertEquals(36, grid.layout.verticalGap);
-        assertEquals(240 + 40 + 24, grid.layout.cellHeight);
-        assertEquals(1f, grid.labelScale, 0f);
-        assertFits(grid, 1200, 800);
+    public void expandingHostScalesIconsLabelsPaddingAndGapsTogether() {
+        WidgetGrid small = grid(400, 240, 3, 2, 80, 10, 8, 20, 4);
+        WidgetGrid large = grid(800, 480, 3, 2, 80, 10, 8, 20, 4);
+        assertEquals(small.layout.iconSize * 2, large.layout.iconSize);
+        assertEquals(small.layout.padding * 2, large.layout.padding);
+        assertEquals(small.layout.horizontalGap * 2, large.layout.horizontalGap);
+        assertEquals(small.layout.verticalGap * 2, large.layout.verticalGap);
+        assertEquals(small.labelScale * 2, large.labelScale, 0.001f);
+        assertTrue(large.layout.iconSize > 80);
+        assertFits(small, 400, 240);
+        assertFits(large, 800, 480);
     }
 
     @Test
@@ -43,7 +45,8 @@ public final class WidgetGridTest {
         WidgetGrid plain = grid(500, 120, 5, 1, 104, 10, 10, 0, 0);
         WidgetGrid labels = grid(500, 120, 5, 1, 104, 10, 10, 32, 16);
         assertTrue(labels.layout.iconSize < plain.layout.iconSize);
-        assertEquals(labels.layout.iconSize + 48, labels.layout.cellHeight);
+        assertEquals(labels.layout.iconSize + (int) (32 * labels.labelScale)
+                + (int) (16 * labels.labelScale), labels.layout.cellHeight);
     }
 
     @Test
@@ -53,9 +56,9 @@ public final class WidgetGridTest {
                 false, 60, 16);
         WidgetGrid side = WidgetGrid.forSize(900, 300, 5, 2, 104, 10, 10, 0, 0,
                 true, 40, 16);
-        assertEquals(plain.layout.gridWidth, bottom.layout.gridWidth);
+        assertTrue(bottom.layout.gridWidth <= 900);
         assertTrue(bottom.layout.gridHeight + 60 + 16 + bottom.layout.padding * 2 <= 300);
-        assertEquals(plain.layout.gridWidth - 56, side.layout.gridWidth);
+        assertTrue(side.layout.gridWidth + 56 + side.layout.padding * 2 <= 900);
         assertTrue(bottom.layout.iconSize < plain.layout.iconSize);
     }
 

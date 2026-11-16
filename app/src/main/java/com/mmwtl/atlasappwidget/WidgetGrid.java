@@ -27,14 +27,21 @@ final class WidgetGrid {
         columns = Math.max(1, Math.min(10, columns));
         rows = Math.max(1, Math.min(4, rows));
         boolean showStatus = statusSize > 0;
-        int gridHeight = showStatus && !sideStatus
-                ? height - statusSize - Math.max(0, statusGap) : height;
-        // Very short hosts must fit the labels too, without dropping configured rows.
-        float labelScale = labelHeight + labelGap == 0 ? 1f : Math.min(1f,
-                Math.max(0, gridHeight / rows - 1) / (float) (labelHeight + labelGap));
+        int statusSpace = showStatus ? statusSize + Math.max(0, statusGap) : 0;
+        int gridWidth = Math.max(1, width - (sideStatus ? statusSpace : 0));
+        int gridHeight = Math.max(1, height - (sideStatus ? 0 : statusSpace));
+        // Preferences describe proportions. The host size determines their actual pixel size,
+        // so expanding a widget grows its contents as well as its background.
+        int naturalWidth = columns * iconSize + (columns - 1) * gap + padding * 2;
+        int naturalHeight = rows * (iconSize + labelHeight + labelGap)
+                + (rows - 1) * gap + padding * 2;
+        float scale = Math.min(gridWidth / (float) Math.max(1, naturalWidth),
+                gridHeight / (float) Math.max(1, naturalHeight));
+        float labelScale = scale;
         PanelLayout layout = PanelLayout.calculate(width, height, width, 1, 1,
-                iconSize, (int) (labelHeight * labelScale), (int) (labelGap * labelScale),
-                rows, columns, padding, gap, false, false, 0, 0,
+                Math.max(1, (int) (iconSize * scale)), (int) (labelHeight * scale),
+                (int) (labelGap * scale), rows, columns, (int) (padding * scale),
+                (int) (gap * scale), false, false, 0, 0,
                 showStatus, sideStatus, statusSize, statusGap, 0, height);
         return new WidgetGrid(columns, rows, layout, labelScale);
     }
