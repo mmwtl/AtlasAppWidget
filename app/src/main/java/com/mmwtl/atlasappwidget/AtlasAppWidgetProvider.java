@@ -42,14 +42,16 @@ public final class AtlasAppWidgetProvider extends AppWidgetProvider {
     public void onReceive(Context context, Intent intent) {
         String action = intent == null ? null : intent.getAction();
         if (AppWidgetManager.ACTION_APPWIDGET_UPDATE.equals(action)
-                || AppWidgetManager.ACTION_APPWIDGET_OPTIONS_CHANGED.equals(action)) {
+                || AppWidgetManager.ACTION_APPWIDGET_OPTIONS_CHANGED.equals(action)
+                || Intent.ACTION_PACKAGE_FULLY_REMOVED.equals(action)) {
             PendingResult result = goAsync();
             Context app = context.getApplicationContext();
             WidgetFuelService.sync(app);
-            int[] ids = AppWidgetManager.ACTION_APPWIDGET_UPDATE.equals(action)
-                    ? intent.getIntArrayExtra(AppWidgetManager.EXTRA_APPWIDGET_IDS)
-                    : new int[]{intent.getIntExtra(AppWidgetManager.EXTRA_APPWIDGET_ID,
-                            AppWidgetManager.INVALID_APPWIDGET_ID)};
+            int[] ids = Intent.ACTION_PACKAGE_FULLY_REMOVED.equals(action) ? ids(app)
+                    : AppWidgetManager.ACTION_APPWIDGET_UPDATE.equals(action)
+                            ? intent.getIntArrayExtra(AppWidgetManager.EXTRA_APPWIDGET_IDS)
+                            : new int[]{intent.getIntExtra(AppWidgetManager.EXTRA_APPWIDGET_ID,
+                                    AppWidgetManager.INVALID_APPWIDGET_ID)};
             RENDERER.execute(() -> {
                 try {
                     render(app, ids);

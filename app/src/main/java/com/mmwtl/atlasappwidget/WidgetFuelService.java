@@ -5,8 +5,8 @@ import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.app.Service;
-import android.appwidget.AppWidgetManager;
-import android.content.ComponentName;
+import android.content.BroadcastReceiver;
+import android.content.IntentFilter;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.ServiceInfo;
@@ -22,7 +22,7 @@ import java.util.concurrent.Executors;
 
 /**
  * Keeps HOME widgets live: the GInputBridge fuel receiver for fuel tiles and the status strip,
- * and CPU/RAM sampling for the status strip.
+ * CPU/RAM sampling for the status strip, and package availability for all widgets.
  */
 public final class WidgetFuelService extends Service {
     private static final String CHANNEL_ID = "atlas_widget_fuel";
@@ -50,6 +50,19 @@ public final class WidgetFuelService extends Service {
                     ? METRICS_REFRESH_MS : FUEL_REFRESH_MS);
         }
     };
+    private final BroadcastReceiver packages = new BroadcastReceiver() {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            // During an upgrade REMOVED is followed by ADDED/REPLACED. Keep the old view until
+            // the replacement is ready rather than briefly hiding its shortcut.
+            if (Intent.ACTION_PACKAGE_REMOVED.equals(intent.getAction())
+                    && intent.getBooleanExtra(Intent.EXTRA_REPLACING, false)) {
+                return;
+            }
+            AtlasAppWidgetProvider.refreshFuel(context);
+        }
+    };
+
     private FuelLevelProvider fuel;
     private SystemMetricsSampler sampler;
     private PowerManager power;
@@ -90,16 +103,7 @@ public final class WidgetFuelService extends Service {
         if (!prefs.isWidgetMode()) {
             return false;
         }
-        AppWidgetManager manager = AppWidgetManager.getInstance(context);
-        for (int widgetId : manager.getAppWidgetIds(
-                new ComponentName(context, AtlasAppWidgetProvider.class))) {
-            Prefs widget = prefs.forWidget(widgetId);
-            if (widget.selectedComponents().contains(AppEntry.FUEL_COMPONENT_KEY)
-                    || widget.panelConfig().showSystemStatus) {
-                return true;
-            }
-        }
-        return false;
+        return AtlasAppWidgetProvider.ids(context).length > 0;
     }
 
     @Override
@@ -134,6 +138,24 @@ public final class WidgetFuelService extends Service {
         fuel = new FuelLevelProvider(this, prefs, this::publishIfChanged);
         sampler = new SystemMetricsSampler(this, fuel);
         power = getSystemService(PowerManager.class);
+        IntentFilter changes = new IntentFilter();
+        changes.addAction(Intent.ACTION_PACKAGE_ADDED);
+        changes.addAction(Intent.ACTION_PACKAGE_REMOVED);
+        changes.addAction(Intent.ACTION_PACKAGE_CHANGED);
+        changes.addAction(Intent.ACTION_PACKAGE_REPLACED);
+        changes.addDataScheme("package");
+        IntentFilter suspended = new IntentFilter();
+        suspended.addAction(Intent.ACTION_PACKAGES_SUSPENDED);
+        suspended.addAction(Intent.ACTION_PACKAGES_UNSUSPENDED);
+        suspended.addAction(Intent.ACTION_EXTERNAL_APPLICATIONS_AVAILABLE);
+        suspended.addAction(Intent.ACTION_EXTERNAL_APPLICATIONS_UNAVAILABLE);
+        if (Build.VERSION.SDK_INT >= 33) {
+            registerReceiver(packages, changes, Context.RECEIVER_NOT_EXPORTED);
+            registerReceiver(packages, suspended, Context.RECEIVER_NOT_EXPORTED);
+        } else {
+            registerReceiver(packages, changes);
+            registerReceiver(packages, suspended);
+        }
         instance = this;
     }
 
@@ -220,6 +242,7 @@ public final class WidgetFuelService extends Service {
     @Override
     public void onDestroy() {
         handler.removeCallbacks(refresh);
+        unregisterReceiver(packages);
         sampling.shutdownNow();
         if (fuel != null) {
             fuel.stop();

@@ -130,7 +130,7 @@
             android:stopWithTask="false">
             <property
                 android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
-                android:value="Keeps a user-placed home screen widget current: fuel from GInputBridge sensor broadcasts and CPU/RAM usage" />
+                android:value="Keeps home screen widget shortcuts current when apps change, and updates fuel and CPU/RAM usage" />
         </service>
 
         <service
@@ -172,6 +172,11 @@
             android:exported="true">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <!-- This package broadcast can also wake a stopped renderer after process death. -->
+            <intent-filter>
+                <action android:name="android.intent.action.PACKAGE_FULLY_REMOVED" />
+                <data android:scheme="package" />
             </intent-filter>
             <meta-data
                 android:name="android.appwidget.provider"
